@@ -6,9 +6,6 @@ from PIL import Image, ImageTk
 import torch
 import ssl
 import config
-import os
-import sys
-import subprocess
 import threading
 import time
 import ctypes
@@ -16,33 +13,11 @@ from ctypes import windll
 from pynput import keyboard
 
 
-# 🌟 导入自定义模块
 from tracker_engine import LoftrEngine
 from route_manager import RouteManager
+from bootstrap import run_selector_if_needed
 
 ssl._create_default_https_context = ssl._create_unverified_context
-
-
-def run_selector_if_needed(force=False):
-    minimap_cfg = config.settings.get("MINIMAP", {})
-    has_valid_config = minimap_cfg and "top" in minimap_cfg and "left" in minimap_cfg
-
-    if not has_valid_config or force:
-        print("未检测到有效的小地图坐标，或请求重新校准。")
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-            selector_path = os.path.join(base_dir, "MinimapSetup.exe")
-            command = [selector_path]
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            selector_path = os.path.join(base_dir, "selector.py")
-            command = [sys.executable, selector_path]
-        try:
-            subprocess.run(command, check=True)
-            import importlib
-            importlib.reload(config)
-        except Exception:
-            sys.exit(1)
 
 
 # ==========================================
@@ -134,7 +109,6 @@ class MapSelectorWindow:
         img_resized = cv2.resize(self.full_img_rgb, (sw, sh))
 
         # 🌟 在缩放后的底图上绘制开启的路线
-        color_idx = 0
         for cat in self.route_mgr.categories:
             for route in self.route_mgr.route_groups[cat]:
                 name = route.get("display_name")
@@ -143,10 +117,8 @@ class MapSelectorWindow:
 
                 pts = route.get("points", [])
 
-                # 获取原颜色 (通常是BGR)，因为当前底图换成了RGB格式，所以需要倒序通道
-                bgr_color = self.route_mgr.colors[color_idx % len(self.route_mgr.colors)]
+                bgr_color = self.route_mgr.color_for(name)
                 rgb_color = (bgr_color[2], bgr_color[1], bgr_color[0])
-                color_idx += 1
 
                 # 将路线的坐标乘以当前的地图缩放比例
                 scaled_pts = [(int(p["x"] * self.scale), int(p["y"] * self.scale)) for p in pts]

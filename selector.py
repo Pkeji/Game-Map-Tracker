@@ -4,7 +4,7 @@ import os
 import mss
 from PIL import Image, ImageTk
 
-CONFIG_FILE = "config.json"
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
 
 class MinimapSelector:
@@ -25,6 +25,7 @@ class MinimapSelector:
 
         # 从现有配置文件中读取上一次的位置
         self.load_initial_pos()
+        self.ensure_visible()
 
         # 设置初始位置和大小
         self.root.geometry(f"{self.size}x{self.size}+{self.x}+{self.y}")
@@ -65,6 +66,25 @@ class MinimapSelector:
                         self.size = minimap.get("width", 150)
             except Exception:
                 pass
+
+    def ensure_visible(self):
+        """确保选择器不会因为旧坐标而跑到当前屏幕外。"""
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+
+        self.size = max(80, min(self.size, screen_w, screen_h))
+        max_x = max(0, screen_w - self.size)
+        max_y = max(0, screen_h - self.size)
+
+        old_x, old_y = self.x, self.y
+        self.x = min(max(0, self.x), max_x)
+        self.y = min(max(0, self.y), max_y)
+
+        if (self.x, self.y) != (old_x, old_y):
+            print(
+                f">>> 检测到旧的小地图选择器坐标超出当前屏幕，"
+                f"已自动重置为 left={self.x}, top={self.y}, size={self.size}"
+            )
 
     def draw_ui(self):
         """绘制界面元素 (圆形准星和提示文字)"""

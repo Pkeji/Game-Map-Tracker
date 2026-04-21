@@ -3,50 +3,9 @@ import numpy as np
 import mss
 import tkinter as tk
 from PIL import Image, ImageTk
-import time
-import config  # <--- 导入同目录下的配置文件
-import subprocess
-import os
-import sys
+import config
 
-def run_selector_if_needed(force=False):
-    """
-    检查是否需要运行小地图校准工具。
-    :param force: 如果为 True，无视配置强制重新校准
-    """
-    # 检查 config.json 中是否已经有了合法的坐标
-    minimap_cfg = config.settings.get("MINIMAP", {})
-    has_valid_config = minimap_cfg and "top" in minimap_cfg and "left" in minimap_cfg
-
-    if not has_valid_config or force:
-        print("未检测到有效的小地图坐标，或请求重新校准。")
-        print(">>> 正在启动小地图选择器...")
-
-        # 兼容打包后的 .exe 运行路径
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-            selector_path = os.path.join(base_dir, "MinimapSetup.exe")  # 假设你把 selector 打包成了这个名字
-            command = [selector_path]
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            selector_path = os.path.join(base_dir, "selector.py")
-            command = [sys.executable, selector_path]
-
-        try:
-            # 阻塞运行：等待 selector 窗口关闭后，才会继续执行下面的代码
-            subprocess.run(command, check=True)
-            print("<<< 选择器关闭，坐标已更新！")
-
-            # 重要：因为配置文件被 selector 修改了，我们需要重新加载一次 config 模块的数据
-            import importlib
-            importlib.reload(config)
-
-        except FileNotFoundError:
-            print(f"❌ 严重错误：找不到小地图选择器工具！期望路径：{selector_path}")
-            print("请手动修改 config.json 或确保选择器工具存在。")
-            sys.exit(1)  # 如果连选择器都没有，且没有配置，只能退出程序
-        except subprocess.CalledProcessError:
-            print("⚠️ 选择器异常退出，可能未保存坐标。")
+from bootstrap import run_selector_if_needed
 
 class SiftMapTrackerApp:
     def __init__(self, root):
