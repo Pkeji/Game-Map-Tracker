@@ -7,6 +7,7 @@ EXPANDED_H = 500
 TOP_MARGIN = 0
 ANIMATION_MS = 220
 RECENT_ROUTES_MAX_HEIGHT = 100
+ROUTES_LIST_MIN_HEIGHT = 160
 SIDEBAR_RAIL_WIDTH = 34
 WINDOW_MIN_W = 420
 WINDOW_MIN_H = 240
@@ -30,6 +31,38 @@ DOT_INERTIAL = "#ffd60a"
 DOT_LOST = "#ff453a"
 DOT_SEARCHING = "#8e8e93"
 RADIUS = 20
+
+TOOLTIP_QSS = f"""
+QToolTip {{
+    background: rgba(28, 28, 30, 245);
+    color: {FG};
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    padding: 5px 8px;
+    margin: 0px;
+    font-size: 11px;
+}}
+"""
+
+
+def ensure_tooltip_style() -> None:
+    try:
+        from PySide6.QtWidgets import QApplication
+    except Exception:
+        return
+
+    app = QApplication.instance()
+    if app is None:
+        return
+
+    marker = "_game_map_tooltip_qss_applied"
+    if app.property(marker):
+        return
+
+    base = app.styleSheet().rstrip()
+    if TOOLTIP_QSS not in base:
+        app.setStyleSheet(f"{base}\n{TOOLTIP_QSS}".strip())
+    app.setProperty(marker, True)
 
 ISLAND_QSS = f"""
 QWidget#IslandRoot {{
@@ -116,17 +149,109 @@ QPushButton {{
 QPushButton:hover {{
     background: rgba(255, 255, 255, 0.20);
 }}
-QPushButton:checked {{
+QPushButton:pressed {{
+    background: rgba(255, 255, 255, 0.28);
+}}
+QPushButton[headerButton="true"] {{
+    background: rgba(255, 255, 255, 0.12);
+    color: {FG};
+    border: 1px solid transparent;
+    min-height: 28px;
+    max-height: 28px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 8px;
+}}
+QPushButton[headerButton="true"]:hover {{
+    background: rgba(255, 255, 255, 0.18);
+}}
+QPushButton[headerButton="true"]:pressed {{
+    background: rgba(255, 255, 255, 0.28);
+}}
+QPushButton[headerButton="true"]:disabled {{
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(242, 242, 247, 0.45);
+    border-color: rgba(255, 255, 255, 0.04);
+}}
+QPushButton[headerButton="true"][iconRole="lock"]:checked {{
     background: {ACCENT};
     color: white;
+    border-color: {ACCENT};
+}}
+QPushButton[headerButton="true"][iconRole="lock"]:checked:hover {{
+    background: #2590ff;
+    border-color: #2590ff;
+}}
+QPushButton[headerButton="true"][iconRole="lock"]:checked:pressed {{
+    background: #0077e6;
+    border-color: #0077e6;
+}}
+QPushButton#HeaderWindowButton,
+QPushButton#HeaderActionButton,
+QPushButton#TopSidebarToggle {{
+    min-height: 28px;
+    max-height: 28px;
+    border-radius: 8px;
 }}
 QPushButton#WindowControl {{
-    min-width: 24px;
-    max-width: 24px;
-    min-height: 24px;
-    max-height: 24px;
+    min-width: 26px;
+    max-width: 26px;
+    min-height: 26px;
+    max-height: 26px;
     padding: 0px;
+    font-size: 16px;
+}}
+QPushButton#HeaderWindowButton {{
+    min-width: 28px;
+    max-width: 28px;
+    padding: 0px;
+    font-weight: 700;
+}}
+QPushButton#HeaderActionButton,
+QPushButton#TopSidebarToggle {{
+    padding: 0px 10px;
+    font-size: 11px;
+    font-weight: 600;
+}}
+QPushButton#HeaderWindowButton[iconRole="settings"] {{
+    font-size: 14px;
+}}
+QPushButton#HeaderWindowButton[iconRole="minimize"] {{
+    font-size: 16px;
+}}
+QPushButton#HeaderWindowButton[iconRole="maximize"] {{
+    font-size: 15px;
+}}
+QPushButton#HeaderWindowButton[iconRole="close"] {{
+    font-size: 18px;
+}}
+QPushButton#HeaderActionButton[headerIconOnly="true"],
+QPushButton#TopSidebarToggle[headerIconOnly="true"] {{
+    min-width: 34px;
+    max-width: 34px;
+    padding: 0px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+}}
+QPushButton[iconRole="locate"][headerIconOnly="true"] {{
+    font-size: 14px;
+    font-weight: 700;
+}}
+QPushButton[iconRole="reset"][headerIconOnly="true"] {{
+    font-size: 14px;
+    font-weight: 700;
+}}
+QPushButton[iconRole="sidebar"][headerIconOnly="true"] {{
+    color: #ffd60a;
+    font-size: 13px;
+    font-weight: 800;
+}}
+QPushButton[iconRole="terminate"][headerIconOnly="true"] {{
+    color: {DOT_LOST};
     font-size: 12px;
+    font-weight: 800;
 }}
 QPushButton#SidebarToggle {{
     min-width: 24px;
@@ -138,8 +263,7 @@ QPushButton#SidebarToggle {{
 QPushButton#SidebarToggle:hover {{
     background: rgba(255, 255, 255, 0.12);
 }}
-QPushButton#AlertAction,
-QPushButton#TopSidebarToggle {{
+QPushButton#AlertAction {{
     padding: 6px 12px;
     font-size: 11px;
 }}

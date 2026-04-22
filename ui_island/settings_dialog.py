@@ -98,6 +98,7 @@ class StyledMessage(QDialog):
 
     def __init__(self, parent, title: str, message: str) -> None:
         super().__init__(parent)
+        theme.ensure_tooltip_style()
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setStyleSheet(theme.ISLAND_QSS)
@@ -188,6 +189,7 @@ class Toast(QWidget):
     def __init__(self, parent: QWidget, message: str) -> None:
         # 用独立 Tool 窗口而不是子 widget，避免 parent 有限 clip 区域
         super().__init__(parent, Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        theme.ensure_tooltip_style()
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
@@ -272,15 +274,22 @@ class SettingsDialog(QDialog):
 
     _FIXED_WIDTH = 660
     _FIXED_HEIGHT = 620
+    _SHELL_H_MARGIN = 18
+    _SHELL_TOP_MARGIN = 12
+    _SHELL_BOTTOM_MARGIN = 14
+    _SECTION_H_MARGIN = 14
+    _SECTION_TOP_MARGIN = 12
+    _SECTION_BOTTOM_MARGIN = 12
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        theme.ensure_tooltip_style()
         self.setWindowTitle("设置")
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setStyleSheet(theme.ISLAND_QSS)
-        self.setFixedSize(self._FIXED_WIDTH, self._FIXED_HEIGHT)
+        self.resize(self._FIXED_WIDTH, self._FIXED_HEIGHT)
 
         self._drag_offset: QPoint | None = None
         self._editors: dict[str, QLineEdit] = {}
@@ -327,34 +336,16 @@ class SettingsDialog(QDialog):
 
         shell_layout.addWidget(title_bar)
 
-        # ---- SIFT / AI 并列 ----
-        columns = QHBoxLayout()
-        columns.setSpacing(10)
-        columns.addWidget(
-            self._build_section("SIFT 方案", _SIFT_FIELDS, max_height=360),
-            stretch=1,
+        common_section = self._build_section(
+            "通用设置", _COMMON_FIELDS,
+            two_columns=True, narrow_editor=True,
         )
-        columns.addWidget(
-            self._build_section("AI 方案", _AI_FIELDS, max_height=360),
-            stretch=1,
-        )
-        shell_layout.addLayout(columns)
-
-        # ---- 通用设置（两列）+ 工具按钮（半宽）----
-        bottom_cols = QHBoxLayout()
-        bottom_cols.setSpacing(10)
-        bottom_cols.addWidget(
-            self._build_section(
-                "通用设置", _COMMON_FIELDS,
-                two_columns=True, narrow_editor=True,
-            ),
-            stretch=2,
-        )
-        bottom_cols.addWidget(self._build_tools_section(), stretch=1)
-        shell_layout.addLayout(bottom_cols)
+        tools_section = self._build_tools_section()
 
         # ---- 底部按钮条 ----
-        btn_row = QHBoxLayout()
+        buttons_bar = QWidget()
+        btn_row = QHBoxLayout(buttons_bar)
+        btn_row.setContentsMargins(0, 0, 0, 0)
         btn_row.setSpacing(8)
         btn_row.addStretch()
 
@@ -375,7 +366,38 @@ class SettingsDialog(QDialog):
         apply_restart_btn.clicked.connect(self._on_apply_and_restart)
         btn_row.addWidget(apply_restart_btn)
 
-        shell_layout.addLayout(btn_row)
+        top_section_max_height = self._compute_top_section_max_height(
+            title_bar_height=title_bar.sizeHint().height(),
+            bottom_row_height=max(
+                common_section.sizeHint().height(),
+                tools_section.sizeHint().height(),
+            ),
+            button_row_height=buttons_bar.sizeHint().height(),
+            shell_spacing=shell_layout.spacing(),
+        )
+
+        # ---- SIFT / AI 并列 ----
+        columns = QHBoxLayout()
+        columns.setSpacing(10)
+        columns.addWidget(
+            self._build_section("SIFT 方案", _SIFT_FIELDS, max_height=top_section_max_height),
+            stretch=1,
+            alignment=Qt.AlignTop,
+        )
+        columns.addWidget(
+            self._build_section("AI 方案", _AI_FIELDS, max_height=top_section_max_height),
+            stretch=1,
+            alignment=Qt.AlignTop,
+        )
+        shell_layout.addLayout(columns)
+
+        # ---- 通用设置（两列）+ 工具按钮（半宽）----
+        bottom_cols = QHBoxLayout()
+        bottom_cols.setSpacing(10)
+        bottom_cols.addWidget(common_section, stretch=2)
+        bottom_cols.addWidget(tools_section, stretch=1)
+        shell_layout.addLayout(bottom_cols)
+        shell_layout.addWidget(buttons_bar)
 
     def _build_section(
         self,
@@ -424,19 +446,19 @@ class SettingsDialog(QDialog):
                 form.addLayout(self._build_field(f, narrow_editor=narrow_editor))
 
         if max_height is not None:
-            natural = body.sizeHint().height()
+            natural = self._measure_body_height(
+                body,
+                self._estimate_top_section_body_width(),
+            )
             if natural > max_height:
-                # 给 body 设置足够大的最小高度，让 wordwrap QLabel 有充足空间，
-                # 不会因为 QVBoxLayout 不正确传播 heightForWidth 导致最后字段被裁。
-                # 每个字段保守估计 60px（两行文字 + 输入框 + 间距），再加尾部冗余。
-                per_field = 60
-                body.setMinimumHeight(len(fields) * per_field + 16)
+                body.setMinimumHeight(natural)
 
                 scroll = QScrollArea()
                 scroll.setWidgetResizable(True)
                 scroll.setFrameShape(QFrame.NoFrame)
                 scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
                 scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                scroll.viewport().setAutoFillBackground(False)
                 scroll.setFixedHeight(max_height)
                 scroll.setWidget(body)
                 card_layout.addWidget(scroll)
@@ -444,6 +466,54 @@ class SettingsDialog(QDialog):
 
         card_layout.addWidget(body)
         return card
+
+    def _compute_top_section_max_height(
+        self,
+        *,
+        title_bar_height: int,
+        bottom_row_height: int,
+        button_row_height: int,
+        shell_spacing: int,
+    ) -> int:
+        shell_available = (
+            self._FIXED_HEIGHT
+            - self._SHELL_TOP_MARGIN
+            - self._SHELL_BOTTOM_MARGIN
+        )
+        top_row_total_height = (
+            shell_available
+            - title_bar_height
+            - bottom_row_height
+            - button_row_height
+            - shell_spacing * 3
+        )
+        section_chrome = (
+            self._SECTION_TOP_MARGIN
+            + self._SECTION_BOTTOM_MARGIN
+            + 8
+            + self._section_title_height()
+        )
+        return max(160, top_row_total_height - section_chrome)
+
+    def _section_title_height(self) -> int:
+        probe = QLabel("X")
+        probe.setObjectName("TitleLabel")
+        probe.setStyleSheet("font-size: 13px;")
+        return probe.sizeHint().height()
+
+    def _estimate_top_section_body_width(self) -> int:
+        shell_width = self._FIXED_WIDTH - self._SHELL_H_MARGIN * 2
+        row_width = (shell_width - 10) // 2
+        return max(160, row_width - self._SECTION_H_MARGIN * 2)
+
+    @staticmethod
+    def _measure_body_height(body: QWidget, width: int) -> int:
+        layout = body.layout()
+        if layout is None:
+            return body.sizeHint().height()
+        if layout.hasHeightForWidth():
+            return layout.totalHeightForWidth(width)
+        return max(layout.sizeHint().height(), body.sizeHint().height())
 
     @staticmethod
     def _split_in_halves(fields: list[Field]) -> list[list[Field]]:
@@ -476,10 +546,14 @@ class SettingsDialog(QDialog):
 
     def _build_field(self, f: Field, *, narrow_editor: bool = False) -> QHBoxLayout:
         row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 6, 0)
         row.setSpacing(8)
 
         # 左：参数名 + （范围·说明）
-        left = QVBoxLayout()
+        left_wrap = QWidget()
+        left_wrap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        left = QVBoxLayout(left_wrap)
+        left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(2)
         label_text = f.label
         if f.needs_restart:
@@ -503,8 +577,6 @@ class SettingsDialog(QDialog):
             desc.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
             left.addWidget(desc)
 
-        row.addLayout(left, stretch=1)
-
         # 右：输入框 —— narrow 时宽度减半 + 内边距收紧
         editor = QLineEdit(str(getattr(config, f.key, "")))
         editor.setMinimumHeight(28)
@@ -520,7 +592,9 @@ class SettingsDialog(QDialog):
             editor.setValidator(validator)
         self._editors[f.key] = editor
         self._initial_values[f.key] = editor.text()
-        row.addWidget(editor, alignment=Qt.AlignTop)
+        left_wrap.setMinimumHeight(editor.minimumHeight())
+        row.addWidget(left_wrap, stretch=1, alignment=Qt.AlignVCenter)
+        row.addWidget(editor, alignment=Qt.AlignVCenter)
         return row
 
     @staticmethod
@@ -699,6 +773,5 @@ def open_settings_dialog(
 
     _active_dialog = dlg
     if parent is not None:
-        dlg.adjustSize()
         _place_left_of(dlg, parent)
     dlg.show()

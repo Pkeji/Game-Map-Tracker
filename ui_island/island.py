@@ -73,7 +73,7 @@ class _StatusDot(QWidget):
 class _RouteSection(QWidget):
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
-        self._expanded = True
+        self._expanded = False
         self._force_open = False
         self.setAttribute(Qt.WA_StyledBackground, True)
 
@@ -131,9 +131,11 @@ class IslandWindow(QWidget):
     _RESIZE_MARGIN = 6
     _SIDEBAR_RESIZE_MARGIN = 6
     _SIDEBAR_MIN_WIDTH = 200
+    _HEADER_ICON_SWITCH_WIDTH = 600
 
     def __init__(self, tracker: BaseTracker, route_mgr: RouteManager) -> None:
         super().__init__(None)
+        theme.ensure_tooltip_style()
         self.tracker = tracker
         self.route_mgr = route_mgr
 
@@ -164,6 +166,7 @@ class IslandWindow(QWidget):
         self._expanded_size_memory: tuple[int, int] | None = None
         self._collapsed_size_memory: tuple[int, int] | None = None
         self._sidebar_collapsed_before_maximize: bool | None = None
+        self._sidebar_collapsed_before_pause: bool | None = None
         self._restore_geometry_before_maximize: QRect | None = None
         self._sidebar_width = 320
 
@@ -188,6 +191,7 @@ class IslandWindow(QWidget):
         self._sidebar_resizing = False
         self._sidebar_resize_start_x = 0
         self._sidebar_resize_start_width = self._sidebar_width
+        self._header_buttons_icon_only = False
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -275,48 +279,104 @@ class IslandWindow(QWidget):
         self.title_drag_area.installEventFilter(self)
         header.addWidget(self.title_drag_area, stretch=1)
 
-        self.settings_btn = QPushButton("⚙")
-        self.settings_btn.setObjectName("WindowControl")
-        self.settings_btn.setToolTip("设置")
-        self.settings_btn.clicked.connect(self._open_settings)
-        header.addWidget(self.settings_btn)
+        self.settings_btn = self._create_header_button(
+            header,
+            text="⚙",
+            object_name="HeaderWindowButton",
+            icon_role="settings",
+            tooltip="设置",
+            callback=self._open_settings,
+        )
+        self.min_btn = self._create_header_button(
+            header,
+            text="-",
+            object_name="HeaderWindowButton",
+            icon_role="minimize",
+            tooltip="最小化",
+            callback=self._collapse_to_icon,
+        )
+        self.max_btn = self._create_header_button(
+            header,
+            text="▢",
+            object_name="HeaderWindowButton",
+            icon_role="maximize",
+            tooltip="最大化",
+            callback=self._toggle_maximize_restore,
+        )
+        self.close_btn = self._create_header_button(
+            header,
+            text="×",
+            object_name="HeaderWindowButton",
+            icon_role="close",
+            tooltip="关闭",
+            callback=self.close,
+        )
 
-        self.min_btn = QPushButton("-")
-        self.min_btn.setObjectName("WindowControl")
-        self.min_btn.setToolTip("最小化为小图标")
-        self.min_btn.clicked.connect(self._collapse_to_icon)
-        header.addWidget(self.min_btn)
+        self.relocate_btn = self._create_header_button(
+            header,
+            text="重定位",
+            object_name="HeaderActionButton",
+            icon_role="locate",
+            tooltip="重定位",
+            callback=self._prompt_relocate,
+        )
+        self.reset_view_btn = self._create_header_button(
+            header,
+            text="重置视图",
+            object_name="HeaderActionButton",
+            icon_role="reset",
+            tooltip="重置视图",
+            callback=self._reset_map_view,
+        )
+        self.sidebar_toggle_btn = self._create_header_button(
+            header,
+            text="隐藏侧边栏",
+            object_name="TopSidebarToggle",
+            icon_role="sidebar",
+            tooltip="隐藏侧边栏",
+            callback=self._handle_sidebar_action,
+        )
+        self.terminate_nav_btn = self._create_header_button(
+            header,
+            text="终止导航",
+            object_name="HeaderActionButton",
+            icon_role="terminate",
+            tooltip="终止导航",
+            callback=self._pause_navigation,
+        )
+        self.lock_btn = self._create_header_button(
+            header,
+            text="锁定",
+            object_name="HeaderActionButton",
+            icon_role="lock",
+            tooltip="锁定",
+            callback=self.toggle_lock,
+            checkable=True,
+        )
 
-        self.max_btn = QPushButton("▢")
-        self.max_btn.setObjectName("WindowControl")
-        self.max_btn.clicked.connect(self._toggle_maximize_restore)
-        header.addWidget(self.max_btn)
-
-        self.close_btn = QPushButton("×")
-        self.close_btn.setObjectName("WindowControl")
-        self.close_btn.clicked.connect(self.close)
-        header.addWidget(self.close_btn)
-
-        self.relocate_btn = QPushButton("重定位")
-        self.relocate_btn.clicked.connect(self._prompt_relocate)
-        header.addWidget(self.relocate_btn)
-
-        self.reset_view_btn = QPushButton("重置视图")
-        self.reset_view_btn.clicked.connect(self._reset_map_view)
-        header.addWidget(self.reset_view_btn)
-
-        self.sidebar_toggle_btn = QPushButton("隐藏侧边栏")
-        self.sidebar_toggle_btn.setObjectName("TopSidebarToggle")
-        self.sidebar_toggle_btn.clicked.connect(self._handle_sidebar_action)
-        header.addWidget(self.sidebar_toggle_btn)
-
-        self.lock_btn = QPushButton("锁定")
-        self.lock_btn.setCheckable(True)
-        self.lock_btn.setFixedSize(48, 24)
-        self.lock_btn.clicked.connect(self.toggle_lock)
-        header.addWidget(self.lock_btn)
-
+        self._update_header_button_labels()
         root_layout.addLayout(header)
+
+    def _create_header_button(
+        self,
+        header: QHBoxLayout,
+        *,
+        text: str,
+        object_name: str,
+        icon_role: str,
+        tooltip: str,
+        callback,
+        checkable: bool = False,
+    ) -> QPushButton:
+        button = QPushButton(text)
+        button.setObjectName(object_name)
+        button.setProperty("headerButton", True)
+        button.setProperty("iconRole", icon_role)
+        button.setToolTip(tooltip)
+        button.setCheckable(checkable)
+        button.clicked.connect(callback)
+        header.addWidget(button)
+        return button
 
     def _build_body(self, root_layout: QVBoxLayout) -> None:
         self.alert_card = QFrame()
@@ -408,10 +468,11 @@ class IslandWindow(QWidget):
         routes_title.setObjectName("TitleLabel")
         side_layout.addWidget(routes_title)
 
-        routes_scroll = QScrollArea()
-        routes_scroll.setWidgetResizable(True)
-        routes_scroll.setFrameShape(QFrame.NoFrame)
-        routes_scroll.viewport().setAutoFillBackground(False)
+        self.routes_scroll = QScrollArea()
+        self.routes_scroll.setWidgetResizable(True)
+        self.routes_scroll.setFrameShape(QFrame.NoFrame)
+        self.routes_scroll.viewport().setAutoFillBackground(False)
+        self.routes_scroll.setMinimumHeight(theme.ROUTES_LIST_MIN_HEIGHT)
 
         routes_scroll_inner = QWidget()
         routes_scroll_inner.setObjectName("RoutesScrollInner")
@@ -421,8 +482,8 @@ class IslandWindow(QWidget):
         self.routes_layout.setSpacing(8)
         self._build_route_sections()
         self.routes_layout.addStretch()
-        routes_scroll.setWidget(routes_scroll_inner)
-        side_layout.addWidget(routes_scroll, stretch=1)
+        self.routes_scroll.setWidget(routes_scroll_inner)
+        side_layout.addWidget(self.routes_scroll, stretch=1)
 
         self.side_scroll.setWidget(self.side_panel)
         shell_layout.addWidget(self.side_scroll, stretch=1)
@@ -571,12 +632,13 @@ class IslandWindow(QWidget):
             return
 
         geom = self.geometry()
+        expanded_min_width = self._expanded_layout_minimum_width()
         if not self.isMaximized():
             if collapsed:
-                if geom.width() >= theme.SIDEBAR_MIN_EXPANDED_W or self._expanded_size_memory is None:
+                if geom.width() >= expanded_min_width or self._expanded_size_memory is None:
                     self._expanded_size_memory = (
-                        max(theme.SIDEBAR_MIN_EXPANDED_W, geom.width()),
-                        max(theme.SIDEBAR_MIN_EXPANDED_H, geom.height()),
+                        max(expanded_min_width, geom.width()),
+                        max(self._normal_minimum_height, geom.height()),
                     )
             else:
                 self._collapsed_size_memory = (geom.width(), geom.height())
@@ -599,9 +661,36 @@ class IslandWindow(QWidget):
                 self.setGeometry(
                     x,
                     y,
-                    max(theme.SIDEBAR_MIN_EXPANDED_W, target[0]),
-                    max(theme.SIDEBAR_MIN_EXPANDED_H, target[1]),
+                    max(expanded_min_width, target[0]),
+                    max(self._normal_minimum_height, target[1]),
                 )
+
+    def _expanded_layout_minimum_width(self) -> int:
+        root_layout = self.root.layout()
+        body_layout = self.body_container.layout()
+        root_margins = root_layout.contentsMargins() if root_layout is not None else None
+        body_margins = body_layout.contentsMargins() if body_layout is not None else None
+        horizontal_padding = self._window_margin * 2
+        if root_margins is not None:
+            horizontal_padding += root_margins.left() + root_margins.right()
+        if body_margins is not None:
+            horizontal_padding += body_margins.left() + body_margins.right()
+        body_spacing = body_layout.spacing() if body_layout is not None else 0
+        return max(
+            self._normal_minimum_width,
+            self.map_view.minimumWidth()
+            + max(self._SIDEBAR_MIN_WIDTH, self._sidebar_width)
+            + body_spacing
+            + horizontal_padding,
+        )
+
+    def _sync_window_minimum_width(self) -> None:
+        if self._compact_state_active:
+            self.setMinimumWidth(self._normal_minimum_width)
+            return
+        sidebar_visible = self._is_pause_mode() or not self._sidebar_collapsed
+        minimum_width = self._expanded_layout_minimum_width() if sidebar_visible else self._normal_minimum_width
+        self.setMinimumWidth(minimum_width)
 
     def _apply_sidebar_state(self) -> None:
         target_width = max(self._SIDEBAR_MIN_WIDTH, self._sidebar_width)
@@ -610,19 +699,20 @@ class IslandWindow(QWidget):
             self.side_scroll.setVisible(True)
             self.sidebar_shell.setMinimumWidth(target_width)
             self.sidebar_shell.setMaximumWidth(target_width)
-            self.sidebar_toggle_btn.setText("开始导航")
+            self._sync_window_minimum_width()
+            self._update_header_button_labels()
             return
 
         if self._sidebar_collapsed:
             # 完全从布局移除，避免 spacing 仍占右侧空白
             self.sidebar_shell.setVisible(False)
-            self.sidebar_toggle_btn.setText("展开侧边栏")
         else:
             self.sidebar_shell.setVisible(True)
             self.side_scroll.setVisible(True)
             self.sidebar_shell.setMinimumWidth(target_width)
             self.sidebar_shell.setMaximumWidth(target_width)
-            self.sidebar_toggle_btn.setText("隐藏侧边栏")
+        self._sync_window_minimum_width()
+        self._update_header_button_labels()
 
     def _handle_manual_map_navigation(self) -> None:
         self.map_view.set_center_locked(False)
@@ -753,10 +843,101 @@ class IslandWindow(QWidget):
 
     def _update_window_controls(self) -> None:
         self.max_btn.setText("❐" if self.isMaximized() else "▢")
+        self._update_header_button_labels()
         self._update_lock_button_visibility()
 
+    def _set_header_button_presentation(
+        self,
+        button: QPushButton,
+        *,
+        text: str,
+        icon_text: str,
+        tooltip: str,
+        compact_width: int = 34,
+    ) -> None:
+        button.setToolTip(tooltip)
+        button.setMinimumHeight(28)
+        button.setMaximumHeight(28)
+        button.setProperty("headerIconOnly", self._header_buttons_icon_only)
+        if self._header_buttons_icon_only:
+            button.setText(icon_text)
+            button.setMinimumWidth(compact_width)
+            button.setMaximumWidth(compact_width)
+        else:
+            button.setText(text)
+            button.setMinimumWidth(0)
+            button.setMaximumWidth(16777215)
+        button.style().unpolish(button)
+        button.style().polish(button)
+        button.update()
+
+    def _update_header_button_labels(self) -> None:
+        if self._is_pause_mode():
+            sidebar_text = "开始导航"
+            sidebar_icon = "导"
+        elif self._sidebar_collapsed:
+            sidebar_text = "展开侧边栏"
+            sidebar_icon = "展"
+        else:
+            sidebar_text = "隐藏侧边栏"
+            sidebar_icon = "隐"
+
+        lock_text = "解锁" if self._locked else "锁定"
+        lock_icon = "🔓" if self._locked else "🔒"
+
+        button_specs = [
+            {
+                "button": self.relocate_btn,
+                "text": "重定位",
+                "icon_text": "⌖",
+                "tooltip": "重定位",
+                "compact_width": 34,
+            },
+            {
+                "button": self.reset_view_btn,
+                "text": "重置视图",
+                "icon_text": "↺",
+                "tooltip": "重置视图",
+                "compact_width": 34,
+            },
+            {
+                "button": self.sidebar_toggle_btn,
+                "text": sidebar_text,
+                "icon_text": sidebar_icon,
+                "tooltip": sidebar_text,
+                "compact_width": 34,
+            },
+            {
+                "button": self.terminate_nav_btn,
+                "text": "终止导航",
+                "icon_text": "止",
+                "tooltip": "终止导航",
+                "compact_width": 34,
+            },
+            {
+                "button": self.lock_btn,
+                "text": lock_text,
+                "icon_text": lock_icon,
+                "tooltip": lock_text,
+                "compact_width": 34,
+            },
+        ]
+
+        self._header_buttons_icon_only = self.width() < self._HEADER_ICON_SWITCH_WIDTH
+
+        for spec in button_specs:
+            self._set_header_button_presentation(
+                spec["button"],
+                text=spec["text"],
+                icon_text=spec["icon_text"],
+                tooltip=spec["tooltip"],
+                compact_width=spec["compact_width"],
+            )
+
     def _update_lock_button_visibility(self) -> None:
-        self.lock_btn.setVisible(not self.isMaximized() and not self._lost_mode_active and not self._manual_pause)
+        visible = not self.isMaximized() and not self._lost_mode_active and not self._manual_pause
+        self.terminate_nav_btn.setVisible(visible)
+        self.lock_btn.setVisible(visible)
 
     def _can_toggle_lock(self) -> bool:
         return not self.isMaximized() and not self._manual_pause and not self._lost_mode_active
@@ -764,7 +945,7 @@ class IslandWindow(QWidget):
     def _set_locked_state(self, locked: bool) -> None:
         self._locked = locked
         self.lock_btn.setChecked(self._locked)
-        self.lock_btn.setText("解锁" if self._locked else "锁定")
+        self._update_header_button_labels()
         self.unlock_hint_label.setVisible(self._locked)
         if self._locked:
             set_click_through(self, True)
@@ -966,14 +1147,20 @@ class IslandWindow(QWidget):
         self._update_lock_button_visibility()
 
     def _start_navigation(self) -> None:
+        restore_sidebar = self._sidebar_collapsed_before_pause
         if self.isMaximized():
+            if self._sidebar_collapsed_before_maximize is not None:
+                restore_sidebar = self._sidebar_collapsed_before_maximize
             self.showNormal()
             if self._restore_geometry_before_maximize is not None:
                 self.setGeometry(self._restore_geometry_before_maximize)
             self._restore_geometry_before_maximize = None
             self._sidebar_collapsed_before_maximize = None
         self._resume_tracking_attempts()
-        self._set_sidebar_collapsed(False, restore_size=False)
+        if restore_sidebar is None:
+            restore_sidebar = self._sidebar_collapsed
+        self._sidebar_collapsed_before_pause = None
+        self._set_sidebar_collapsed(restore_sidebar, restore_size=False)
         self._set_alert_mode(False)
         self._set_header_action_visibility(True)
         self.state_hint_label.setVisible(True)
@@ -993,6 +1180,10 @@ class IslandWindow(QWidget):
         self._restore_lock_after_relocate = None
         if self._locked:
             self._set_locked_state(False)
+        if self.isMaximized() and self._sidebar_collapsed_before_maximize is not None:
+            self._sidebar_collapsed_before_pause = self._sidebar_collapsed_before_maximize
+        else:
+            self._sidebar_collapsed_before_pause = self._sidebar_collapsed
         self._tracking_attempts_paused = True
         self._tracking_paused_state = TrackState.SEARCHING
         self._manual_pause = True
@@ -1012,6 +1203,7 @@ class IslandWindow(QWidget):
         self._compact_restore_geometry = None
         self._compact_restore_sidebar_collapsed = False
         self.setMinimumHeight(self._normal_minimum_height)
+        self._sync_window_minimum_width()
 
         if restore_geometry is not None:
             self.setGeometry(restore_geometry)
@@ -1056,6 +1248,7 @@ class IslandWindow(QWidget):
         self._compact_restore_geometry = self.geometry()
         self._compact_restore_sidebar_collapsed = self._sidebar_collapsed
         self.setMinimumHeight(theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2)
+        self._sync_window_minimum_width()
 
         current = self.geometry()
         compact_height = theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2
@@ -1186,20 +1379,24 @@ class IslandWindow(QWidget):
         if self._sidebar_collapsed:
             self._collapsed_size_memory = (self.width(), self.height())
         else:
-            if self.width() >= theme.SIDEBAR_MIN_EXPANDED_W:
+            expanded_min_width = self._expanded_layout_minimum_width()
+            if self.width() >= expanded_min_width:
                 self._expanded_size_memory = (self.width(), self.height())
             elif self._expanded_size_memory is None:
                 self._expanded_size_memory = (
-                    theme.SIDEBAR_MIN_EXPANDED_W,
-                    max(theme.SIDEBAR_MIN_EXPANDED_H, self.height()),
+                    expanded_min_width,
+                    max(self._normal_minimum_height, self.height()),
                 )
             else:
                 self._expanded_size_memory = (
                     self._expanded_size_memory[0],
                     max(self._expanded_size_memory[1], self.height()),
                 )
-            if self.width() < theme.SIDEBAR_MIN_EXPANDED_W:
-                self._set_sidebar_collapsed(True, restore_size=False)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if self._compact_state_active and self._compact_restore_geometry is not None:
+            self._compact_restore_geometry.moveTo(self.geometry().topLeft())
 
     def showEvent(self, event):
         super().showEvent(event)
