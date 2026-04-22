@@ -177,6 +177,7 @@ class IslandWindow(QWidget):
         self._manual_pause = False
         self._jump_anomaly_count = 0
         self._lost_mode_active = False
+        self._preferred_locked = False
         self._lock_state_before_lost: bool | None = None
         self._restore_lock_after_relocate: bool | None = None
 
@@ -288,6 +289,10 @@ class IslandWindow(QWidget):
         self.close_btn.clicked.connect(self.close)
         header.addWidget(self.close_btn)
 
+        self.relocate_btn = QPushButton("重定位")
+        self.relocate_btn.clicked.connect(self._prompt_relocate)
+        header.addWidget(self.relocate_btn)
+
         self.reset_view_btn = QPushButton("重置视图")
         self.reset_view_btn.clicked.connect(self._reset_map_view)
         header.addWidget(self.reset_view_btn)
@@ -314,15 +319,10 @@ class IslandWindow(QWidget):
         alert_layout.setSpacing(12)
         alert_layout.addStretch()
 
-        self.alert_message = QLabel("目标丢失，请重新定位。")
+        self.alert_message = QLabel("目标丢失，正在尝试重新定位。")
         self.alert_message.setObjectName("AlertMessage")
         self.alert_message.setAlignment(Qt.AlignCenter)
         alert_layout.addWidget(self.alert_message)
-
-        self.alert_relocate_btn = QPushButton("重新定位")
-        self.alert_relocate_btn.setObjectName("AlertAction")
-        self.alert_relocate_btn.clicked.connect(self._prompt_relocate)
-        alert_layout.addWidget(self.alert_relocate_btn)
 
         self.alert_terminate_btn = QPushButton("终止导航")
         self.alert_terminate_btn.setObjectName("AlertAction")
@@ -709,16 +709,27 @@ class IslandWindow(QWidget):
         if self._lost_mode_active:
             return
         self._lost_mode_active = True
-        self._lock_state_before_lost = self._locked
+        self._lock_state_before_lost = self._preferred_locked
         if self._locked:
             self._set_locked_state(False)
         self._update_lock_button_visibility()
 
-    def _exit_lost_mode(self) -> None:
+    def _exit_lost_mode(self, clear_saved_lock_state: bool = True) -> None:
         if not self._lost_mode_active:
             return
         self._lost_mode_active = False
+        if clear_saved_lock_state:
+            self._lock_state_before_lost = None
+        self._update_lock_button_visibility()
+
+    def _restore_lock_state_after_lost(self) -> None:
+        desired_locked = self._lock_state_before_lost
+        if desired_locked is None:
+            desired_locked = self._preferred_locked
+        self._exit_lost_mode(clear_saved_lock_state=False)
         self._lock_state_before_lost = None
+        if desired_locked is not None and self._locked != desired_locked:
+            self._set_locked_state(desired_locked)
         self._update_lock_button_visibility()
 
     def _reset_tracker_after_pause(self) -> None:
@@ -726,12 +737,15 @@ class IslandWindow(QWidget):
         self._latencies.clear()
         self._last_player_xy = None
         self._jump_anomaly_count = 0
+        self._clear_tracker_anchor()
+        self._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
+
+    def _clear_tracker_anchor(self) -> None:
         for attr in ("_last_x", "_last_y"):
             if hasattr(self.tracker, attr):
                 setattr(self.tracker, attr, None)
         if hasattr(self.tracker, "_lost_frames"):
             setattr(self.tracker, "_lost_frames", 0)
-        self._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
 
     def _start_hotkey_listener(self) -> None:
         if self._is_windows and self._start_native_hotkey_listener():
@@ -986,7 +1000,7 @@ class IslandWindow(QWidget):
 
     def _apply_state_feedback(self, state: TrackState) -> None:
         if self._is_pause_mode():
-            self._exit_lost_mode()
+            self._restore_lock_state_after_lost()
             self._set_alert_mode(False)
             self._set_header_action_visibility(True)
             self.state_hint_label.setText("暂停定位")
@@ -995,7 +1009,7 @@ class IslandWindow(QWidget):
             return
 
         if state == TrackState.LOCKED:
-            self._exit_lost_mode()
+            self._restore_lock_state_after_lost()
             self._set_alert_mode(False)
             self._set_header_action_visibility(True)
             self.state_hint_label.setText("定位稳定")
@@ -1014,20 +1028,17 @@ class IslandWindow(QWidget):
             return
 
         if state == TrackState.INERTIAL:
-            self._exit_lost_mode()
-            message = "定位暂时不稳定，请重新定位。"
-            if self._tracking_attempts_paused:
-                message = "定位暂时不稳定，已暂停自动定位，请重新定位。"
-            self._set_alert_mode(True, message, allow_terminate=False)
-            self._set_header_action_visibility(False)
-            self._enter_compact_mode()
+            self._restore_lock_state_after_lost()
+            self._set_alert_mode(False)
+            self._set_header_action_visibility(True)
+            self.state_hint_label.setVisible(True)
+            self.state_hint_label.setText("定位暂时不稳定，沿用上一帧位置。")
+            self.state_hint_label.setStyleSheet("")
+            self._exit_compact_mode()
             return
 
         self._enter_lost_mode()
-        message = "目标丢失，被动暂停定位。"
-        if self._tracking_attempts_paused:
-            message = "目标丢失，被动暂停定位。"
-        self._set_alert_mode(True, message, allow_terminate=True)
+        self._set_alert_mode(True, "目标丢失，正在持续尝试重新定位。", allow_terminate=True)
         self._set_header_action_visibility(False)
         self._enter_compact_mode()
 
@@ -1135,12 +1146,15 @@ class IslandWindow(QWidget):
     def toggle_lock(self) -> None:
         if not self._can_toggle_lock():
             return
-        self._set_locked_state(not self._locked)
+        self._preferred_locked = not self._locked
+        self._set_locked_state(self._preferred_locked)
 
     def _prompt_relocate(self) -> None:
         if self._lost_mode_active:
-            self._restore_lock_after_relocate = self._lock_state_before_lost
+            self._restore_lock_after_relocate = self._preferred_locked
             self._exit_lost_mode()
+        else:
+            self._restore_lock_after_relocate = self._preferred_locked
         self._resume_tracking_attempts()
         self._restore_from_compact_mode()
         self._set_alert_mode(False)
@@ -1219,8 +1233,9 @@ class IslandWindow(QWidget):
                     self._jump_anomaly_count = 0
 
                 if self._jump_anomaly_count >= theme.TRACK_JUMP_DETECT_LIMIT:
-                    self._tracking_attempts_paused = True
-                    self._tracking_paused_state = TrackState.LOST
+                    self._jump_anomaly_count = 0
+                    self._clear_tracker_anchor()
+                    self._last_player_xy = None
                     state = TrackState.LOST
                     result = TrackResult(TrackState.LOST, latency_ms=result.latency_ms)
             else:

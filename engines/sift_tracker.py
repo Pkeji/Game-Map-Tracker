@@ -136,4 +136,8 @@ class SiftTracker(BaseTracker):
                 TrackState.INERTIAL, self._last_x, self._last_y, good_count, latency
             )
 
+        # 真正跟丢后清空旧锚点。传送前打开大地图等 UI 变化可能让旧锚点失真，
+        # 后续帧应直接回到全图重搜，而不是继续被旧位置拖住。
+        self._last_x = None
+        self._last_y = None
         return TrackResult(TrackState.LOST, latency_ms=latency)
