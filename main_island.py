@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -47,4 +48,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 用 os._exit 兜底：某些场景下 torch/kornia 等 C 扩展会留下非 daemon 线程，
+    # 导致 sys.exit 阻塞终端不能立即返回提示符。
+    code = main()
+    os._exit(code if code is not None else 0)

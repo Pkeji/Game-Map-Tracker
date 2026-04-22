@@ -43,6 +43,24 @@ DEFAULT_CONFIG = {
 }
 
 
+def save_config(new_values: dict) -> None:
+    """把部分字段写回 config.json 并刷新本模块导出的常量。"""
+    current = {}
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                current = json.load(f)
+        except Exception:
+            current = {}
+    current.update(new_values)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(current, f, indent=4, ensure_ascii=False)
+
+    # 同步更新模块级常量，避免进程内各处读到旧值
+    globals().update(new_values)
+    settings.update(new_values)
+
+
 def load_config():
     """读取 JSON 配置文件，如果没有则自动生成"""
     if not os.path.exists(CONFIG_FILE):

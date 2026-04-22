@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
 from PySide6.QtCore import QEvent, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -274,9 +275,16 @@ class IslandWindow(QWidget):
         self.title_drag_area.installEventFilter(self)
         header.addWidget(self.title_drag_area, stretch=1)
 
+        self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setObjectName("WindowControl")
+        self.settings_btn.setToolTip("设置")
+        self.settings_btn.clicked.connect(self._open_settings)
+        header.addWidget(self.settings_btn)
+
         self.min_btn = QPushButton("-")
         self.min_btn.setObjectName("WindowControl")
-        self.min_btn.clicked.connect(self.showMinimized)
+        self.min_btn.setToolTip("最小化为小图标")
+        self.min_btn.clicked.connect(self._collapse_to_icon)
         header.addWidget(self.min_btn)
 
         self.max_btn = QPushButton("▢")
@@ -662,6 +670,66 @@ class IslandWindow(QWidget):
 
     def _place_on_top_center(self) -> None:
         self.setGeometry(self._window_geometry())
+
+    def _open_settings(self) -> None:
+        from .settings_dialog import open_settings_dialog
+        open_settings_dialog(self, on_applied=self._on_settings_applied)
+
+    def _on_settings_applied(self) -> None:
+        """设置窗口点击“应用”后回调。config 值已经写回，跟踪循环下次 sleep 自动读新值。"""
+        pass
+
+    def _collapse_to_icon(self) -> None:
+        """点最小化：隐藏主窗，左上角原位置弹出一个保留状态/坐标的还原胶囊。"""
+        if getattr(self, "_mini_icon", None) is not None:
+            return
+        geom = self.frameGeometry()
+        anchor = geom.topLeft()
+        self._mini_icon = _RestoreIcon(
+            self, self._restore_from_icon, self._close_app_from_icon
+        )
+        # 把当前已知的状态与坐标灌给小图标，避免切换瞬间显示成默认
+        last = getattr(self, "_last_result", None)
+        if last is not None:
+            self._mini_icon.set_state(last.state)
+        self._mini_icon.set_coord(self.coord_label.text())
+        self._mini_icon.place_at(anchor)
+        self._mini_icon.show()
+        self.hide()
+
+    def _restore_from_icon(self) -> None:
+        """点小图标：销毁图标并恢复主窗。"""
+        icon = getattr(self, "_mini_icon", None)
+        if icon is not None:
+            icon.close()
+            self._mini_icon = None
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _close_app_from_icon(self) -> None:
+        """从小图标上的 × 直接关闭程序：关闭所有顶层窗口并退出事件循环。"""
+        icon = getattr(self, "_mini_icon", None)
+        if icon is not None:
+            icon.close()
+            self._mini_icon = None
+        self._quit_entire_app()
+
+    def _quit_entire_app(self) -> None:
+        """强制退出：关所有顶层窗口 + 停跟踪线程 + 退出 QApplication。"""
+        self._running = False
+        self._stop_hotkey_listener()
+        try:
+            self.route_mgr.save_progress()
+        except Exception:
+            pass
+        app = QApplication.instance()
+        if app is not None:
+            for w in app.topLevelWidgets():
+                if w is not self:
+                    w.close()
+            app.quit()
+        self.close()
 
     def _toggle_maximize_restore(self) -> None:
         if self.isMaximized():
@@ -1141,6 +1209,13 @@ class IslandWindow(QWidget):
         self._running = False
         self._stop_hotkey_listener()
         self.route_mgr.save_progress()
+        # 关闭可能还开着的设置窗等顶层窗口，确保进程彻底退出
+        app = QApplication.instance()
+        if app is not None:
+            for w in app.topLevelWidgets():
+                if w is not self:
+                    w.close()
+            app.quit()
         super().closeEvent(event)
 
     def toggle_lock(self) -> None:
@@ -1182,21 +1257,26 @@ class IslandWindow(QWidget):
         self._frame_ready.emit(TrackResult(TrackState.SEARCHING, x=x, y=y, latency_ms=0.0))
 
     def _tracker_loop(self) -> None:
-        refresh_ms = config.AI_REFRESH_RATE if hasattr(self.tracker, "engine") else config.SIFT_REFRESH_RATE
+        def _current_refresh_ms() -> int:
+            return int(
+                config.AI_REFRESH_RATE if hasattr(self.tracker, "engine")
+                else config.SIFT_REFRESH_RATE
+            )
 
         while self._running:
             if self.isMaximized():
                 self._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
-                time.sleep(refresh_ms / 1000.0)
+                time.sleep(_current_refresh_ms() / 1000.0)
                 continue
 
             if self._tracking_attempts_paused:
                 self._frame_ready.emit(self._paused_track_result())
-                time.sleep(refresh_ms / 1000.0)
+                time.sleep(_current_refresh_ms() / 1000.0)
                 continue
 
             with mss.mss() as sct:
                 while self._running and not self.isMaximized() and not self._tracking_attempts_paused:
+                    refresh_ms = _current_refresh_ms()
                     started_at = time.time()
                     try:
                         shot = sct.grab(self._minimap_region)
@@ -1245,6 +1325,9 @@ class IslandWindow(QWidget):
 
         self._last_result = result
         self.dot.set_state(state)
+        mini = getattr(self, "_mini_icon", None)
+        if mini is not None:
+            mini.set_state(state)
         self._apply_state_feedback(state)
         self._latencies.append(result.latency_ms)
 
@@ -1252,7 +1335,8 @@ class IslandWindow(QWidget):
         fps = 1000.0 / avg_latency if avg_latency > 0 else 0.0
 
         if not self.isMaximized() and result.x is not None and result.y is not None:
-            self.coord_label.setText(f"{result.x} , {result.y}")
+            coord_text = f"{result.x} , {result.y}"
+            self.coord_label.setText(coord_text)
             if self._last_player_xy is not None:
                 dx = abs(result.x - self._last_player_xy[0])
                 dy = abs(result.y - self._last_player_xy[1])
@@ -1261,8 +1345,102 @@ class IslandWindow(QWidget):
             self._last_player_xy = (result.x, result.y)
             self.map_view.update_frame(result.state, result.x, result.y, self._latest_minimap)
         elif self.isMaximized():
-            self.coord_label.setText("-- , --")
+            coord_text = "-- , --"
+            self.coord_label.setText(coord_text)
         else:
-            self.coord_label.setText("-- , --")
+            coord_text = "-- , --"
+            self.coord_label.setText(coord_text)
+
+        if mini is not None:
+            mini.set_coord(coord_text)
 
         self.stat_label.setText(f"{avg_latency:4.0f} ms · {fps:4.1f} fps")
+
+
+class _RestoreIcon(QWidget):
+    """最小化后显示在左上角的小胶囊：状态球 + 当前坐标 + 还原按钮。支持拖动。"""
+
+    _HEIGHT = 44
+
+    def __init__(self, island_owner, on_restore, on_close) -> None:
+        super().__init__(
+            None,
+            Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint,
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setStyleSheet(theme.ISLAND_QSS)
+        self._on_restore = on_restore
+        self._on_close_app = on_close
+        self._drag_offset = None
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        shell = QFrame()
+        shell.setObjectName("IslandRoot")
+        outer.addWidget(shell)
+
+        row = QHBoxLayout(shell)
+        row.setContentsMargins(12, 0, 6, 0)
+        row.setSpacing(8)
+
+        self.dot = _StatusDot(shell)
+        self.dot.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        row.addWidget(self.dot, alignment=Qt.AlignVCenter)
+
+        self.coord_label = QLabel("-- , --", shell)
+        self.coord_label.setObjectName("CoordLabel")
+        self.coord_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        row.addWidget(self.coord_label, alignment=Qt.AlignVCenter)
+
+        restore_btn = QPushButton("▣")
+        restore_btn.setObjectName("WindowControl")
+        restore_btn.setFixedSize(self._HEIGHT - 12, self._HEIGHT - 12)
+        restore_btn.setToolTip("还原窗口")
+        restore_btn.setStyleSheet("font-size: 14px;")
+        restore_btn.setCursor(Qt.PointingHandCursor)
+        restore_btn.clicked.connect(self._on_restore)
+        row.addWidget(restore_btn, alignment=Qt.AlignVCenter)
+
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("WindowControl")
+        close_btn.setFixedSize(self._HEIGHT - 12, self._HEIGHT - 12)
+        close_btn.setToolTip("关闭程序")
+        close_btn.setStyleSheet("font-size: 16px;")
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.clicked.connect(self._on_close_app)
+        row.addWidget(close_btn, alignment=Qt.AlignVCenter)
+
+        self.setCursor(Qt.SizeAllCursor)
+        self.setFixedHeight(self._HEIGHT)
+        self.adjustSize()
+
+    def set_state(self, state: TrackState) -> None:
+        self.dot.set_state(state)
+
+    def set_coord(self, text: str) -> None:
+        self.coord_label.setText(text)
+
+    def place_at(self, top_left) -> None:
+        self.move(top_left.x(), top_left.y())
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_offset = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._drag_offset is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_offset = None
+        super().mouseReleaseEvent(event)
