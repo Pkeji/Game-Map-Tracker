@@ -57,6 +57,13 @@ class RouteManager:
             if self.visibility.get(route.get("display_name"), False)
         ]
 
+    def has_progress(self, name: str) -> bool:
+        for _cat, route in self.iter_routes():
+            if route.get("display_name") != name:
+                continue
+            return any(point.get("visited", False) for point in route.get("points", []))
+        return False
+
     def reload(self) -> None:
         self.save_visibility()
         self.save_progress()

@@ -6,22 +6,22 @@
         "height": 225
     },
     "WINDOW_GEOMETRY": {
-        "x": 1018,
+        "x": 1081,
         "y": 0,
-        "width": 820,
-        "height": 500
+        "width": 783,
+        "height": 529
     },
     "LOCKED_VIEW_SIZE": {
         "width": 420,
         "height": 360
     },
     "PAUSED_VIEW_SIZE": {
-        "width": 820,
-        "height": 500
+        "width": 783,
+        "height": 510
     },
     "SIDEBAR_COLLAPSED": true,
     "SIDEBAR_WIDTH": 200,
-    "PAUSED_SIDEBAR_WIDTH": 287,
+    "PAUSED_SIDEBAR_WIDTH": 279,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",

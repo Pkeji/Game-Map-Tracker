@@ -18,8 +18,8 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 # 默认配置字典 (如果 JSON 文件丢失，用来兜底并重新生成)
 # ==========================================
 DEFAULT_CONFIG = {
-    # MINIMAP 坐标因屏幕/分辨率而异，保留一个安全兜底；程序会在首次启动弹校准器
-    "MINIMAP": {"top": 292, "left": 1853, "width": 150, "height": 150},
+    # 首次启动时保持为空，强制弹出小地图校准器；保存后再写入真实坐标
+    "MINIMAP": {},
     "WINDOW_GEOMETRY": {"x": 1418, "y": 0, "width": 420, "height": 360},
     "LOCKED_VIEW_SIZE": {"width": 420, "height": 360},
     "PAUSED_VIEW_SIZE": {"width": 820, "height": 500},

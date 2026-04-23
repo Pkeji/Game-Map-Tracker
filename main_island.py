@@ -15,20 +15,27 @@ from PySide6.QtWidgets import QApplication
 import config
 from route_manager import RouteManager
 from ui_island import IslandWindow
-from ui_island.minimap_selector import run_minimap_calibrator
+from ui_island.dialogs.minimap_selector import run_minimap_calibrator
 
 
 def build_tracker(engine: str):
     if engine == "ai":
-        from engines import AiTracker  # 延迟导入，SIFT 用户不必装 torch
+        from Plan_AI import AiTracker  # 延迟导入，SIFT 用户不必装 torch
         return AiTracker()
-    from engines import SiftTracker
+    from Plan_SIFT import SiftTracker
     return SiftTracker()
 
 
 def _minimap_is_configured() -> bool:
     cfg = config.settings.get("MINIMAP") or {}
-    return bool(cfg) and "top" in cfg and "left" in cfg and "width" in cfg
+    try:
+        top = int(cfg["top"])
+        left = int(cfg["left"])
+        width = int(cfg["width"])
+        height = int(cfg["height"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return width > 0 and height > 0 and top >= 0 and left >= 0
 
 
 def main() -> int:

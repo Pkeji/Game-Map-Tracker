@@ -12,8 +12,8 @@ import numpy as np
 import torch
 
 import config
-from tracker_engine import LoftrEngine
-from .base import BaseTracker, TrackResult, TrackState
+from .tracker_engine import LoftrEngine
+from base import BaseTracker, TrackResult, TrackState
 
 
 TELEPORT_THRESHOLD = 500      # 超过此距离视为瞬移候选

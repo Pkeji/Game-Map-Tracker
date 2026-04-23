@@ -1,6 +1,6 @@
-"""SIFT + FLANN + RANSAC 跟点引擎。
+"""SIFT + FLANN + RANSAC 跟踪引擎。
 
-从 main_sift.py 抽取，去掉了 Tk 耦合。
+已与旧 Tk 入口解耦，可直接供当前灵动岛主链复用。
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 import config
-from .base import BaseTracker, TrackResult, TrackState
+from base import BaseTracker, TrackResult, TrackState
 
 
 class SiftTracker(BaseTracker):
