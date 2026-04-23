@@ -18,19 +18,20 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 # 默认配置字典 (如果 JSON 文件丢失，用来兜底并重新生成)
 # ==========================================
 DEFAULT_CONFIG = {
+    # MINIMAP 坐标因屏幕/分辨率而异，保留一个安全兜底；程序会在首次启动弹校准器
     "MINIMAP": {"top": 292, "left": 1853, "width": 150, "height": 150},
-    "WINDOW_GEOMETRY": "400x400+1500+100",
-    "LOCKED_VIEW_SIZE": None,  # 跟踪稳定态下用户上次的窗口尺寸，{"width": W, "height": H}
-    "PAUSED_VIEW_SIZE": None,  # 暂停态下用户上次的窗口尺寸
-    "SIDEBAR_COLLAPSED": False,
-    "SIDEBAR_WIDTH": 320,
-    "PAUSED_SIDEBAR_WIDTH": None,
+    "WINDOW_GEOMETRY": {"x": 1418, "y": 0, "width": 420, "height": 360},
+    "LOCKED_VIEW_SIZE": {"width": 420, "height": 360},
+    "PAUSED_VIEW_SIZE": {"width": 820, "height": 500},
+    "SIDEBAR_COLLAPSED": True,
+    "SIDEBAR_WIDTH": 270,
+    "PAUSED_SIDEBAR_WIDTH": 270,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",
-    "MAX_LOST_FRAMES": 50,
+    "MAX_LOST_FRAMES": 30,
 
-    "SIFT_REFRESH_RATE": 30,
+    "SIFT_REFRESH_RATE": 10,
     "SIFT_CLAHE_LIMIT": 3.0,
     "SIFT_MATCH_RATIO": 0.9,
     "SIFT_MIN_MATCH_COUNT": 5,

@@ -336,9 +336,11 @@ class SettingsDialog(QDialog):
 
         shell_layout.addWidget(title_bar)
 
+        minimap_row = self._build_minimap_row()
         common_section = self._build_section(
             "通用设置", _COMMON_FIELDS,
             two_columns=True, narrow_editor=True,
+            extra_widget=minimap_row,
         )
         tools_section = self._build_tools_section()
 
@@ -407,6 +409,7 @@ class SettingsDialog(QDialog):
         max_height: int | None = None,
         two_columns: bool = False,
         narrow_editor: bool = False,
+        extra_widget: QWidget | None = None,
     ) -> QFrame:
         """构建一个版块卡片。
 
@@ -462,9 +465,13 @@ class SettingsDialog(QDialog):
                 scroll.setFixedHeight(max_height)
                 scroll.setWidget(body)
                 card_layout.addWidget(scroll)
+                if extra_widget is not None:
+                    card_layout.addWidget(extra_widget)
                 return card
 
         card_layout.addWidget(body)
+        if extra_widget is not None:
+            card_layout.addWidget(extra_widget)
         return card
 
     def _compute_top_section_max_height(
@@ -519,6 +526,71 @@ class SettingsDialog(QDialog):
     def _split_in_halves(fields: list[Field]) -> list[list[Field]]:
         mid = (len(fields) + 1) // 2
         return [fields[:mid], fields[mid:]]
+
+    def _build_minimap_row(self) -> QWidget:
+        """构建通用设置底部的 "小地图区域" 行：按钮 + Top/Left/W/H 四个输入框。"""
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 4, 6, 0)
+        layout.setSpacing(8)
+
+        label = QLabel("小地图")
+        label.setStyleSheet(
+            f"color: {theme.FG}; font-size: 12px; font-weight: 600;"
+        )
+        layout.addWidget(label)
+
+        set_btn = QPushButton("设置小地图")
+        set_btn.setMinimumHeight(28)
+        set_btn.clicked.connect(self._on_open_minimap_calibrator)
+        layout.addWidget(set_btn)
+
+        # 四个输入框：Top / Left / Width / Height
+        self._minimap_editors: dict[str, QLineEdit] = {}
+        raw = getattr(config, "MINIMAP", None) or {}
+        for key, title in (("top", "Top"), ("left", "Left"),
+                           ("width", "W"), ("height", "H")):
+            lbl = QLabel(title)
+            lbl.setObjectName("StatLabel")
+            layout.addWidget(lbl)
+            editor = QLineEdit()
+            editor.setMinimumHeight(28)
+            editor.setFixedWidth(60)
+            editor.setAlignment(Qt.AlignRight)
+            editor.setValidator(QIntValidator(-10_000, 10_000, editor))
+            try:
+                editor.setText(str(int(raw[key])))
+            except (KeyError, TypeError, ValueError):
+                editor.setText("")
+            self._minimap_editors[key] = editor
+            layout.addWidget(editor)
+        layout.addStretch()
+        return row
+
+    def _on_open_minimap_calibrator(self) -> None:
+        """打开基于 Qt 的小地图校准器；关闭后刷新四个输入框。"""
+        from .minimap_selector import run_minimap_calibrator
+
+        # 先关闭设置窗，避免两层 modal/非模态窗口的焦点问题。
+        # 不传 parent 给校准器，让 overlay 成为独立顶层窗口，避免事件路由问题。
+        self.hide()
+        saved = run_minimap_calibrator(None)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        if saved:
+            self._refresh_minimap_editors()
+            # 立刻通知主窗口刷新缓存（不等用户点"应用"）
+            self.applied.emit()
+            toast(self, "小地图区域已更新")
+
+    def _refresh_minimap_editors(self) -> None:
+        raw = getattr(config, "MINIMAP", None) or {}
+        for key, editor in self._minimap_editors.items():
+            try:
+                editor.setText(str(int(raw[key])))
+            except (KeyError, TypeError, ValueError):
+                editor.setText("")
 
     def _build_tools_section(self) -> QFrame:
         card = QFrame()
@@ -626,6 +698,30 @@ class SettingsDialog(QDialog):
                     f"字段 {f.label} 的值 “{raw}” 无法解析为 {f.type_.__name__}。"
                 )
                 return None
+
+        # 小地图区域：四个输入框全部有效时才写入 MINIMAP
+        minimap_payload: dict = {}
+        for key, editor in getattr(self, "_minimap_editors", {}).items():
+            raw = editor.text().strip()
+            if raw == "":
+                minimap_payload = {}
+                break
+            try:
+                minimap_payload[key] = int(raw)
+            except ValueError:
+                styled_info(
+                    self, "输入无效",
+                    f"小地图 {key} 的值 “{raw}” 不是有效整数。",
+                )
+                return None
+        if len(minimap_payload) == 4:
+            # 和 config.py 中的 MINIMAP 结构一致
+            result["MINIMAP"] = {
+                "top": minimap_payload["top"],
+                "left": minimap_payload["left"],
+                "width": minimap_payload["width"],
+                "height": minimap_payload["height"],
+            }
         return result
 
     def _changed_restart_fields(self, values: dict) -> list[str]:

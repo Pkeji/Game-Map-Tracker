@@ -1081,7 +1081,11 @@ class IslandWindow(QWidget):
                         self._sidebar_collapsed = self._sidebar_collapsed_before_max
                         self._sidebar_collapsed_before_max = None
                 if self.isMaximized():
-                    self.showNormal()
+                    # 直接清 WindowState 比 showNormal() 更确定——Qt 会同步更新几何标志，
+                    # 让紧随其后的 setGeometry 真正生效，而不是被最大化状态吞掉。
+                    self.setWindowState(
+                        self.windowState() & ~Qt.WindowMaximized
+                    )
 
                 # PAUSED 强制展开侧边栏；离开 PAUSED 时恢复之前记住的折叠状态
                 if new_mode == WindowMode.PAUSED:
@@ -1284,9 +1288,65 @@ class IslandWindow(QWidget):
                 return True
         return False
 
+    def _sync_view_prefs_before_persist(self) -> None:
+        """关闭前同步当前视图偏好，避免最后一次调整还停留在防抖计时器里。"""
+        if self._stable_size_save_timer.isActive():
+            self._stable_size_save_timer.stop()
+        if self._paused_size_save_timer.isActive():
+            self._paused_size_save_timer.stop()
+
+        if self.isMaximized():
+            base_geom = QRect(self._geometry_before_max or self.geometry())
+            source_mode = self._mode_before_max or WindowMode.PAUSED
+        else:
+            base_geom = QRect(self.geometry())
+            source_mode = self._mode
+
+        if source_mode == WindowMode.PAUSED:
+            self._size_prefs[WindowMode.PAUSED] = (
+                max(self._normal_minimum_width, int(base_geom.width())),
+                max(self._normal_minimum_height, int(base_geom.height())),
+            )
+            if self.isMaximized():
+                if self._sidebar_width_before_max is not None:
+                    self._paused_sidebar_width = int(self._sidebar_width_before_max)
+            else:
+                self._paused_sidebar_width = int(self._sidebar_width)
+        elif source_mode in _STABLE_FAMILY:
+            self._size_prefs[WindowMode.TRACKING_STABLE] = (
+                max(self._normal_minimum_width, int(base_geom.width())),
+                max(self._normal_minimum_height, int(base_geom.height())),
+            )
+
+    def _startup_geometry_to_persist(self, base_geom: QRect) -> QRect:
+        """保存下次启动会使用的暂停态几何，避免从追踪态关闭后恢复位置错位。"""
+        paused_size = self._size_prefs.get(
+            WindowMode.PAUSED,
+            (int(base_geom.width()), int(base_geom.height())),
+        )
+        width = max(self._normal_minimum_width, int(paused_size[0]))
+        height = max(self._normal_minimum_height, int(paused_size[1]))
+        right_edge = self._preferred_right_edge
+        if right_edge is None:
+            right_edge = int(base_geom.x() + base_geom.width())
+
+        x = int(right_edge - width)
+        y = int(base_geom.y())
+        screen_geo = self._current_screen_available_geometry()
+        if screen_geo is not None:
+            x = max(screen_geo.left(), x)
+            if x + width > screen_geo.right():
+                x = max(screen_geo.left(), screen_geo.right() - width)
+            y = max(screen_geo.top(), y)
+            if y + height > screen_geo.bottom():
+                y = max(screen_geo.top(), screen_geo.bottom() - height)
+
+        return QRect(x, y, width, height)
+
     def _save_window_geometry(self) -> None:
         """把当前窗口位置、侧边栏状态、稳定态尺寸写回 config.json。"""
         # 最大化时使用进入前的普通窗口几何，避免把系统最大化后的左上角位置写回配置。
+        self._sync_view_prefs_before_persist()
         g = QRect(self.geometry())
         if self._mode == WindowMode.PAUSED:
             tracking_sidebar_collapsed = bool(
@@ -1336,12 +1396,13 @@ class IslandWindow(QWidget):
             tracking_sidebar_collapsed = bool(self._sidebar_collapsed)
             tracking_sidebar_width = int(self._sidebar_width)
             paused_sidebar_width = int(self._paused_sidebar_width)
+        startup_geom = self._startup_geometry_to_persist(g)
         payload: dict = {
             "WINDOW_GEOMETRY": {
-                "x": int(g.x()),
-                "y": int(g.y()),
-                "width": int(g.width()),
-                "height": int(g.height()),
+                "x": int(startup_geom.x()),
+                "y": int(startup_geom.y()),
+                "width": int(startup_geom.width()),
+                "height": int(startup_geom.height()),
             },
             "SIDEBAR_COLLAPSED": tracking_sidebar_collapsed,
             "SIDEBAR_WIDTH": tracking_sidebar_width,
@@ -1369,8 +1430,9 @@ class IslandWindow(QWidget):
         open_settings_dialog(self, on_applied=self._on_settings_applied)
 
     def _on_settings_applied(self) -> None:
-        """设置窗口点击“应用”后回调。config 值已经写回，跟踪循环下次 sleep 自动读新值。"""
-        pass
+        """设置窗口点击“应用”后回调。config 值已经写回；这里刷新本进程内缓存的引用。"""
+        # MINIMAP 是 dict，save_config 已经更新了 config.MINIMAP，但我们持有的是旧引用
+        self._minimap_region = config.MINIMAP
 
     def _collapse_to_icon(self) -> None:
         """点最小化：隐藏主窗，左上角原位置弹出一个保留状态/坐标的还原胶囊。"""
@@ -1996,8 +2058,8 @@ class IslandWindow(QWidget):
         self._set_locked_state(self._preferred_locked)
 
     def _prompt_relocate(self) -> None:
-        # PAUSED 下按下这个按钮意味着"开始导航"
-        if self._mode == WindowMode.PAUSED:
+        # PAUSED / MAXIMIZED 下按下这个按钮意味着"开始导航"
+        if self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED):
             self._start_navigation()
             return
 

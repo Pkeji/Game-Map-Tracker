@@ -1,21 +1,32 @@
 {
     "MINIMAP": {
-        "top": 62,
-        "left": 2297,
-        "width": 220,
-        "height": 220
+        "top": 292,
+        "left": 1853,
+        "width": 150,
+        "height": 150
     },
     "WINDOW_GEOMETRY": {
-        "x": 1340,
+        "x": 1418,
         "y": 0,
-        "width": 496,
-        "height": 240
+        "width": 420,
+        "height": 360
     },
+    "LOCKED_VIEW_SIZE": {
+        "width": 420,
+        "height": 360
+    },
+    "PAUSED_VIEW_SIZE": {
+        "width": 820,
+        "height": 500
+    },
+    "SIDEBAR_COLLAPSED": true,
+    "SIDEBAR_WIDTH": 270,
+    "PAUSED_SIDEBAR_WIDTH": 270,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",
-    "MAX_LOST_FRAMES": 50,
-    "SIFT_REFRESH_RATE": 20,
+    "MAX_LOST_FRAMES": 30,
+    "SIFT_REFRESH_RATE": 10,
     "SIFT_CLAHE_LIMIT": 3.0,
     "SIFT_MATCH_RATIO": 0.9,
     "SIFT_MIN_MATCH_COUNT": 5,
@@ -28,15 +39,5 @@
     "AI_SCAN_SIZE": 1600,
     "AI_SCAN_STEP": 1400,
     "AI_TRACK_RADIUS": 500,
-    "ROUTE_RECENT_LIMIT": 5,
-    "SIDEBAR_COLLAPSED": false,
-    "SIDEBAR_WIDTH": 200,
-    "LOCKED_VIEW_SIZE": {
-        "width": 420,
-        "height": 240
-    },
-    "PAUSED_VIEW_SIZE": {
-        "width": 496,
-        "height": 240
-    }
+    "ROUTE_RECENT_LIMIT": 5
 }
