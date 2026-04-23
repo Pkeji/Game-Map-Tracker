@@ -5,12 +5,17 @@
         "width": 220,
         "height": 220
     },
-    "WINDOW_GEOMETRY": "400x400+1500+100",
+    "WINDOW_GEOMETRY": {
+        "x": 1340,
+        "y": 0,
+        "width": 496,
+        "height": 240
+    },
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",
     "MAX_LOST_FRAMES": 50,
-    "SIFT_REFRESH_RATE": 30,
+    "SIFT_REFRESH_RATE": 20,
     "SIFT_CLAHE_LIMIT": 3.0,
     "SIFT_MATCH_RATIO": 0.9,
     "SIFT_MIN_MATCH_COUNT": 5,
@@ -23,5 +28,15 @@
     "AI_SCAN_SIZE": 1600,
     "AI_SCAN_STEP": 1400,
     "AI_TRACK_RADIUS": 500,
-    "ROUTE_RECENT_LIMIT": 5
+    "ROUTE_RECENT_LIMIT": 5,
+    "SIDEBAR_COLLAPSED": false,
+    "SIDEBAR_WIDTH": 200,
+    "LOCKED_VIEW_SIZE": {
+        "width": 420,
+        "height": 240
+    },
+    "PAUSED_VIEW_SIZE": {
+        "width": 496,
+        "height": 240
+    }
 }

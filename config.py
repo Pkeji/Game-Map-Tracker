@@ -20,6 +20,11 @@ CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 DEFAULT_CONFIG = {
     "MINIMAP": {"top": 292, "left": 1853, "width": 150, "height": 150},
     "WINDOW_GEOMETRY": "400x400+1500+100",
+    "LOCKED_VIEW_SIZE": None,  # 跟踪稳定态下用户上次的窗口尺寸，{"width": W, "height": H}
+    "PAUSED_VIEW_SIZE": None,  # 暂停态下用户上次的窗口尺寸
+    "SIDEBAR_COLLAPSED": False,
+    "SIDEBAR_WIDTH": 320,
+    "PAUSED_SIDEBAR_WIDTH": None,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",
@@ -93,6 +98,41 @@ settings = load_config()
 # 通用设置
 MINIMAP = settings.get("MINIMAP")
 WINDOW_GEOMETRY = settings.get("WINDOW_GEOMETRY")
+SIDEBAR_COLLAPSED = settings.get("SIDEBAR_COLLAPSED")
+SIDEBAR_WIDTH = settings.get("SIDEBAR_WIDTH")
+PAUSED_SIDEBAR_WIDTH = settings.get("PAUSED_SIDEBAR_WIDTH")
+LOCKED_VIEW_SIZE = settings.get("LOCKED_VIEW_SIZE")
+PAUSED_VIEW_SIZE = settings.get("PAUSED_VIEW_SIZE")
+
+
+def parse_window_geometry(raw) -> dict | None:
+    """把旧的 Tk 字符串或新字典格式规整成 {x, y, width, height}。
+
+    支持：
+      - 字典 {x, y, width, height}
+      - Tk 格式 "WxH+X+Y"
+    无效输入返回 None。
+    """
+    if isinstance(raw, dict):
+        try:
+            return {
+                "x": int(raw["x"]),
+                "y": int(raw["y"]),
+                "width": int(raw["width"]),
+                "height": int(raw["height"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
+    if isinstance(raw, str):
+        import re
+        m = re.match(r"(\d+)x(\d+)([+-]\d+)([+-]\d+)", raw.strip())
+        if m:
+            w, h, x, y = m.groups()
+            try:
+                return {"x": int(x), "y": int(y), "width": int(w), "height": int(h)}
+            except ValueError:
+                return None
+    return None
 VIEW_SIZE = settings.get("VIEW_SIZE")
 LOGIC_MAP_PATH = settings.get("LOGIC_MAP_PATH")
 DISPLAY_MAP_PATH = settings.get("DISPLAY_MAP_PATH")

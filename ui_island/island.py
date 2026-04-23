@@ -16,8 +16,10 @@ try:
 except ImportError:  # pragma: no cover
     keyboard = None
 
-from PySide6.QtCore import QEvent, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter
+from enum import Enum
+
+from PySide6.QtCore import QEvent, QRect, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QCursor, QFont, QGuiApplication, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -41,6 +43,40 @@ from route_manager import RouteManager
 from . import theme
 from .map_view import MapView
 from .win_overlay import apply_overlay_flags, set_click_through
+
+
+class WindowMode(Enum):
+    """主窗口的五种互斥形态。
+
+    - PAUSED：手动停止导航（启动默认态），固定 EXPANDED_W × EXPANDED_H。
+    - TRACKING_STABLE：定位稳定（跟踪器返回 LOCKED），用户可 resize，尺寸持久化。
+    - TRACKING_INERTIAL：短暂失锁但仍有位置（跟踪器返回 INERTIAL），复用 STABLE 尺寸。
+    - TRACKING_LOST：目标丢失 / 搜索中（LOST / SEARCHING），紧缩告警形态。
+    - MAXIMIZED：铺满屏幕，独立形态；退出时回到进入前的 mode。
+    """
+
+    PAUSED = "paused"
+    TRACKING_STABLE = "tracking_stable"
+    TRACKING_INERTIAL = "tracking_inertial"
+    TRACKING_LOST = "tracking_lost"
+    MAXIMIZED = "maximized"
+
+
+_TRACKING_MODES = {
+    WindowMode.TRACKING_STABLE,
+    WindowMode.TRACKING_INERTIAL,
+    WindowMode.TRACKING_LOST,
+}
+_STABLE_FAMILY = {WindowMode.TRACKING_STABLE, WindowMode.TRACKING_INERTIAL}
+
+
+def _tracker_state_to_mode(state: TrackState) -> WindowMode:
+    if state == TrackState.LOCKED:
+        return WindowMode.TRACKING_STABLE
+    if state == TrackState.INERTIAL:
+        return WindowMode.TRACKING_INERTIAL
+    # LOST / SEARCHING 都归紧缩告警态
+    return WindowMode.TRACKING_LOST
 
 
 class _StatusDot(QWidget):
@@ -162,28 +198,81 @@ class IslandWindow(QWidget):
         self._route_widgets_by_category: dict[str, list[tuple[str, QCheckBox]]] = {}
         self._route_sections: dict[str, _RouteSection] = {}
 
-        self._sidebar_collapsed = False
-        self._expanded_size_memory: tuple[int, int] | None = None
-        self._collapsed_size_memory: tuple[int, int] | None = None
-        self._sidebar_collapsed_before_maximize: bool | None = None
-        self._sidebar_collapsed_before_pause: bool | None = None
-        self._restore_geometry_before_maximize: QRect | None = None
-        self._sidebar_width = 320
-
-        self._compact_state_active = False
-        self._compact_restore_geometry: QRect | None = None
-        self._compact_restore_sidebar_collapsed = False
+        # 侧边栏折叠状态和宽度：优先读 config，没有则走默认
+        saved_collapsed = config.SIDEBAR_COLLAPSED
+        saved_sidebar_w = config.SIDEBAR_WIDTH
+        self._sidebar_collapsed = bool(saved_collapsed) if saved_collapsed is not None else False
+        try:
+            tracking_sidebar_width = max(120, int(saved_sidebar_w)) if saved_sidebar_w is not None else 320
+        except (TypeError, ValueError):
+            tracking_sidebar_width = 320
+        saved_paused_sidebar_w = getattr(config, "PAUSED_SIDEBAR_WIDTH", None)
+        try:
+            self._paused_sidebar_width = (
+                max(120, int(saved_paused_sidebar_w))
+                if saved_paused_sidebar_w is not None
+                else tracking_sidebar_width
+            )
+        except (TypeError, ValueError):
+            self._paused_sidebar_width = tracking_sidebar_width
+        self._sidebar_width = self._paused_sidebar_width
 
         self._normal_minimum_width = theme.WINDOW_MIN_W + self._window_margin * 2
         self._normal_minimum_height = theme.WINDOW_MIN_H + self._window_margin * 2
         self._tracking_attempts_paused = False
         self._tracking_paused_state = TrackState.SEARCHING
-        self._manual_pause = False
         self._jump_anomaly_count = 0
-        self._lost_mode_active = False
         self._preferred_locked = False
         self._lock_state_before_lost: bool | None = None
         self._restore_lock_after_relocate: bool | None = None
+
+        # ---- 状态机：window mode + 各模式的尺寸偏好 ----
+        self._mode = WindowMode.PAUSED                      # 启动默认暂停态
+        self._mode_before_max: WindowMode | None = None     # 最大化前的 mode
+        self._applying_mode = False                         # _enter_mode 内部保护
+        self._preferred_right_edge: int | None = None       # 锚点：窗口右边缘
+        # 进 PAUSED 前的侧边栏状态。预填为"config 读到的用户偏好"，
+        # 启动后走 _enter_mode(PAUSED) 强制展开但会把这个备份保留下来——
+        # 下次离开 PAUSED（比如点开始导航）时恢复用户偏好。
+        self._sidebar_collapsed_before_pause: bool | None = bool(self._sidebar_collapsed)
+        self._sidebar_width_before_pause: int | None = tracking_sidebar_width
+        self._sidebar_collapsed_before_max: bool | None = None    # 进 MAXIMIZED 前的折叠状态
+        self._sidebar_width_before_max: int | None = None         # 进 MAXIMIZED 前的宽度
+        # 各模式的目标尺寸 (width, height)
+        self._sidebar_expand_restore_geometry: QRect | None = None
+        paused_w = theme.EXPANDED_W + self._window_margin * 2
+        paused_h = theme.EXPANDED_H + self._window_margin * 2
+        self._size_prefs: dict[WindowMode, tuple[int, int]] = {
+            WindowMode.PAUSED: (paused_w, paused_h),
+        }
+        # 读取持久化的稳定态尺寸（若有）
+        saved_stable = config.LOCKED_VIEW_SIZE
+        if isinstance(saved_stable, dict):
+            try:
+                w = max(self._normal_minimum_width, int(saved_stable["width"]))
+                h = max(self._normal_minimum_height, int(saved_stable["height"]))
+                self._size_prefs[WindowMode.TRACKING_STABLE] = (w, h)
+            except (KeyError, TypeError, ValueError):
+                pass
+        # 读取持久化的暂停态尺寸（若有）
+        saved_paused = getattr(config, "PAUSED_VIEW_SIZE", None)
+        if isinstance(saved_paused, dict):
+            try:
+                w = max(self._normal_minimum_width, int(saved_paused["width"]))
+                h = max(self._normal_minimum_height, int(saved_paused["height"]))
+                self._size_prefs[WindowMode.PAUSED] = (w, h)
+            except (KeyError, TypeError, ValueError):
+                pass
+        # 防抖：稳定态 resize 结束 300ms 后写回 config
+        self._stable_size_save_timer = QTimer(self)
+        self._stable_size_save_timer.setSingleShot(True)
+        self._stable_size_save_timer.setInterval(300)
+        self._stable_size_save_timer.timeout.connect(self._flush_stable_size_to_config)
+        # 防抖：暂停态尺寸同样持久化
+        self._paused_size_save_timer = QTimer(self)
+        self._paused_size_save_timer.setSingleShot(True)
+        self._paused_size_save_timer.setInterval(300)
+        self._paused_size_save_timer.timeout.connect(self._flush_paused_size_to_config)
 
         self._move_dragging = False
         self._move_drag_offset = None
@@ -200,7 +289,13 @@ class IslandWindow(QWidget):
         self._build_ui()
         self._install_resize_filters(self.root)
         self.installEventFilter(self)
-        self._place_on_top_center()
+        self._restore_or_center()
+        # 启动时进入 PAUSED：强制展开侧边栏 + 设 UI 反馈 + 跟踪循环暂停
+        self._enter_mode(WindowMode.PAUSED)
+        # PAUSED 下默认渲染一次地图（居中），避免左侧全黑。
+        # 用 QTimer.singleShot(0) 延到首次 layout 完成后执行，
+        # 保证 map_view 的真实尺寸已经算好，zoom 才能算出合适值把地图填满。
+        QTimer.singleShot(0, self._paint_default_map)
 
         self._toggle_lock_requested.connect(self.toggle_lock, Qt.QueuedConnection)
         self._frame_ready.connect(self._on_frame)
@@ -279,104 +374,78 @@ class IslandWindow(QWidget):
         self.title_drag_area.installEventFilter(self)
         header.addWidget(self.title_drag_area, stretch=1)
 
-        self.settings_btn = self._create_header_button(
-            header,
-            text="⚙",
-            object_name="HeaderWindowButton",
-            icon_role="settings",
-            tooltip="设置",
-            callback=self._open_settings,
-        )
-        self.min_btn = self._create_header_button(
-            header,
-            text="-",
-            object_name="HeaderWindowButton",
-            icon_role="minimize",
-            tooltip="最小化",
-            callback=self._collapse_to_icon,
-        )
-        self.max_btn = self._create_header_button(
-            header,
-            text="▢",
-            object_name="HeaderWindowButton",
-            icon_role="maximize",
-            tooltip="最大化",
-            callback=self._toggle_maximize_restore,
-        )
-        self.close_btn = self._create_header_button(
-            header,
-            text="×",
-            object_name="HeaderWindowButton",
-            icon_role="close",
-            tooltip="关闭",
-            callback=self.close,
-        )
+        self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setObjectName("WindowControl")
+        self.settings_btn.setToolTip("设置")
+        self.settings_btn.clicked.connect(self._open_settings)
+        header.addWidget(self.settings_btn)
 
-        self.relocate_btn = self._create_header_button(
-            header,
-            text="重定位",
-            object_name="HeaderActionButton",
-            icon_role="locate",
-            tooltip="重定位",
-            callback=self._prompt_relocate,
-        )
-        self.reset_view_btn = self._create_header_button(
-            header,
-            text="重置视图",
-            object_name="HeaderActionButton",
-            icon_role="reset",
-            tooltip="重置视图",
-            callback=self._reset_map_view,
-        )
-        self.sidebar_toggle_btn = self._create_header_button(
-            header,
-            text="隐藏侧边栏",
-            object_name="TopSidebarToggle",
-            icon_role="sidebar",
-            tooltip="隐藏侧边栏",
-            callback=self._handle_sidebar_action,
-        )
-        self.terminate_nav_btn = self._create_header_button(
-            header,
-            text="终止导航",
-            object_name="HeaderActionButton",
-            icon_role="terminate",
-            tooltip="终止导航",
-            callback=self._pause_navigation,
-        )
-        self.lock_btn = self._create_header_button(
-            header,
-            text="锁定",
-            object_name="HeaderActionButton",
-            icon_role="lock",
-            tooltip="锁定",
-            callback=self.toggle_lock,
-            checkable=True,
-        )
+        self.min_btn = QPushButton("-")
+        self.min_btn.setObjectName("WindowControl")
+        self.min_btn.setToolTip("最小化")
+        self.min_btn.setFont(self._window_control_font(18))
+        self.min_btn.clicked.connect(self._collapse_to_icon)
+        header.addWidget(self.min_btn)
+
+        self.max_btn = QPushButton("▢")
+        self.max_btn.setObjectName("WindowControl")
+        self.max_btn.setToolTip("最大化")
+        self.max_btn.setFont(self._window_control_font(18))
+        self.max_btn.clicked.connect(self._toggle_maximize_restore)
+        header.addWidget(self.max_btn)
+
+        self.close_btn = QPushButton("×")
+        self.close_btn.setObjectName("WindowControl")
+        self.close_btn.setToolTip("关闭")
+        self.close_btn.setFont(self._window_control_font(18))
+        self.close_btn.clicked.connect(self.close)
+        header.addWidget(self.close_btn)
+
+        self.relocate_btn = QPushButton("重定位")
+        self.relocate_btn.setObjectName("HeaderActionButton")
+        self.relocate_btn.setProperty("iconRole", "locate")
+        self.relocate_btn.setToolTip("重定位")
+        self.relocate_btn.clicked.connect(self._prompt_relocate)
+        header.addWidget(self.relocate_btn)
+
+        self.reset_view_btn = QPushButton("重置视图")
+        self.reset_view_btn.setObjectName("HeaderActionButton")
+        self.reset_view_btn.setProperty("iconRole", "reset")
+        self.reset_view_btn.setToolTip("重置视图")
+        self.reset_view_btn.clicked.connect(self._reset_map_view)
+        header.addWidget(self.reset_view_btn)
+
+        self.sidebar_toggle_btn = QPushButton("隐藏侧边栏")
+        self.sidebar_toggle_btn.setObjectName("TopSidebarToggle")
+        self.sidebar_toggle_btn.setProperty("iconRole", "sidebar")
+        self.sidebar_toggle_btn.setToolTip("隐藏侧边栏")
+        self.sidebar_toggle_btn.clicked.connect(self._handle_sidebar_action)
+        header.addWidget(self.sidebar_toggle_btn)
+
+        self.terminate_nav_btn = QPushButton("终止导航")
+        self.terminate_nav_btn.setObjectName("HeaderActionButton")
+        self.terminate_nav_btn.setProperty("iconRole", "terminate")
+        self.terminate_nav_btn.setToolTip("终止导航")
+        self.terminate_nav_btn.clicked.connect(self._pause_navigation)
+        header.addWidget(self.terminate_nav_btn)
+
+        self.lock_btn = QPushButton("锁定")
+        self.lock_btn.setObjectName("HeaderActionButton")
+        self.lock_btn.setProperty("iconRole", "lock")
+        self.lock_btn.setCheckable(True)
+        self.lock_btn.setToolTip("锁定")
+        self.lock_btn.clicked.connect(self.toggle_lock)
+        header.addWidget(self.lock_btn)
 
         self._update_header_button_labels()
         root_layout.addLayout(header)
 
-    def _create_header_button(
-        self,
-        header: QHBoxLayout,
-        *,
-        text: str,
-        object_name: str,
-        icon_role: str,
-        tooltip: str,
-        callback,
-        checkable: bool = False,
-    ) -> QPushButton:
-        button = QPushButton(text)
-        button.setObjectName(object_name)
-        button.setProperty("headerButton", True)
-        button.setProperty("iconRole", icon_role)
-        button.setToolTip(tooltip)
-        button.setCheckable(checkable)
-        button.clicked.connect(callback)
-        header.addWidget(button)
-        return button
+    @staticmethod
+    def _window_control_font(size: int) -> QFont:
+        font = QFont()
+        font.setPointSize(size)
+        font.setBold(True)
+        return font
 
     def _build_body(self, root_layout: QVBoxLayout) -> None:
         self.alert_card = QFrame()
@@ -428,7 +497,7 @@ class IslandWindow(QWidget):
         side_layout.setSpacing(10)
         side_layout.setSizeConstraint(QVBoxLayout.SetMinAndMaxSize)
 
-        map_hint = QLabel("滚轮缩放，左键拖动，双击重定位")
+        map_hint = QLabel("滚轮缩放，左键拖动，双击选点")
         map_hint.setObjectName("MapHint")
         side_layout.addWidget(map_hint)
 
@@ -615,7 +684,8 @@ class IslandWindow(QWidget):
         return not term or term in route_name.casefold()
 
     def _is_pause_mode(self) -> bool:
-        return self._manual_pause or self.isMaximized()
+        """兼容性别名：PAUSED 或 MAXIMIZED 都算非跟踪态（原语义）。"""
+        return self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED)
 
     def _toggle_sidebar(self) -> None:
         self._set_sidebar_collapsed(not self._sidebar_collapsed, restore_size=True)
@@ -627,43 +697,48 @@ class IslandWindow(QWidget):
         self._toggle_sidebar()
 
     def _set_sidebar_collapsed(self, collapsed: bool, restore_size: bool) -> None:
+        """切换侧边栏可见性。只改可见性 + minimumWidth；尺寸由 _enter_mode 决定。"""
         if collapsed == self._sidebar_collapsed:
             self._apply_sidebar_state()
             return
-
-        geom = self.geometry()
-        expanded_min_width = self._expanded_layout_minimum_width()
-        if not self.isMaximized():
-            if collapsed:
-                if geom.width() >= expanded_min_width or self._expanded_size_memory is None:
-                    self._expanded_size_memory = (
-                        max(expanded_min_width, geom.width()),
-                        max(self._normal_minimum_height, geom.height()),
-                    )
-            else:
-                self._collapsed_size_memory = (geom.width(), geom.height())
-
+        restore_geometry = (
+            QRect(self.geometry())
+            if (
+                restore_size
+                and not collapsed
+                and self._mode in _STABLE_FAMILY
+                and self.width() < self._expanded_layout_minimum_width()
+            )
+            else None
+        )
         self._sidebar_collapsed = collapsed
         self._apply_sidebar_state()
-
-        if restore_size and not self.isMaximized() and not self._compact_state_active:
-            x, y = geom.x(), geom.y()
-            if collapsed:
-                target = self._collapsed_size_memory or (geom.width(), geom.height())
-                self.setGeometry(
-                    x,
-                    y,
-                    max(self._normal_minimum_width, target[0]),
-                    max(self._normal_minimum_height, target[1]),
-                )
-            else:
-                target = self._expanded_size_memory or (geom.width(), geom.height())
-                self.setGeometry(
-                    x,
-                    y,
-                    max(expanded_min_width, target[0]),
-                    max(self._normal_minimum_height, target[1]),
-                )
+        # 若可能（非最大化、有当前 mode 目标尺寸），把窗口重新收敛到当前 mode 的目标尺寸
+        if (
+            restore_size
+            and not self.isMaximized()
+            and self._mode != WindowMode.MAXIMIZED
+            and not self._applying_mode
+        ):
+            self._applying_mode = True
+            try:
+                if collapsed and self._sidebar_expand_restore_geometry is not None:
+                    restore = QRect(self._sidebar_expand_restore_geometry)
+                    self.setGeometry(restore)
+                    self._preferred_right_edge = restore.x() + restore.width()
+                    if self._mode in _STABLE_FAMILY:
+                        self._size_prefs[WindowMode.TRACKING_STABLE] = (
+                            restore.width(),
+                            restore.height(),
+                        )
+                    self._sidebar_expand_restore_geometry = None
+                else:
+                    self._sidebar_expand_restore_geometry = (
+                        QRect(restore_geometry) if restore_geometry is not None else None
+                    )
+                    self._apply_geometry_for_mode(self._size_for_mode(self._mode))
+            finally:
+                self._applying_mode = False
 
     def _expanded_layout_minimum_width(self) -> int:
         root_layout = self.root.layout()
@@ -684,13 +759,33 @@ class IslandWindow(QWidget):
             + horizontal_padding,
         )
 
+    def _max_sidebar_width_for_current_window(self) -> int:
+        """返回在不改变当前窗口宽度前提下，侧边栏允许的最大宽度。"""
+        root_layout = self.root.layout()
+        body_layout = self.body_container.layout()
+        root_margins = root_layout.contentsMargins() if root_layout is not None else None
+        body_margins = body_layout.contentsMargins() if body_layout is not None else None
+        horizontal_padding = self._window_margin * 2
+        if root_margins is not None:
+            horizontal_padding += root_margins.left() + root_margins.right()
+        if body_margins is not None:
+            horizontal_padding += body_margins.left() + body_margins.right()
+        body_spacing = body_layout.spacing() if body_layout is not None else 0
+        available = self.width() - self.map_view.minimumWidth() - body_spacing - horizontal_padding
+        return max(self._SIDEBAR_MIN_WIDTH, available)
+
     def _sync_window_minimum_width(self) -> None:
-        if self._compact_state_active:
+        """只负责把 setMinimumWidth 调到正确值；
+        实际的 geometry 变动由 _apply_geometry_for_mode 统一管。"""
+        # 侧边栏真实可见时（PAUSED 强制展开 / 非折叠），min 必须含侧边栏宽度，
+        # 否则 Qt layout 会被动撑开窗口，触发 resizeEvent 连锁问题。
+        sidebar_visible = (
+            self._mode == WindowMode.PAUSED or not self._sidebar_collapsed
+        )
+        if sidebar_visible:
+            self.setMinimumWidth(self._expanded_layout_minimum_width())
+        else:
             self.setMinimumWidth(self._normal_minimum_width)
-            return
-        sidebar_visible = self._is_pause_mode() or not self._sidebar_collapsed
-        minimum_width = self._expanded_layout_minimum_width() if sidebar_visible else self._normal_minimum_width
-        self.setMinimumWidth(minimum_width)
 
     def _apply_sidebar_state(self) -> None:
         target_width = max(self._SIDEBAR_MIN_WIDTH, self._sidebar_width)
@@ -761,6 +856,329 @@ class IslandWindow(QWidget):
     def _place_on_top_center(self) -> None:
         self.setGeometry(self._window_geometry())
 
+    def _restore_or_center(self) -> None:
+        """启动时：位置从 config 恢复；尺寸由启动 mode (PAUSED) 决定。"""
+        saved = config.parse_window_geometry(config.WINDOW_GEOMETRY)
+        if saved is None or not self._geometry_is_visible(saved):
+            self._place_on_top_center()
+            return
+        # 只用 x/y 的位置，尺寸由 _enter_mode 覆盖
+        size = self._size_prefs.get(WindowMode.PAUSED, (saved["width"], saved["height"]))
+        self.setGeometry(saved["x"], saved["y"], size[0], size[1])
+
+    # ==========================================================
+    # 状态机：WindowMode 切换 + 尺寸应用
+    # ==========================================================
+
+    def _enter_mode(self, new_mode: WindowMode) -> None:
+        """状态机唯一入口。切换 mode 并应用对应的几何 / 侧边栏 / UI。
+
+        - MAXIMIZED 的进入/离开通过 Qt 的 showMaximized / showNormal。
+        - 其它模式用 setGeometry 应用该模式在 _size_prefs 里登记的尺寸。
+        - 侧边栏折叠状态独立于 mode；但 PAUSED 会强制展开侧边栏。
+        """
+        if self._applying_mode:
+            return  # 避免 resizeEvent 等回调递归触发
+        self._applying_mode = True
+        try:
+            old_mode = self._mode
+            self._mode = new_mode
+            if new_mode not in _STABLE_FAMILY:
+                self._sidebar_expand_restore_geometry = None
+
+            # MAXIMIZED 进出用系统接口 + 侧边栏特殊处理
+            if new_mode == WindowMode.MAXIMIZED:
+                # 进入最大化：备份当前侧边栏状态，强制展开 + 固定宽度
+                if old_mode != WindowMode.MAXIMIZED:
+                    self._sidebar_collapsed_before_max = self._sidebar_collapsed
+                    self._sidebar_width_before_max = self._sidebar_width
+                self._sidebar_collapsed = False
+                self._sidebar_width = theme.MAXIMIZED_SIDEBAR_WIDTH
+                self._apply_sidebar_state()
+                if not self.isMaximized():
+                    self.showMaximized()
+            else:
+                # 从最大化退出：先恢复侧边栏备份
+                if old_mode == WindowMode.MAXIMIZED:
+                    if self._sidebar_width_before_max is not None:
+                        self._sidebar_width = self._sidebar_width_before_max
+                        self._sidebar_width_before_max = None
+                    if self._sidebar_collapsed_before_max is not None:
+                        self._sidebar_collapsed = self._sidebar_collapsed_before_max
+                        self._sidebar_collapsed_before_max = None
+                if self.isMaximized():
+                    self.showNormal()
+
+                # PAUSED 强制展开侧边栏；离开 PAUSED 时恢复之前记住的折叠状态
+                if new_mode == WindowMode.PAUSED:
+                    if old_mode != WindowMode.PAUSED:
+                        # 进入 PAUSED 前记录当前折叠状态
+                        self._sidebar_collapsed_before_pause = self._sidebar_collapsed
+                        self._sidebar_width_before_pause = self._sidebar_width
+                    self._sidebar_width = self._paused_sidebar_width
+                    if self._sidebar_collapsed:
+                        self._sidebar_collapsed = False
+                elif old_mode == WindowMode.PAUSED:
+                    # 从 PAUSED 离开 —— 恢复之前的折叠状态
+                    self._paused_sidebar_width = self._sidebar_width
+                    if self._sidebar_width_before_pause is not None:
+                        self._sidebar_width = self._sidebar_width_before_pause
+                    if self._sidebar_collapsed_before_pause is not None:
+                        self._sidebar_collapsed = self._sidebar_collapsed_before_pause
+                        self._sidebar_collapsed_before_pause = None
+
+                self._apply_sidebar_state()
+
+                # STABLE <-> INERTIAL 尺寸一致，跳过 setGeometry 避免每帧抖动
+                same_family_shift = (
+                    old_mode in _STABLE_FAMILY and new_mode in _STABLE_FAMILY
+                )
+                if not same_family_shift:
+                    target_size = self._size_for_mode(new_mode)
+                    self._apply_geometry_for_mode(target_size)
+                else:
+                    # 只需更新 minimum 高度即可（紧缩态的 setMinimumHeight 遗留）
+                    self.setMinimumHeight(self._normal_minimum_height)
+
+            # UI 反馈（alert / 按钮可见性 / 锁定按钮等）
+            self._apply_mode_ui(new_mode, old_mode)
+        finally:
+            self._applying_mode = False
+
+    def _size_for_mode(self, mode: WindowMode) -> tuple[int, int]:
+        """返回给定 mode 应该应用到窗口的 (width, height)。"""
+        if mode == WindowMode.PAUSED:
+            return self._size_prefs[WindowMode.PAUSED]
+
+        # 稳定态：用户偏好；没有则用 PAUSED 的尺寸兜底
+        stable_size = self._size_prefs.get(
+            WindowMode.TRACKING_STABLE, self._size_prefs[WindowMode.PAUSED]
+        )
+
+        if mode in _STABLE_FAMILY:
+            return stable_size
+
+        if mode == WindowMode.TRACKING_LOST:
+            # 宽度继承稳定态，高度紧缩
+            compact_h = theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2
+            return (stable_size[0], compact_h)
+
+        # MAXIMIZED 不走这里
+        return stable_size
+
+    def _apply_geometry_for_mode(self, size: tuple[int, int]) -> None:
+        """把窗口尺寸改为 size，并以"首选右边缘"为锚点定位 x。
+
+        首选右边缘 _preferred_right_edge 在用户手动移动窗口时更新；
+        mode 切换导致的宽度变化只改 x（=right_edge - new_width），不动 y。
+        这样无论切 mode 几次，右边缘始终不漂，左边缘自然向左/向右挪。
+        """
+        w, h = size
+        # 使用当前 Qt 已知的 minimumWidth（已经由 _sync_window_minimum_width 设好），
+        # 这样展开侧边栏时会自动把窗口扩到 layout 需要的最小宽度，避免 Qt 被动撑开。
+        w = max(self.minimumWidth(), self._normal_minimum_width, w)
+
+        if self._mode == WindowMode.TRACKING_LOST:
+            # 紧缩态：允许比 _normal_minimum_height 更矮
+            self.setMinimumHeight(
+                theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2
+            )
+        else:
+            self.setMinimumHeight(self._normal_minimum_height)
+            h = max(self._normal_minimum_height, h)
+
+        geom = self.geometry()
+        # 初次调用时 _preferred_right_edge 可能还没建立 — 用当前右边缘初始化
+        if self._preferred_right_edge is None:
+            self._preferred_right_edge = geom.x() + geom.width()
+
+        new_x = self._preferred_right_edge - w
+        new_y = geom.y()
+        # 夹紧到当前屏幕可视区
+        screen_geo = self._current_screen_available_geometry()
+        if screen_geo is not None:
+            new_x = max(screen_geo.left(), new_x)
+            # 不要超出屏幕右边缘 ——如果可用区宽度不够塞下 w，往左贴屏幕
+            if new_x + w > screen_geo.right():
+                new_x = max(screen_geo.left(), screen_geo.right() - w)
+
+        self.setGeometry(new_x, new_y, w, h)
+
+    def _apply_mode_ui(
+        self, new_mode: WindowMode, old_mode: WindowMode
+    ) -> None:
+        """按 mode 分派 UI 反馈：alert 面板、按钮可见性、锁定状态等。"""
+        # alert 告警面板：只有 TRACKING_LOST 显示
+        in_alert = new_mode == WindowMode.TRACKING_LOST
+        self._set_alert_mode(in_alert)
+
+        # 暂停态：重置跟踪 flag + 解锁
+        if new_mode == WindowMode.PAUSED:
+            self._tracking_attempts_paused = True
+            if self._locked:
+                self._set_locked_state(False)
+            self._restore_lock_after_relocate = None
+            self._jump_anomaly_count = 0
+            self._set_header_action_visibility(False)
+            self.state_hint_label.setVisible(False)
+        else:
+            # 跟踪中/最大化：恢复跟踪
+            if old_mode == WindowMode.PAUSED:
+                self._tracking_attempts_paused = False
+                self._jump_anomaly_count = 0
+            # LOST 态（紧缩告警）也不显示侧边栏/重置视图按钮，
+            # 紧缩下操作侧边栏没有意义且容易引起布局抖动
+            header_visible = (
+                new_mode != WindowMode.MAXIMIZED
+                and new_mode != WindowMode.TRACKING_LOST
+            )
+            self._set_header_action_visibility(header_visible)
+            if new_mode in _TRACKING_MODES and old_mode != new_mode:
+                if new_mode == WindowMode.TRACKING_LOST:
+                    self.state_hint_label.setVisible(False)
+                else:
+                    self.state_hint_label.setVisible(True)
+                    if old_mode == WindowMode.PAUSED:
+                        self.state_hint_label.setText("正在搜索目标，请稍候…")
+                        self.state_hint_label.setStyleSheet("")
+
+        self._update_lock_button_visibility()
+        self._update_header_button_labels()
+
+    def _flush_stable_size_to_config(self) -> None:
+        """防抖回调：把当前 STABLE 尺寸偏好写回 config.json。"""
+        size = self._size_prefs.get(WindowMode.TRACKING_STABLE)
+        if size is None:
+            return
+        try:
+            config.save_config({
+                "LOCKED_VIEW_SIZE": {
+                    "width": int(size[0]),
+                    "height": int(size[1]),
+                }
+            })
+        except Exception as e:
+            print(f"保存稳定态尺寸失败：{e}")
+
+    def _paint_default_map(self) -> None:
+        """启动默认：以原尺寸（zoom=1）居中显示地图中心，
+        和跟踪时的视觉一致——view 被地图局部填满，而不是缩成小图。"""
+        cx = self.tracker.map_width // 2
+        cy = self.tracker.map_height // 2
+        self.map_view.preview_relocate(cx, cy, TrackState.SEARCHING)
+
+    def _flush_paused_size_to_config(self) -> None:
+        """防抖回调：把当前 PAUSED 尺寸偏好写回 config.json。"""
+        size = self._size_prefs.get(WindowMode.PAUSED)
+        if size is None:
+            return
+        try:
+            config.save_config({
+                "PAUSED_VIEW_SIZE": {
+                    "width": int(size[0]),
+                    "height": int(size[1]),
+                }
+            })
+        except Exception as e:
+            print(f"保存暂停态尺寸失败：{e}")
+
+    def _current_screen_available_geometry(self) -> QRect | None:
+        """返回当前窗口所在屏幕的可视区域。"""
+        screen = self.screen() if hasattr(self, "screen") else None
+        if screen is None:
+            screen = QGuiApplication.primaryScreen()
+        return screen.availableGeometry() if screen is not None else None
+
+    @staticmethod
+    def _geometry_is_visible(g: dict) -> bool:
+        """检查保存的 geometry 是否至少和某个屏幕的可视区域相交，避免窗口跑到离线副屏上。"""
+        screens = QGuiApplication.screens() or []
+        if not screens:
+            return True
+        saved = QRect(g["x"], g["y"], g["width"], g["height"])
+        for s in screens:
+            if s.availableGeometry().intersects(saved):
+                return True
+        return False
+
+    def _save_window_geometry(self) -> None:
+        """把当前窗口位置、侧边栏状态、稳定态尺寸写回 config.json。"""
+        # 最大化时用进入前的 mode；胶囊态主窗已 hide 但 geometry 仍有效
+        g = self.geometry()
+        if self._mode == WindowMode.PAUSED:
+            tracking_sidebar_collapsed = bool(
+                self._sidebar_collapsed_before_pause
+                if self._sidebar_collapsed_before_pause is not None
+                else self._sidebar_collapsed
+            )
+            tracking_sidebar_width = int(
+                self._sidebar_width_before_pause
+                if self._sidebar_width_before_pause is not None
+                else self._sidebar_width
+            )
+            paused_sidebar_width = int(self._sidebar_width)
+        elif self._mode == WindowMode.MAXIMIZED:
+            source_mode = self._mode_before_max or WindowMode.PAUSED
+            if source_mode == WindowMode.PAUSED:
+                tracking_sidebar_collapsed = bool(
+                    self._sidebar_collapsed_before_pause
+                    if self._sidebar_collapsed_before_pause is not None
+                    else config.SIDEBAR_COLLAPSED
+                )
+                tracking_sidebar_width = int(
+                    self._sidebar_width_before_pause
+                    if self._sidebar_width_before_pause is not None
+                    else config.SIDEBAR_WIDTH
+                )
+                paused_sidebar_width = int(
+                    self._sidebar_width_before_max
+                    if self._sidebar_width_before_max is not None
+                    else self._paused_sidebar_width
+                )
+            else:
+                tracking_sidebar_collapsed = bool(
+                    self._sidebar_collapsed_before_max
+                    if self._sidebar_collapsed_before_max is not None
+                    else self._sidebar_collapsed
+                )
+                tracking_sidebar_width = int(
+                    self._sidebar_width_before_max
+                    if self._sidebar_width_before_max is not None
+                    else self._sidebar_width
+                )
+                paused_sidebar_width = int(self._paused_sidebar_width)
+        else:
+            tracking_sidebar_collapsed = bool(self._sidebar_collapsed)
+            tracking_sidebar_width = int(self._sidebar_width)
+            paused_sidebar_width = int(self._paused_sidebar_width)
+        payload: dict = {
+            "WINDOW_GEOMETRY": {
+                "x": int(g.x()),
+                "y": int(g.y()),
+                "width": int(g.width()),
+                "height": int(g.height()),
+            },
+            "SIDEBAR_COLLAPSED": tracking_sidebar_collapsed,
+            "SIDEBAR_WIDTH": tracking_sidebar_width,
+            "PAUSED_SIDEBAR_WIDTH": paused_sidebar_width,
+        }
+        stable = self._size_prefs.get(WindowMode.TRACKING_STABLE)
+        if stable is not None:
+            payload["LOCKED_VIEW_SIZE"] = {
+                "width": int(stable[0]),
+                "height": int(stable[1]),
+            }
+        paused = self._size_prefs.get(WindowMode.PAUSED)
+        if paused is not None:
+            payload["PAUSED_VIEW_SIZE"] = {
+                "width": int(paused[0]),
+                "height": int(paused[1]),
+            }
+        try:
+            config.save_config(payload)
+        except Exception as e:
+            print(f"保存窗口几何失败：{e}")
+
     def _open_settings(self) -> None:
         from .settings_dialog import open_settings_dialog
         open_settings_dialog(self, on_applied=self._on_settings_applied)
@@ -823,21 +1241,14 @@ class IslandWindow(QWidget):
 
     def _toggle_maximize_restore(self) -> None:
         if self.isMaximized():
-            self.showNormal()
-            if self._restore_geometry_before_maximize is not None:
-                self.setGeometry(self._restore_geometry_before_maximize)
-            self._restore_geometry_before_maximize = None
-            self._sidebar_collapsed_before_maximize = None
-            self._pause_navigation()
+            # 退出最大化：回到进入前的 mode
+            target = self._mode_before_max or WindowMode.PAUSED
+            self._mode_before_max = None
+            self._enter_mode(target)
         else:
-            if self._compact_state_active:
-                self._exit_compact_mode()
-            self._restore_geometry_before_maximize = self.geometry()
-            self._sidebar_collapsed_before_maximize = self._sidebar_collapsed
-            if self._sidebar_collapsed:
-                self._set_sidebar_collapsed(False, restore_size=False)
-            self.showMaximized()
-        self._apply_sidebar_state()
+            # 进入最大化：记录当前 mode 以便退出时恢复
+            self._mode_before_max = self._mode
+            self._enter_mode(WindowMode.MAXIMIZED)
         self._update_window_controls()
         apply_overlay_flags(self)
 
@@ -856,8 +1267,8 @@ class IslandWindow(QWidget):
         compact_width: int = 34,
     ) -> None:
         button.setToolTip(tooltip)
-        button.setMinimumHeight(28)
-        button.setMaximumHeight(28)
+        button.setMinimumHeight(26)
+        button.setMaximumHeight(26)
         button.setProperty("headerIconOnly", self._header_buttons_icon_only)
         if self._header_buttons_icon_only:
             button.setText(icon_text)
@@ -885,12 +1296,17 @@ class IslandWindow(QWidget):
         lock_text = "解锁" if self._locked else "锁定"
         lock_icon = "🔓" if self._locked else "🔒"
 
+        # PAUSED 下第一个操作按钮改为"开始导航"；跟踪中保持"重定位"
+        is_paused = self._mode == WindowMode.PAUSED
+        action_text = "开始导航" if is_paused else "重定位"
+        action_icon = "导" if is_paused else "⌖"
+
         button_specs = [
             {
                 "button": self.relocate_btn,
-                "text": "重定位",
-                "icon_text": "⌖",
-                "tooltip": "重定位",
+                "text": action_text,
+                "icon_text": action_icon,
+                "tooltip": action_text,
                 "compact_width": 34,
             },
             {
@@ -935,12 +1351,12 @@ class IslandWindow(QWidget):
             )
 
     def _update_lock_button_visibility(self) -> None:
-        visible = not self.isMaximized() and not self._lost_mode_active and not self._manual_pause
+        visible = self._mode in _STABLE_FAMILY
         self.terminate_nav_btn.setVisible(visible)
         self.lock_btn.setVisible(visible)
 
     def _can_toggle_lock(self) -> bool:
-        return not self.isMaximized() and not self._manual_pause and not self._lost_mode_active
+        return self._mode in _STABLE_FAMILY
 
     def _set_locked_state(self, locked: bool) -> None:
         self._locked = locked
@@ -955,18 +1371,21 @@ class IslandWindow(QWidget):
             self.setWindowOpacity(1.0)
 
     def _enter_lost_mode(self) -> None:
-        if self._lost_mode_active:
+        """进入 LOST 状态：记录锁定偏好后解锁，然后切状态机。"""
+        if self._mode == WindowMode.TRACKING_LOST:
             return
-        self._lost_mode_active = True
-        self._lock_state_before_lost = self._preferred_locked
+        if self._mode in _STABLE_FAMILY:
+            # 从稳定态跌入 LOST 前，记录锁定偏好便于恢复后回填
+            self._lock_state_before_lost = self._preferred_locked
         if self._locked:
             self._set_locked_state(False)
+        self._enter_mode(WindowMode.TRACKING_LOST)
         self._update_lock_button_visibility()
 
     def _exit_lost_mode(self, clear_saved_lock_state: bool = True) -> None:
-        if not self._lost_mode_active:
+        """退出 LOST 状态。真正的 mode 切换由调用者决定（进 STABLE 还是 PAUSED）。"""
+        if self._mode != WindowMode.TRACKING_LOST:
             return
-        self._lost_mode_active = False
         if clear_saved_lock_state:
             self._lock_state_before_lost = None
         self._update_lock_button_visibility()
@@ -1141,31 +1560,16 @@ class IslandWindow(QWidget):
     def _resume_tracking_attempts(self) -> None:
         self._tracking_attempts_paused = False
         self._tracking_paused_state = TrackState.SEARCHING
-        self._manual_pause = False
         self._jump_anomaly_count = 0
         self._apply_sidebar_state()
         self._update_lock_button_visibility()
 
     def _start_navigation(self) -> None:
-        restore_sidebar = self._sidebar_collapsed_before_pause
-        if self.isMaximized():
-            if self._sidebar_collapsed_before_maximize is not None:
-                restore_sidebar = self._sidebar_collapsed_before_maximize
-            self.showNormal()
-            if self._restore_geometry_before_maximize is not None:
-                self.setGeometry(self._restore_geometry_before_maximize)
-            self._restore_geometry_before_maximize = None
-            self._sidebar_collapsed_before_maximize = None
+        """用户点"开始导航"（或从最大化的开始导航按钮进入）。
+        进入 TRACKING_STABLE 作为基准；跟踪循环会根据首帧真实状态自动切 LOST/INERTIAL。"""
+        self._mode_before_max = None  # 从任何态主动开始导航，放弃最大化恢复记录
         self._resume_tracking_attempts()
-        if restore_sidebar is None:
-            restore_sidebar = self._sidebar_collapsed
-        self._sidebar_collapsed_before_pause = None
-        self._set_sidebar_collapsed(restore_sidebar, restore_size=False)
-        self._set_alert_mode(False)
-        self._set_header_action_visibility(True)
-        self.state_hint_label.setVisible(True)
-        self.state_hint_label.setText("正在搜索目标，请稍候…")
-        self.state_hint_label.setStyleSheet("")
+        self._enter_mode(WindowMode.TRACKING_STABLE)
         self._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
 
     def _paused_track_result(self) -> TrackResult:
@@ -1175,39 +1579,18 @@ class IslandWindow(QWidget):
         return TrackResult(self._tracking_paused_state, x=x, y=y, latency_ms=0.0)
 
     def _pause_navigation(self) -> None:
-        self._restore_from_compact_mode()
-        self._exit_lost_mode()
+        """用户点"停止导航"。切回 PAUSED 态，固定尺寸 + 强制展开侧边栏。"""
+        self._mode_before_max = None
         self._restore_lock_after_relocate = None
-        if self._locked:
-            self._set_locked_state(False)
-        if self.isMaximized() and self._sidebar_collapsed_before_maximize is not None:
-            self._sidebar_collapsed_before_pause = self._sidebar_collapsed_before_maximize
-        else:
-            self._sidebar_collapsed_before_pause = self._sidebar_collapsed
-        self._tracking_attempts_paused = True
         self._tracking_paused_state = TrackState.SEARCHING
-        self._manual_pause = True
-        self._jump_anomaly_count = 0
-        self._set_sidebar_collapsed(False, restore_size=not self.isMaximized())
-        self._apply_sidebar_state()
-        self._update_lock_button_visibility()
+        self._enter_mode(WindowMode.PAUSED)
         self._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
 
     def _restore_from_compact_mode(self) -> None:
-        if not self._compact_state_active:
-            return
-
-        restore_geometry = self._compact_restore_geometry
-        restore_sidebar = self._compact_restore_sidebar_collapsed
-        self._compact_state_active = False
-        self._compact_restore_geometry = None
-        self._compact_restore_sidebar_collapsed = False
-        self.setMinimumHeight(self._normal_minimum_height)
-        self._sync_window_minimum_width()
-
-        if restore_geometry is not None:
-            self.setGeometry(restore_geometry)
-        self._set_sidebar_collapsed(restore_sidebar, restore_size=False)
+        """兼容 shim：原语义是"退出紧缩"。现由 _enter_mode 统管。"""
+        if self._mode == WindowMode.TRACKING_LOST:
+            # 若有调用方期望退出紧缩，由状态机下次转入 STABLE/INERTIAL 自然还原
+            self.setMinimumHeight(self._normal_minimum_height)
 
     def _sidebar_resize_hit(self, global_pos) -> bool:
         if self._sidebar_collapsed and not self._is_pause_mode():
@@ -1222,7 +1605,7 @@ class IslandWindow(QWidget):
 
     def _resize_sidebar(self, global_x: int) -> None:
         delta = global_x - self._sidebar_resize_start_x
-        max_width = max(self._SIDEBAR_MIN_WIDTH, self.width() - 220)
+        max_width = self._max_sidebar_width_for_current_window()
         self._sidebar_width = max(
             self._SIDEBAR_MIN_WIDTH,
             min(max_width, self._sidebar_resize_start_width - delta),
@@ -1238,70 +1621,61 @@ class IslandWindow(QWidget):
         self.alert_terminate_btn.setVisible(allow_terminate)
 
     def _set_header_action_visibility(self, visible: bool) -> None:
+        self.relocate_btn.setVisible(visible)
         self.reset_view_btn.setVisible(visible)
         self.sidebar_toggle_btn.setVisible(visible)
 
     def _enter_compact_mode(self) -> None:
-        if self._compact_state_active or self.isMaximized():
-            return
-        self._compact_state_active = True
-        self._compact_restore_geometry = self.geometry()
-        self._compact_restore_sidebar_collapsed = self._sidebar_collapsed
-        self.setMinimumHeight(theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2)
-        self._sync_window_minimum_width()
-
-        current = self.geometry()
-        compact_height = theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2
-        self.setGeometry(current.x(), current.y(), current.width(), compact_height)
+        """兼容 shim：原语义是"进入紧缩"。现在统一由 _enter_mode(TRACKING_LOST) 做。"""
+        if self._mode != WindowMode.TRACKING_LOST and not self.isMaximized():
+            self._enter_mode(WindowMode.TRACKING_LOST)
 
     def _exit_compact_mode(self) -> None:
-        if not self._compact_state_active:
-            return
+        """兼容 shim。"""
         self._restore_from_compact_mode()
 
     def _apply_state_feedback(self, state: TrackState) -> None:
-        if self._is_pause_mode():
+        """根据跟踪器状态更新 UI 文案；若 mode 需要切换，调用 _enter_mode。"""
+        # PAUSED / MAXIMIZED 不跟随 tracker 状态
+        if self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED):
             self._restore_lock_state_after_lost()
             self._set_alert_mode(False)
-            self._set_header_action_visibility(True)
-            self.state_hint_label.setText("暂停定位")
-            self.state_hint_label.setStyleSheet("")
-            self._exit_compact_mode()
+            if self._mode == WindowMode.PAUSED:
+                self.state_hint_label.setText("暂停定位")
+                self.state_hint_label.setStyleSheet("")
             return
 
+        # 将 tracker 状态映射为目标 mode
+        target_mode = _tracker_state_to_mode(state)
+        # SEARCHING 归 LOST，但文字不同；如果当前锁定偏好需要恢复先做
+        if target_mode != self._mode:
+            if target_mode in _STABLE_FAMILY and self._mode == WindowMode.TRACKING_LOST:
+                # 恢复锁定偏好
+                self._restore_lock_state_after_lost()
+            if target_mode == WindowMode.TRACKING_LOST:
+                self._enter_lost_mode()
+            else:
+                self._enter_mode(target_mode)
+
+        # 文案
         if state == TrackState.LOCKED:
-            self._restore_lock_state_after_lost()
             self._set_alert_mode(False)
-            self._set_header_action_visibility(True)
+            self.state_hint_label.setVisible(True)
             self.state_hint_label.setText("定位稳定")
             self.state_hint_label.setStyleSheet("")
-            self._exit_compact_mode()
-            return
-
-        if state == TrackState.SEARCHING:
-            self._jump_anomaly_count = 0
-            self._exit_lost_mode()
+        elif state == TrackState.INERTIAL:
             self._set_alert_mode(False)
-            self._set_header_action_visibility(True)
-            self.state_hint_label.setText("正在搜索目标，请稍候…")
-            self.state_hint_label.setStyleSheet("")
-            self._exit_compact_mode()
-            return
-
-        if state == TrackState.INERTIAL:
-            self._restore_lock_state_after_lost()
-            self._set_alert_mode(False)
-            self._set_header_action_visibility(True)
             self.state_hint_label.setVisible(True)
             self.state_hint_label.setText("定位暂时不稳定，沿用上一帧位置。")
             self.state_hint_label.setStyleSheet("")
-            self._exit_compact_mode()
-            return
-
-        self._enter_lost_mode()
-        self._set_alert_mode(True, "目标丢失，正在持续尝试重新定位。", allow_terminate=True)
-        self._set_header_action_visibility(False)
-        self._enter_compact_mode()
+        elif state == TrackState.SEARCHING:
+            self._jump_anomaly_count = 0
+            self._set_alert_mode(False)
+            self.state_hint_label.setVisible(True)
+            self.state_hint_label.setText("正在搜索目标，请稍候…")
+            self.state_hint_label.setStyleSheet("")
+        else:  # LOST
+            self._set_alert_mode(True, "目标丢失，正在持续尝试重新定位。", allow_terminate=True)
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.MouseButtonPress and hasattr(event, "globalPosition") and event.button() == Qt.LeftButton:
@@ -1373,30 +1747,29 @@ class IslandWindow(QWidget):
         super().resizeEvent(event)
         self._update_window_controls()
 
-        if self.isMaximized() or self._compact_state_active:
+        # 注意：这里 *不* 更新 _preferred_right_edge（防止 layout 被动撑开污染锚点）。
+        # 只在 moveEvent（用户拖标题栏）时更新。
+
+        if self.isMaximized() or self._applying_mode:
             return
 
-        if self._sidebar_collapsed:
-            self._collapsed_size_memory = (self.width(), self.height())
-        else:
-            expanded_min_width = self._expanded_layout_minimum_width()
-            if self.width() >= expanded_min_width:
-                self._expanded_size_memory = (self.width(), self.height())
-            elif self._expanded_size_memory is None:
-                self._expanded_size_memory = (
-                    expanded_min_width,
-                    max(self._normal_minimum_height, self.height()),
-                )
-            else:
-                self._expanded_size_memory = (
-                    self._expanded_size_memory[0],
-                    max(self._expanded_size_memory[1], self.height()),
-                )
+        # STABLE/INERTIAL 家族且侧边栏"未展开"时记忆稳定态尺寸。
+        # 展开侧边栏引起的 layout 被动撑开不应被记忆，否则收起后恢复不到原始大小。
+        if self._mode in _STABLE_FAMILY:
+            self._size_prefs[WindowMode.TRACKING_STABLE] = (self.width(), self.height())
+            self._stable_size_save_timer.start()
+        elif self._mode == WindowMode.PAUSED:
+            # PAUSED 的侧边栏永远强制展开，所以不设"折叠"条件；
+            # 用户在 PAUSED 下对窗口的任何 resize 都视为用户偏好。
+            self._size_prefs[WindowMode.PAUSED] = (self.width(), self.height())
+            self._paused_size_save_timer.start()
 
     def moveEvent(self, event):
         super().moveEvent(event)
-        if self._compact_state_active and self._compact_restore_geometry is not None:
-            self._compact_restore_geometry.moveTo(self.geometry().topLeft())
+        # 用户手动拖动窗口时，更新锚点右边缘。状态机自己做的 setGeometry
+        # 通过 _applying_mode 过滤掉，避免把状态机 set 的右边缘当"用户偏好"。
+        if not self._applying_mode and not self.isMaximized():
+            self._preferred_right_edge = self.x() + self.width()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -1406,6 +1779,7 @@ class IslandWindow(QWidget):
         self._running = False
         self._stop_hotkey_listener()
         self.route_mgr.save_progress()
+        self._save_window_geometry()
         # 关闭可能还开着的设置窗等顶层窗口，确保进程彻底退出
         app = QApplication.instance()
         if app is not None:
@@ -1422,7 +1796,12 @@ class IslandWindow(QWidget):
         self._set_locked_state(self._preferred_locked)
 
     def _prompt_relocate(self) -> None:
-        if self._lost_mode_active:
+        # PAUSED 下按下这个按钮意味着"开始导航"
+        if self._mode == WindowMode.PAUSED:
+            self._start_navigation()
+            return
+
+        if self._mode == WindowMode.TRACKING_LOST:
             self._restore_lock_after_relocate = self._preferred_locked
             self._exit_lost_mode()
         else:
@@ -1442,11 +1821,21 @@ class IslandWindow(QWidget):
         )
 
     def _on_relocate(self, x: int, y: int) -> None:
-        self._resume_tracking_attempts()
+        """双击地图：只在地图上标记选点位置，不自动开始导航。
+
+        - PAUSED 态：更新 tracker anchor + 预览标记，保持暂停状态。
+        - 跟踪态：维持原行为（作为重定位触发）。
+        """
         self.tracker.set_anchor(x, y)
         self.map_view.preview_relocate(x, y, TrackState.SEARCHING)
         self.coord_label.setText(f"{x} , {y}")
         self._last_player_xy = (x, y)
+
+        if self._mode == WindowMode.PAUSED:
+            # 暂停下：仅标记选点，不恢复跟踪、不发事件
+            return
+
+        self._resume_tracking_attempts()
         if self._restore_lock_after_relocate is not None:
             self._set_locked_state(self._restore_lock_after_relocate)
             self._restore_lock_after_relocate = None
