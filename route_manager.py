@@ -20,6 +20,7 @@ _DEFAULT_DISPLAY = {
 }
 _CLOSE_THRESHOLD = 20
 _PROGRESS_FILE = "progress.json"
+_VISIBILITY_FILE = "selected_routes.json"
 
 
 def _color_for_name(name: str) -> tuple[int, int, int]:
@@ -41,6 +42,7 @@ class RouteManager:
         self._discover_categories()
         self._load_all_routes()
         self._assign_route_colors()
+        self._load_visibility()
         self._load_progress()
 
     # ---------- 公开属性 ----------
@@ -56,6 +58,13 @@ class RouteManager:
         for cat in self.categories:
             for r in self.route_groups[cat]:
                 yield cat, r
+
+    def visible_route_names(self) -> list[str]:
+        return [
+            route.get("display_name", "")
+            for _cat, route in self.iter_routes()
+            if self.visibility.get(route.get("display_name"), False)
+        ]
 
     # ---------- 绘制 ----------
     def draw_on(self, canvas, vx1, vy1, view_size, player_x=None, player_y=None) -> None:
@@ -171,6 +180,28 @@ class RouteManager:
     def _progress_path(self) -> str:
         return os.path.join(self.base_folder, _PROGRESS_FILE)
 
+    def _visibility_path(self) -> str:
+        return os.path.join(self.base_folder, _VISIBILITY_FILE)
+
+    def _load_visibility(self) -> None:
+        path = self._visibility_path()
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"读取路线勾选状态失败：{e}")
+            return
+
+        if not isinstance(data, list):
+            return
+
+        known_routes = set(self.visibility.keys())
+        for name in data:
+            if isinstance(name, str) and name in known_routes:
+                self.visibility[name] = True
+
     def _load_progress(self) -> None:
         path = self._progress_path()
         if not os.path.exists(path):
@@ -215,3 +246,10 @@ class RouteManager:
             for p in route.get("points", []):
                 p["visited"] = False
         self.save_progress()
+
+    def save_visibility(self) -> None:
+        try:
+            with open(self._visibility_path(), "w", encoding="utf-8") as f:
+                json.dump(self.visible_route_names(), f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"保存路线勾选状态失败：{e}")

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QFrame,
+    QGridLayout,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
@@ -218,7 +219,10 @@ class IslandWindow(QWidget):
         self._sidebar_width = self._paused_sidebar_width
 
         self._normal_minimum_width = theme.WINDOW_MIN_W + self._window_margin * 2
-        self._normal_minimum_height = theme.WINDOW_MIN_H + self._window_margin * 2
+        self._normal_minimum_height = max(
+            theme.WINDOW_MIN_H,
+            theme.TRACKING_WINDOW_MIN_H,
+        ) + self._window_margin * 2
         self._tracking_attempts_paused = False
         self._tracking_paused_state = TrackState.SEARCHING
         self._jump_anomaly_count = 0
@@ -229,6 +233,7 @@ class IslandWindow(QWidget):
         # ---- 状态机：window mode + 各模式的尺寸偏好 ----
         self._mode = WindowMode.PAUSED                      # 启动默认暂停态
         self._mode_before_max: WindowMode | None = None     # 最大化前的 mode
+        self._geometry_before_max: QRect | None = None
         self._applying_mode = False                         # _enter_mode 内部保护
         self._preferred_right_edge: int | None = None       # 锚点：窗口右边缘
         # 进 PAUSED 前的侧边栏状态。预填为"config 读到的用户偏好"，
@@ -287,6 +292,9 @@ class IslandWindow(QWidget):
         self.setMinimumSize(self._normal_minimum_width, self._normal_minimum_height)
 
         self._build_ui()
+        self._sync_normal_minimum_height()
+        self._sync_compact_minimum_height()
+        self.setMinimumSize(self._normal_minimum_width, self._normal_minimum_height)
         self._install_resize_filters(self.root)
         self.installEventFilter(self)
         self._restore_or_center()
@@ -414,6 +422,8 @@ class IslandWindow(QWidget):
         self.reset_view_btn.setToolTip("重置视图")
         self.reset_view_btn.clicked.connect(self._reset_map_view)
         header.addWidget(self.reset_view_btn)
+        header.removeWidget(self.reset_view_btn)
+        header.insertWidget(header.indexOf(self.relocate_btn), self.reset_view_btn)
 
         self.sidebar_toggle_btn = QPushButton("隐藏侧边栏")
         self.sidebar_toggle_btn.setObjectName("TopSidebarToggle")
@@ -459,6 +469,7 @@ class IslandWindow(QWidget):
         self.alert_message = QLabel("目标丢失，正在尝试重新定位。")
         self.alert_message.setObjectName("AlertMessage")
         self.alert_message.setAlignment(Qt.AlignCenter)
+        self.alert_message.setWordWrap(True)
         alert_layout.addWidget(self.alert_message)
 
         self.alert_terminate_btn = QPushButton("终止导航")
@@ -473,11 +484,52 @@ class IslandWindow(QWidget):
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(12)
 
+        self.map_shell = QWidget()
+        map_layout = QVBoxLayout(self.map_shell)
+        map_layout.setContentsMargins(0, 0, 0, 0)
+        map_layout.setSpacing(10)
+
         self.map_view = MapView(self.route_mgr)
+        self.map_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.map_view.set_maps(self.tracker.display_map_bgr)
         self.map_view.relocate_requested.connect(self._on_relocate)
         self.map_view.manual_view_changed.connect(self._handle_manual_map_navigation)
-        body.addWidget(self.map_view, stretch=7)
+        map_layout.addWidget(self.map_view, stretch=1)
+
+        self.tracked_routes_card = QFrame()
+        self.tracked_routes_card.setObjectName("PanelCard")
+        self.tracked_routes_card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.tracked_routes_layout = QVBoxLayout(self.tracked_routes_card)
+        self.tracked_routes_layout.setContentsMargins(12, 0, 12, 0)
+        self.tracked_routes_layout.setSpacing(4)
+
+        self.tracked_routes_title = QLabel("当前追踪路线")
+        self.tracked_routes_title.setObjectName("TitleLabel")
+        self.tracked_routes_layout.addWidget(self.tracked_routes_title)
+
+        self.tracked_routes_scroll = QScrollArea()
+        self.tracked_routes_scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.tracked_routes_scroll.setWidgetResizable(True)
+        self.tracked_routes_scroll.setFrameShape(QFrame.NoFrame)
+        self.tracked_routes_scroll.viewport().setAutoFillBackground(False)
+        self.tracked_routes_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tracked_routes_scroll.setMaximumHeight(theme.TRACKED_ROUTES_MAX_HEIGHT)
+
+        self.tracked_routes_inner = QWidget()
+        self.tracked_routes_grid = QGridLayout(self.tracked_routes_inner)
+        self.tracked_routes_grid.setContentsMargins(0, 0, 0, 0)
+        self.tracked_routes_grid.setHorizontalSpacing(16)
+        self.tracked_routes_grid.setVerticalSpacing(6)
+        self.tracked_routes_grid.setColumnStretch(0, 1)
+        self.tracked_routes_grid.setColumnStretch(1, 1)
+
+        self.tracked_routes_scroll.setWidget(self.tracked_routes_inner)
+        self.tracked_routes_layout.addWidget(self.tracked_routes_scroll)
+        map_layout.addWidget(self.tracked_routes_card)
+        map_layout.setStretch(0, 1)
+        map_layout.setStretch(1, 0)
+
+        body.addWidget(self.map_shell, stretch=7)
 
         self.sidebar_shell = QWidget()
         shell_layout = QVBoxLayout(self.sidebar_shell)
@@ -561,6 +613,7 @@ class IslandWindow(QWidget):
         root_layout.addWidget(self.body_container, stretch=1)
 
         self.map_view.set_center_locked(True)
+        self._refresh_tracked_routes()
         self._apply_sidebar_state()
         self._refresh_recent_routes()
         self._apply_route_filter()
@@ -597,6 +650,16 @@ class IslandWindow(QWidget):
     def _remove_recent_widgets(self) -> None:
         while self.recent_routes_layout.count():
             item = self.recent_routes_layout.takeAt(0)
+            widget = item.widget()
+            if widget is None:
+                continue
+            if isinstance(widget, QCheckBox):
+                self._unregister_route_checkbox(widget.text(), widget)
+            widget.deleteLater()
+
+    def _remove_tracked_route_widgets(self) -> None:
+        while self.tracked_routes_grid.count():
+            item = self.tracked_routes_grid.takeAt(0)
             widget = item.widget()
             if widget is None:
                 continue
@@ -650,7 +713,9 @@ class IslandWindow(QWidget):
         self.route_mgr.visibility[name] = enabled
         if enabled:
             self._remember_recent_route(name)
+        self.route_mgr.save_visibility()
         self._sync_route_checkboxes(name, enabled, source)
+        self._refresh_tracked_routes()
         self._refresh_recent_routes()
 
     def _sync_route_checkboxes(self, name: str, enabled: bool, source: QCheckBox) -> None:
@@ -666,6 +731,114 @@ class IslandWindow(QWidget):
             self._recent_route_names.remove(name)
         self._recent_route_names.insert(0, name)
         self._save_recent_routes()
+
+    def _refresh_tracked_routes(self) -> None:
+        route_names = self.route_mgr.visible_route_names()
+        self.tracked_routes_title.setText(f"当前追踪路线 ({len(route_names)})")
+        self._remove_tracked_route_widgets()
+
+        if route_names:
+            for index, name in enumerate(route_names):
+                checkbox = self._create_route_checkbox(name)
+                row = index // 2
+                column = index % 2
+                self.tracked_routes_grid.addWidget(checkbox, row, column)
+        else:
+            empty_label = QLabel("暂未选择路线")
+            empty_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            empty_label.setStyleSheet(f"font-size: 12px; color: {theme.FG_DIM};")
+            self.tracked_routes_grid.addWidget(empty_label, 0, 0, 1, 2)
+
+        self.tracked_routes_inner.adjustSize()
+        self._sync_tracked_routes_height(len(route_names))
+        self._schedule_layout_refresh()
+
+    def _sync_tracked_routes_height(self, item_count: int) -> None:
+        rows = max(1, (max(1, item_count) + 1) // 2)
+        spacing = self.tracked_routes_grid.verticalSpacing()
+        content_height = rows * theme.RECENT_ROUTE_ITEM_HEIGHT + max(0, rows - 1) * spacing
+        target_height = min(theme.TRACKED_ROUTES_MAX_HEIGHT, content_height)
+        self.tracked_routes_scroll.setFixedHeight(target_height)
+        margins = self.tracked_routes_layout.contentsMargins()
+        card_height = (
+            margins.top()
+            + self.tracked_routes_title.sizeHint().height()
+            + self.tracked_routes_layout.spacing()
+            + target_height
+            + margins.bottom()
+        )
+        self.tracked_routes_card.setMinimumHeight(card_height)
+        self.tracked_routes_card.setMaximumHeight(card_height)
+
+    def _sync_normal_minimum_height(self) -> None:
+        for layout in (
+            self.root.layout(),
+            self.body_container.layout(),
+            self.map_shell.layout(),
+            self.tracked_routes_layout,
+        ):
+            if layout is not None:
+                layout.activate()
+
+        root_layout = self.root.layout()
+        if root_layout is None:
+            return
+
+        header_item = root_layout.itemAt(0)
+        header_height = header_item.sizeHint().height() if header_item is not None else 0
+        body_height = self.body_container.minimumSizeHint().height()
+        margins = root_layout.contentsMargins()
+        spacing = root_layout.spacing()
+        computed_height = (
+            self._window_margin * 2
+            + margins.top()
+            + margins.bottom()
+            + header_height
+            + body_height
+            + spacing * 2
+        )
+        self._normal_minimum_height = max(self._normal_minimum_height, computed_height)
+
+    def _sync_compact_minimum_height(self) -> None:
+        root_layout = self.root.layout()
+        if root_layout is None:
+            return
+
+        root_layout.activate()
+        header_item = root_layout.itemAt(0)
+        header_height = header_item.sizeHint().height() if header_item is not None else 0
+        alert_height = self.alert_card.sizeHint().height()
+        margins = root_layout.contentsMargins()
+        spacing = root_layout.spacing()
+        self._compact_minimum_height = max(
+            theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2,
+            self._window_margin * 2
+            + margins.top()
+            + margins.bottom()
+            + header_height
+            + spacing
+            + alert_height,
+        )
+
+    def _schedule_layout_refresh(self) -> None:
+        QTimer.singleShot(0, self._refresh_layout_constraints)
+
+    def _refresh_layout_constraints(self) -> None:
+        self._sync_normal_minimum_height()
+        self._sync_compact_minimum_height()
+        self.setMinimumWidth(self._normal_minimum_width)
+
+        if self._mode == WindowMode.TRACKING_LOST:
+            self.setMinimumHeight(self._compact_minimum_height)
+            return
+
+        self.setMinimumHeight(self._normal_minimum_height)
+
+        if self.isMaximized() or self._applying_mode:
+            return
+
+        if self.height() < self._normal_minimum_height:
+            self._apply_geometry_for_mode((self.width(), self._normal_minimum_height))
 
     def _apply_route_filter(self) -> None:
         term = self.search_input.text().strip().casefold()
@@ -890,6 +1063,7 @@ class IslandWindow(QWidget):
             if new_mode == WindowMode.MAXIMIZED:
                 # 进入最大化：备份当前侧边栏状态，强制展开 + 固定宽度
                 if old_mode != WindowMode.MAXIMIZED:
+                    self._geometry_before_max = QRect(self.geometry())
                     self._sidebar_collapsed_before_max = self._sidebar_collapsed
                     self._sidebar_width_before_max = self._sidebar_width
                 self._sidebar_collapsed = False
@@ -942,6 +1116,7 @@ class IslandWindow(QWidget):
 
             # UI 反馈（alert / 按钮可见性 / 锁定按钮等）
             self._apply_mode_ui(new_mode, old_mode)
+            self._schedule_layout_refresh()
         finally:
             self._applying_mode = False
 
@@ -960,7 +1135,11 @@ class IslandWindow(QWidget):
 
         if mode == WindowMode.TRACKING_LOST:
             # 宽度继承稳定态，高度紧缩
-            compact_h = theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2
+            compact_h = getattr(
+                self,
+                "_compact_minimum_height",
+                theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2,
+            )
             return (stable_size[0], compact_h)
 
         # MAXIMIZED 不走这里
@@ -980,9 +1159,13 @@ class IslandWindow(QWidget):
 
         if self._mode == WindowMode.TRACKING_LOST:
             # 紧缩态：允许比 _normal_minimum_height 更矮
-            self.setMinimumHeight(
-                theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2
+            compact_minimum_height = getattr(
+                self,
+                "_compact_minimum_height",
+                theme.COMPACT_ALERT_HEIGHT + self._window_margin * 2,
             )
+            self.setMinimumHeight(compact_minimum_height)
+            h = max(compact_minimum_height, h)
         else:
             self.setMinimumHeight(self._normal_minimum_height)
             h = max(self._normal_minimum_height, h)
@@ -1103,8 +1286,8 @@ class IslandWindow(QWidget):
 
     def _save_window_geometry(self) -> None:
         """把当前窗口位置、侧边栏状态、稳定态尺寸写回 config.json。"""
-        # 最大化时用进入前的 mode；胶囊态主窗已 hide 但 geometry 仍有效
-        g = self.geometry()
+        # 最大化时使用进入前的普通窗口几何，避免把系统最大化后的左上角位置写回配置。
+        g = QRect(self.geometry())
         if self._mode == WindowMode.PAUSED:
             tracking_sidebar_collapsed = bool(
                 self._sidebar_collapsed_before_pause
@@ -1118,6 +1301,8 @@ class IslandWindow(QWidget):
             )
             paused_sidebar_width = int(self._sidebar_width)
         elif self._mode == WindowMode.MAXIMIZED:
+            if self._geometry_before_max is not None:
+                g = QRect(self._geometry_before_max)
             source_mode = self._mode_before_max or WindowMode.PAUSED
             if source_mode == WindowMode.PAUSED:
                 tracking_sidebar_collapsed = bool(
@@ -1297,7 +1482,7 @@ class IslandWindow(QWidget):
         lock_icon = "🔓" if self._locked else "🔒"
 
         # PAUSED 下第一个操作按钮改为"开始导航"；跟踪中保持"重定位"
-        is_paused = self._mode == WindowMode.PAUSED
+        is_paused = self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED)
         action_text = "开始导航" if is_paused else "重定位"
         action_icon = "导" if is_paused else "⌖"
 
@@ -1568,6 +1753,8 @@ class IslandWindow(QWidget):
         """用户点"开始导航"（或从最大化的开始导航按钮进入）。
         进入 TRACKING_STABLE 作为基准；跟踪循环会根据首帧真实状态自动切 LOST/INERTIAL。"""
         self._mode_before_max = None  # 从任何态主动开始导航，放弃最大化恢复记录
+        self._sync_normal_minimum_height()
+        self.setMinimumHeight(self._normal_minimum_height)
         self._resume_tracking_attempts()
         self._enter_mode(WindowMode.TRACKING_STABLE)
         self._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
@@ -1621,9 +1808,13 @@ class IslandWindow(QWidget):
         self.alert_terminate_btn.setVisible(allow_terminate)
 
     def _set_header_action_visibility(self, visible: bool) -> None:
-        self.relocate_btn.setVisible(visible)
-        self.reset_view_btn.setVisible(visible)
-        self.sidebar_toggle_btn.setVisible(visible)
+        is_paused = self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED)
+        is_lost = self._mode == WindowMode.TRACKING_LOST
+        self.relocate_btn.setVisible(visible or is_paused or is_lost)
+        # 暂停态保留“开始导航”和“重置视图”；丢失态恢复右上角“重定位”。
+        self.relocate_btn.setVisible(visible or is_paused or is_lost)
+        self.reset_view_btn.setVisible((visible or is_paused) and not is_lost)
+        self.sidebar_toggle_btn.setVisible(visible and not is_paused and not is_lost)
 
     def _enter_compact_mode(self) -> None:
         """兼容 shim：原语义是"进入紧缩"。现在统一由 _enter_mode(TRACKING_LOST) 做。"""
@@ -1646,7 +1837,15 @@ class IslandWindow(QWidget):
             return
 
         # 将 tracker 状态映射为目标 mode
-        target_mode = _tracker_state_to_mode(state)
+        if state == TrackState.SEARCHING:
+            if self._mode == WindowMode.TRACKING_LOST:
+                target_mode = WindowMode.TRACKING_LOST
+            elif self._mode in _STABLE_FAMILY:
+                target_mode = self._mode
+            else:
+                target_mode = WindowMode.TRACKING_STABLE
+        else:
+            target_mode = _tracker_state_to_mode(state)
         # SEARCHING 归 LOST，但文字不同；如果当前锁定偏好需要恢复先做
         if target_mode != self._mode:
             if target_mode in _STABLE_FAMILY and self._mode == WindowMode.TRACKING_LOST:
@@ -1778,6 +1977,7 @@ class IslandWindow(QWidget):
     def closeEvent(self, event):
         self._running = False
         self._stop_hotkey_listener()
+        self.route_mgr.save_visibility()
         self.route_mgr.save_progress()
         self._save_window_geometry()
         # 关闭可能还开着的设置窗等顶层窗口，确保进程彻底退出
