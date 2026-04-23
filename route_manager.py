@@ -11,16 +11,11 @@ from typing import Iterable
 
 import cv2
 
-
-# 类别文件夹 -> 展示名
-_DEFAULT_DISPLAY = {
-    "zhiwu": "🌿 植物",
-    "diquluxian": "📍 路线",
-    "qita": "📦 其他",
-}
 _CLOSE_THRESHOLD = 20
 _PROGRESS_FILE = "progress.json"
 _VISIBILITY_FILE = "selected_routes.json"
+_RECENT_FILE = "recent_routes.json"
+_INVALID_FILE_NAME_CHARS = set('<>:"/\\|?*')
 
 
 def _color_for_name(name: str) -> tuple[int, int, int]:
@@ -45,10 +40,6 @@ class RouteManager:
         self._load_visibility()
         self._load_progress()
 
-    # ---------- 公开属性 ----------
-    def category_display(self, cat: str) -> str:
-        return _DEFAULT_DISPLAY.get(cat, cat)
-
     def color_for(self, name: str) -> tuple[int, int, int]:
         if name not in self._color_cache:
             self._color_cache[name] = _color_for_name(name)
@@ -65,6 +56,78 @@ class RouteManager:
             for _cat, route in self.iter_routes()
             if self.visibility.get(route.get("display_name"), False)
         ]
+
+    def reload(self) -> None:
+        self.save_visibility()
+        self.save_progress()
+        self.categories = []
+        self.route_groups = {}
+        self.visibility = {}
+        self._color_cache = {}
+        self._discover_categories()
+        self._load_all_routes()
+        self._assign_route_colors()
+        self._load_visibility()
+        self._load_progress()
+
+    def create_category(self, name: str) -> bool:
+        category = name.strip()
+        if not self._is_valid_fs_name(category):
+            return False
+        os.makedirs(os.path.join(self.base_folder, category), exist_ok=True)
+        return True
+
+    def rename_route(self, category: str, old_name: str, new_name: str) -> bool:
+        old_name = old_name.strip()
+        new_name = new_name.strip()
+        if not self._is_valid_route_name(new_name):
+            return False
+        if old_name == new_name:
+            return True
+
+        route = self._find_route(category, old_name)
+        if route is None:
+            return False
+
+        old_path = self._route_file_path(category, old_name)
+        new_path = self._route_file_path(category, new_name)
+        if not os.path.exists(old_path) or os.path.exists(new_path):
+            return False
+
+        os.replace(old_path, new_path)
+        route["display_name"] = new_name
+        if old_name in self.visibility:
+            self.visibility[new_name] = self.visibility.pop(old_name)
+        color = self._color_cache.pop(old_name, None)
+        if color is not None:
+            self._color_cache[new_name] = color
+        self.save_visibility()
+        self.save_progress()
+        return True
+
+    def delete_route(self, category: str, name: str) -> bool:
+        name = name.strip()
+        routes = self.route_groups.get(category)
+        if routes is None:
+            return False
+
+        route_index = next(
+            (index for index, route in enumerate(routes) if route.get("display_name") == name),
+            None,
+        )
+        if route_index is None:
+            return False
+
+        path = self._route_file_path(category, name)
+        if os.path.exists(path):
+            os.remove(path)
+
+        routes.pop(route_index)
+        self.visibility.pop(name, None)
+        self._color_cache.pop(name, None)
+        self.save_visibility()
+        self.save_progress()
+        return True
 
     # ---------- 绘制 ----------
     def draw_on(self, canvas, vx1, vy1, view_size, player_x=None, player_y=None) -> None:
@@ -148,7 +211,7 @@ class RouteManager:
                 found.append(entry)
 
         # 保证默认类别存在，即便文件夹是空的
-        for known in ("zhiwu", "diquluxian", "qita"):
+        for known in ("植物", "矿物","地区路线", "其他"):
             if known not in found:
                 os.makedirs(os.path.join(self.base_folder, known), exist_ok=True)
                 found.append(known)
@@ -162,7 +225,7 @@ class RouteManager:
             for path in glob.glob(os.path.join(cat_path, "*.json")):
                 try:
                     file_name = os.path.basename(path)
-                    if file_name == _PROGRESS_FILE:
+                    if file_name in {_PROGRESS_FILE, _RECENT_FILE, _VISIBILITY_FILE}:
                         continue
                     route_name = os.path.splitext(file_name)[0]
                     with open(path, "r", encoding="utf-8") as f:
@@ -253,3 +316,27 @@ class RouteManager:
                 json.dump(self.visible_route_names(), f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"保存路线勾选状态失败：{e}")
+
+    def _route_file_path(self, category: str, name: str) -> str:
+        return os.path.join(self.base_folder, category, f"{name}.json")
+
+    def _find_route(self, category: str, name: str) -> dict | None:
+        for route in self.route_groups.get(category, []):
+            if route.get("display_name") == name:
+                return route
+        return None
+
+    @staticmethod
+    def _is_valid_fs_name(name: str) -> bool:
+        if not name or name in {".", ".."}:
+            return False
+        if any(char in name for char in _INVALID_FILE_NAME_CHARS):
+            return False
+        if name.endswith((" ", ".")):
+            return False
+        return True
+
+    def _is_valid_route_name(self, name: str) -> bool:
+        if not self._is_valid_fs_name(name):
+            return False
+        return f"{name}.json" not in {_PROGRESS_FILE, _RECENT_FILE, _VISIBILITY_FILE}

@@ -19,9 +19,9 @@ SIDEBAR_MIN_EXPANDED_H = 420
 COMPACT_ALERT_HEIGHT = 170
 TRACK_JUMP_DETECT_THRESHOLD = 220
 TRACK_JUMP_DETECT_LIMIT = 4
-RECENT_ROUTE_ITEM_HEIGHT = 30
-RECENT_ROUTE_CARD_PADDING = 28
-TRACKED_ROUTE_CARD_PADDING = 58
+RECENT_ROUTE_ITEM_HEIGHT = 26
+RECENT_ROUTE_CARD_PADDING = 24
+TRACKED_ROUTE_CARD_PADDING = 52
 
 BG = "rgba(18, 18, 20, 235)"
 BG_HOVER = "rgba(28, 28, 30, 245)"
@@ -167,6 +167,13 @@ QPushButton[headerButton="true"] {{
     font-weight: 600;
     border-radius: 8px;
 }}
+QPushButton[headerButton="true"][compact="true"] {{
+    min-height: 24px;
+    max-height: 24px;
+    padding: 2px 8px;
+    font-size: 10px;
+    border-radius: 7px;
+}}
 QPushButton[headerButton="true"]:hover {{
     background: rgba(255, 255, 255, 0.18);
 }}
@@ -281,6 +288,11 @@ QToolButton#SectionHeader {{
     padding: 5px 8px;
     text-align: center;
 }}
+QToolButton#SectionHeader[compact="true"] {{
+    border-radius: 8px;
+    font-size: 10px;
+    padding: 3px 8px;
+}}
 QToolButton#SectionHeader:hover {{
     background: rgba(255, 255, 255, 0.14);
 }}
@@ -303,7 +315,7 @@ QCheckBox {{
     border-radius: 8px;
     font-size: 11px;
     spacing: 6px;
-    padding: 4px 6px;
+    padding: 2px 6px;
 }}
 QCheckBox:hover {{
     background: rgba(255, 255, 255, 0.08);

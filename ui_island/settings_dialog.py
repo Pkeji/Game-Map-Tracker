@@ -93,8 +93,8 @@ _FIELD_INDEX: dict[str, Field] = {f.key: f for f in _ALL_FIELDS}
 # ============================================================
 # 统一风格的模态提示框（替代 QMessageBox）
 # ============================================================
-class StyledMessage(QDialog):
-    """与灵动岛 QSS 统一的简单提示框：标题 + 正文 + 一个确定按钮。"""
+class _StyledDialogBase(QDialog):
+    """统一风格弹窗基类：共用外壳、标题栏、正文和拖动逻辑。"""
 
     def __init__(self, parent, title: str, message: str) -> None:
         super().__init__(parent)
@@ -142,13 +142,9 @@ class StyledMessage(QDialog):
         body.setTextInteractionFlags(Qt.TextSelectableByMouse)
         shell_layout.addWidget(body, stretch=1)
 
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        ok_btn = QPushButton("确定")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(self.accept)
-        btn_row.addWidget(ok_btn)
-        shell_layout.addLayout(btn_row)
+        self._button_row = QHBoxLayout()
+        self._button_row.addStretch()
+        shell_layout.addLayout(self._button_row)
 
         self.adjustSize()
 
@@ -178,6 +174,40 @@ class StyledMessage(QDialog):
         if event.button() == Qt.LeftButton:
             self._drag_offset = None
         super().mouseReleaseEvent(event)
+
+
+class StyledMessage(_StyledDialogBase):
+    """与灵动岛 QSS 统一的简单提示框：标题 + 正文 + 一个确定按钮。"""
+
+    def __init__(self, parent, title: str, message: str) -> None:
+        super().__init__(parent, title, message)
+        ok_btn = QPushButton("确定")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.accept)
+        self._button_row.addWidget(ok_btn)
+        self.adjustSize()
+
+
+class StyledConfirm(_StyledDialogBase):
+    """与项目现有提示框统一风格的确认弹窗。"""
+
+    def __init__(
+        self,
+        parent,
+        title: str,
+        message: str,
+        confirm_text: str = "确定",
+        cancel_text: str = "取消",
+    ) -> None:
+        super().__init__(parent, title, message)
+        cancel_btn = QPushButton(cancel_text)
+        cancel_btn.clicked.connect(self.reject)
+        self._button_row.addWidget(cancel_btn)
+        ok_btn = QPushButton(confirm_text)
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.accept)
+        self._button_row.addWidget(ok_btn)
+        self.adjustSize()
 
 
 class Toast(QWidget):
@@ -261,6 +291,23 @@ def styled_info(parent, title: str, message: str) -> None:
             pg.center().y() - dlg.height() // 2,
         )
     dlg.exec()
+
+
+def styled_confirm(
+    parent,
+    title: str,
+    message: str,
+    confirm_text: str = "确定",
+    cancel_text: str = "取消",
+) -> bool:
+    dlg = StyledConfirm(parent, title, message, confirm_text=confirm_text, cancel_text=cancel_text)
+    if parent is not None:
+        pg = parent.frameGeometry()
+        dlg.move(
+            pg.center().x() - dlg.width() // 2,
+            pg.center().y() - dlg.height() // 2,
+        )
+    return dlg.exec() == QDialog.Accepted
 
 
 # ============================================================

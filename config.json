@@ -1,15 +1,15 @@
 {
     "MINIMAP": {
-        "top": 292,
-        "left": 1853,
-        "width": 150,
-        "height": 150
+        "top": 60,
+        "left": 2294,
+        "width": 225,
+        "height": 225
     },
     "WINDOW_GEOMETRY": {
-        "x": 1418,
+        "x": 1018,
         "y": 0,
-        "width": 420,
-        "height": 360
+        "width": 820,
+        "height": 500
     },
     "LOCKED_VIEW_SIZE": {
         "width": 420,
@@ -20,8 +20,8 @@
         "height": 500
     },
     "SIDEBAR_COLLAPSED": true,
-    "SIDEBAR_WIDTH": 270,
-    "PAUSED_SIDEBAR_WIDTH": 270,
+    "SIDEBAR_WIDTH": 200,
+    "PAUSED_SIDEBAR_WIDTH": 287,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",

@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover
 from enum import Enum
 
 from PySide6.QtCore import QEvent, QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QFont, QGuiApplication, QPainter
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -43,6 +43,7 @@ from route_manager import RouteManager
 
 from . import theme
 from .map_view import MapView
+from .settings_dialog import styled_confirm
 from .win_overlay import apply_overlay_flags, set_click_through
 
 
@@ -120,6 +121,7 @@ class _RouteSection(QWidget):
 
         self.header = QToolButton()
         self.header.setObjectName("SectionHeader")
+        self.header.setProperty("compact", True)
         self.header.setText(title)
         self.header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.header.setCheckable(True)
@@ -156,6 +158,155 @@ class _RouteSection(QWidget):
         self.header.setChecked(self._expanded)
         self.header.blockSignals(False)
         self.header.setArrowType(Qt.DownArrow if visible else Qt.RightArrow)
+
+
+class _ElidedCheckBox(QCheckBox):
+    def __init__(self, text: str, parent=None):
+        super().__init__(parent)
+        self._full_text = text
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.setMinimumWidth(0)
+        self.setToolTip(text)
+        self._refresh_elided_text()
+
+    def full_text(self) -> str:
+        return self._full_text
+
+    def set_full_text(self, text: str) -> None:
+        self._full_text = text
+        self.setToolTip(text)
+        self._refresh_elided_text()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_elided_text()
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        hint.setWidth(0)
+        return hint
+
+    def _refresh_elided_text(self) -> None:
+        metrics = QFontMetrics(self.font())
+        available_width = max(60, self.width() - 24)
+        super().setText(metrics.elidedText(self._full_text, Qt.ElideRight, available_width))
+
+
+class _RouteListItem(QWidget):
+    def __init__(self, category: str, route_name: str, checked: bool, parent=None):
+        super().__init__(parent)
+        self.category = category
+        self.route_name = route_name
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumWidth(0)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.display_row = QWidget(self)
+        self.display_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.display_row.setMinimumWidth(0)
+        display_layout = QHBoxLayout(self.display_row)
+        display_layout.setContentsMargins(0, 0, 0, 0)
+        display_layout.setSpacing(6)
+
+        self.checkbox = QCheckBox(route_name, self.display_row)
+        self.checkbox.setMinimumHeight(theme.RECENT_ROUTE_ITEM_HEIGHT)
+        self.checkbox.setChecked(checked)
+        self.checkbox.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.checkbox.setMinimumWidth(0)
+        self.checkbox.setToolTip(route_name)
+        display_layout.addWidget(self.checkbox, stretch=1)
+
+        self.rename_btn = QPushButton("重命名", self.display_row)
+        self.rename_btn.setProperty("headerButton", True)
+        self.rename_btn.setProperty("compact", True)
+        display_layout.addWidget(self.rename_btn)
+
+        self.delete_btn = QPushButton("删除", self.display_row)
+        self.delete_btn.setProperty("headerButton", True)
+        self.delete_btn.setProperty("compact", True)
+        display_layout.addWidget(self.delete_btn)
+
+        self.edit_row = QWidget(self)
+        self.edit_row.hide()
+        self.edit_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.edit_row.setMinimumWidth(0)
+        edit_layout = QHBoxLayout(self.edit_row)
+        edit_layout.setContentsMargins(0, 0, 0, 0)
+        edit_layout.setSpacing(6)
+
+        self.rename_input = QLineEdit(self.edit_row)
+        self.rename_input.setPlaceholderText("输入路线名称...")
+        self.rename_input.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.rename_input.setMinimumWidth(0)
+        edit_layout.addWidget(self.rename_input, stretch=1)
+
+        self.rename_confirm_btn = QPushButton("√", self.edit_row)
+        self.rename_confirm_btn.setToolTip("确认重命名")
+        self.rename_confirm_btn.setFixedWidth(26)
+        self.rename_confirm_btn.setStyleSheet("color: #30d158; font-size: 14px; font-weight: 700; padding: 0px;")
+        edit_layout.addWidget(self.rename_confirm_btn)
+
+        self.rename_cancel_btn = QPushButton("×", self.edit_row)
+        self.rename_cancel_btn.setToolTip("取消重命名")
+        self.rename_cancel_btn.setFixedWidth(26)
+        self.rename_cancel_btn.setStyleSheet("color: #ff453a; font-size: 14px; font-weight: 700; padding: 0px;")
+        edit_layout.addWidget(self.rename_cancel_btn)
+
+        layout.addWidget(self.display_row)
+        layout.addWidget(self.edit_row)
+        self._refresh_display_name()
+
+    def start_rename(self) -> None:
+        self.rename_input.setText(self.route_name)
+        self.rename_input.selectAll()
+        self.display_row.hide()
+        self.edit_row.show()
+        self.rename_input.setFocus()
+
+    def cancel_rename(self) -> None:
+        self.rename_input.clear()
+        self.rename_input.setPlaceholderText("输入路线名称...")
+        self.edit_row.hide()
+        self.display_row.show()
+
+    def is_renaming(self) -> bool:
+        return self.edit_row.isVisible()
+
+    def current_rename_value(self) -> str:
+        return self.rename_input.text().strip()
+
+    def show_rename_error(self, message: str) -> None:
+        self.rename_input.setPlaceholderText(message)
+        self.rename_input.selectAll()
+        self.rename_input.setFocus()
+
+    def update_route_name(self, route_name: str) -> None:
+        self.route_name = route_name
+        self.rename_input.setText(route_name)
+        self._refresh_display_name()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_display_name()
+
+    def _refresh_display_name(self) -> None:
+        metrics = QFontMetrics(self.checkbox.font())
+        button_width = self.rename_btn.sizeHint().width() + self.delete_btn.sizeHint().width()
+        available_width = max(80, self.display_row.width() - button_width - 12)
+        display_name = metrics.elidedText(self.route_name, Qt.ElideRight, available_width)
+        self.checkbox.setText(display_name)
+        self.setToolTip(self.route_name)
+        self.display_row.setToolTip(self.route_name)
+        self.checkbox.setToolTip(self.route_name)
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        hint.setWidth(0)
+        return hint
 
 
 class IslandWindow(QWidget):
@@ -196,8 +347,14 @@ class IslandWindow(QWidget):
         self._recent_limit = max(0, int(getattr(config, "ROUTE_RECENT_LIMIT", 5) or 0))
         self._recent_route_names = self._load_recent_routes()
         self._route_checkboxes: dict[str, list[QCheckBox]] = {}
-        self._route_widgets_by_category: dict[str, list[tuple[str, QCheckBox]]] = {}
+        self._route_widgets_by_category: dict[str, list[tuple[str, _RouteListItem]]] = {}
         self._route_sections: dict[str, _RouteSection] = {}
+        self._active_route_rename_item: _RouteListItem | None = None
+        self._adding_category = False
+        self._add_category_row: QFrame | None = None
+        self._add_category_input: QLineEdit | None = None
+        self._add_category_confirm_btn: QPushButton | None = None
+        self._add_category_cancel_btn: QPushButton | None = None
 
         # 侧边栏折叠状态和宽度：优先读 config，没有则走默认
         saved_collapsed = config.SIDEBAR_COLLAPSED
@@ -585,9 +742,30 @@ class IslandWindow(QWidget):
         recent_card_layout.addWidget(self.recent_scroll)
         side_layout.addWidget(self.recent_card)
 
+        routes_header = QHBoxLayout()
+        routes_header.setContentsMargins(0, 0, 0, 0)
+        routes_header.setSpacing(8)
+
         routes_title = QLabel("路线列表")
         routes_title.setObjectName("TitleLabel")
-        side_layout.addWidget(routes_title)
+        routes_header.addWidget(routes_title)
+        routes_header.addStretch()
+
+        self.refresh_routes_btn = QPushButton("刷新列表")
+        self.refresh_routes_btn.setProperty("headerButton", True)
+        self.refresh_routes_btn.setProperty("compact", True)
+        self.refresh_routes_btn.setToolTip("重新读取 routes 文件夹下的所有路径")
+        self.refresh_routes_btn.clicked.connect(self._reload_route_list)
+        routes_header.addWidget(self.refresh_routes_btn)
+
+        self.add_category_btn = QPushButton("新增类别")
+        self.add_category_btn.setProperty("headerButton", True)
+        self.add_category_btn.setProperty("compact", True)
+        self.add_category_btn.setToolTip("新增一个路线类别文件夹")
+        self.add_category_btn.clicked.connect(self._show_add_category_row)
+        routes_header.addWidget(self.add_category_btn)
+
+        side_layout.addLayout(routes_header)
 
         self.routes_scroll = QScrollArea()
         self.routes_scroll.setWidgetResizable(True)
@@ -595,15 +773,15 @@ class IslandWindow(QWidget):
         self.routes_scroll.viewport().setAutoFillBackground(False)
         self.routes_scroll.setMinimumHeight(theme.ROUTES_LIST_MIN_HEIGHT)
 
-        routes_scroll_inner = QWidget()
-        routes_scroll_inner.setObjectName("RoutesScrollInner")
-        routes_scroll_inner.setAttribute(Qt.WA_StyledBackground, True)
-        self.routes_layout = QVBoxLayout(routes_scroll_inner)
+        self.routes_scroll_inner = QWidget()
+        self.routes_scroll_inner.setObjectName("RoutesScrollInner")
+        self.routes_scroll_inner.setAttribute(Qt.WA_StyledBackground, True)
+        self.routes_layout = QVBoxLayout(self.routes_scroll_inner)
         self.routes_layout.setContentsMargins(0, 0, 0, 0)
         self.routes_layout.setSpacing(8)
-        self._build_route_sections()
-        self.routes_layout.addStretch()
-        self.routes_scroll.setWidget(routes_scroll_inner)
+        self._build_add_category_row()
+        self._rebuild_route_sections()
+        self.routes_scroll.setWidget(self.routes_scroll_inner)
         side_layout.addWidget(self.routes_scroll, stretch=1)
 
         self.side_scroll.setWidget(self.side_panel)
@@ -619,6 +797,35 @@ class IslandWindow(QWidget):
         self._apply_route_filter()
         self._update_window_controls()
 
+    def _build_add_category_row(self) -> None:
+        self._add_category_row = QFrame()
+        self._add_category_row.setObjectName("PanelCard")
+        self._add_category_row.hide()
+
+        row_layout = QHBoxLayout(self._add_category_row)
+        row_layout.setContentsMargins(8, 8, 8, 8)
+        row_layout.setSpacing(6)
+
+        self._add_category_input = QLineEdit()
+        self._add_category_input.setPlaceholderText("输入类别名称...")
+        self._add_category_input.returnPressed.connect(self._confirm_add_category)
+        self._add_category_input.editingFinished.connect(self._queue_cancel_add_category_if_needed)
+        row_layout.addWidget(self._add_category_input, stretch=1)
+
+        self._add_category_confirm_btn = QPushButton("√")
+        self._add_category_confirm_btn.setToolTip("确认创建类别")
+        self._add_category_confirm_btn.setFixedWidth(30)
+        self._add_category_confirm_btn.setStyleSheet("color: #30d158; font-size: 14px; font-weight: 700; padding: 0px;")
+        self._add_category_confirm_btn.clicked.connect(self._confirm_add_category)
+        row_layout.addWidget(self._add_category_confirm_btn)
+
+        self._add_category_cancel_btn = QPushButton("×")
+        self._add_category_cancel_btn.setToolTip("取消新增类别")
+        self._add_category_cancel_btn.setFixedWidth(30)
+        self._add_category_cancel_btn.setStyleSheet("color: #ff453a; font-size: 14px; font-weight: 700; padding: 0px;")
+        self._add_category_cancel_btn.clicked.connect(self._cancel_add_category)
+        row_layout.addWidget(self._add_category_cancel_btn)
+
     def _build_route_sections(self) -> None:
         for category in self.route_mgr.categories:
             section = _RouteSection(category)
@@ -631,14 +838,129 @@ class IslandWindow(QWidget):
             )
             for route in routes:
                 name = route.get("display_name", "")
-                checkbox = self._create_route_checkbox(name)
-                section.add_widget(checkbox)
-                self._route_widgets_by_category[category].append((name, checkbox))
+                route_item = self._create_route_list_item(category, name)
+                section.add_widget(route_item)
+                self._route_widgets_by_category[category].append((name, route_item))
 
             self.routes_layout.addWidget(section)
 
+    def _clear_route_sections(self) -> None:
+        for route_widgets in self._route_widgets_by_category.values():
+            for name, route_item in route_widgets:
+                self._unregister_route_checkbox(name, route_item.checkbox)
+
+        while self.routes_layout.count():
+            item = self.routes_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                if widget is self._add_category_row:
+                    widget.hide()
+                    continue
+                if widget is self._active_route_rename_item:
+                    self._active_route_rename_item = None
+                widget.deleteLater()
+
+        self._route_sections = {}
+        self._route_widgets_by_category = {}
+
+    def _rebuild_route_sections(self) -> None:
+        self._clear_route_sections()
+        if self._add_category_row is not None:
+            self.routes_layout.addWidget(self._add_category_row)
+        self._build_route_sections()
+        self.routes_layout.addStretch()
+        self.routes_scroll_inner.adjustSize()
+        self._install_resize_filters(self.routes_scroll_inner)
+
+    def _reload_route_list(self) -> None:
+        self._cancel_active_route_rename()
+        self.route_mgr.reload()
+        known_routes = {
+            route.get("display_name")
+            for routes in self.route_mgr.route_groups.values()
+            for route in routes
+        }
+        self._recent_route_names = [name for name in self._recent_route_names if name in known_routes]
+        self._save_recent_routes()
+        self._rebuild_route_sections()
+        self._refresh_tracked_routes()
+        self._apply_route_filter()
+        self.map_view._refresh_from_last_frame()
+        self._schedule_layout_refresh()
+
+    def _create_route_list_item(self, category: str, name: str) -> _RouteListItem:
+        route_item = _RouteListItem(category, name, self.route_mgr.visibility.get(name, False))
+        route_item.checkbox.toggled.connect(
+            lambda enabled, route_name=name, source=route_item.checkbox: self._toggle_route(route_name, enabled, source)
+        )
+        route_item.rename_btn.clicked.connect(lambda: self._begin_route_rename(route_item))
+        route_item.rename_confirm_btn.clicked.connect(lambda: self._confirm_route_rename(route_item))
+        route_item.rename_cancel_btn.clicked.connect(self._cancel_active_route_rename)
+        route_item.rename_input.returnPressed.connect(lambda: self._confirm_route_rename(route_item))
+        route_item.delete_btn.clicked.connect(
+            lambda: self._delete_route(route_item.category, route_item.route_name)
+        )
+        self._route_checkboxes.setdefault(name, []).append(route_item.checkbox)
+        return route_item
+
+    def _show_add_category_row(self) -> None:
+        if self._add_category_row is None or self._add_category_input is None:
+            return
+        self._adding_category = True
+        self._add_category_input.clear()
+        self._add_category_input.setPlaceholderText("输入类别名称...")
+        self._add_category_row.show()
+        self._add_category_input.setFocus()
+        self._schedule_layout_refresh()
+
+    def _cancel_add_category(self) -> None:
+        if self._add_category_row is None or self._add_category_input is None:
+            return
+        self._adding_category = False
+        self._add_category_input.clear()
+        self._add_category_input.setPlaceholderText("输入类别名称...")
+        self._add_category_row.hide()
+        self._schedule_layout_refresh()
+
+    def _confirm_add_category(self) -> None:
+        if self._add_category_input is None:
+            return
+        name = self._add_category_input.text().strip()
+        if not name:
+            self._add_category_input.clear()
+            self._add_category_input.setPlaceholderText("类别名称不能为空")
+            self._add_category_input.setFocus()
+            return
+        if not self.route_mgr.create_category(name):
+            self._add_category_input.selectAll()
+            self._add_category_input.setPlaceholderText("名称不能包含 / 或 \\")
+            self._add_category_input.setFocus()
+            return
+        self._cancel_add_category()
+        self._reload_route_list()
+
+    def _queue_cancel_add_category_if_needed(self) -> None:
+        QTimer.singleShot(0, self._cancel_add_category_if_focus_left)
+
+    def _cancel_add_category_if_focus_left(self) -> None:
+        if not self._adding_category:
+            return
+        app = QApplication.instance()
+        focus_widget = app.focusWidget() if app is not None else None
+        if self._is_add_category_widget(focus_widget):
+            return
+        self._cancel_add_category()
+
+    def _is_add_category_widget(self, widget: QWidget | None) -> bool:
+        current = widget
+        while current is not None:
+            if current is self._add_category_row:
+                return True
+            current = current.parentWidget()
+        return False
+
     def _create_route_checkbox(self, name: str) -> QCheckBox:
-        checkbox = QCheckBox(name)
+        checkbox = _ElidedCheckBox(name)
         checkbox.setMinimumHeight(theme.RECENT_ROUTE_ITEM_HEIGHT)
         checkbox.setChecked(self.route_mgr.visibility.get(name, False))
         checkbox.toggled.connect(
@@ -647,6 +969,63 @@ class IslandWindow(QWidget):
         self._route_checkboxes.setdefault(name, []).append(checkbox)
         return checkbox
 
+    @staticmethod
+    def _route_checkbox_name(checkbox: QCheckBox) -> str:
+        if isinstance(checkbox, _ElidedCheckBox):
+            return checkbox.full_text()
+        return checkbox.text()
+
+    def _begin_route_rename(self, route_item: _RouteListItem) -> None:
+        if self._active_route_rename_item is not None and self._active_route_rename_item is not route_item:
+            self._active_route_rename_item.cancel_rename()
+        self._active_route_rename_item = route_item
+        route_item.start_rename()
+
+    def _cancel_active_route_rename(self) -> None:
+        if self._active_route_rename_item is None:
+            return
+        self._active_route_rename_item.cancel_rename()
+        self._active_route_rename_item = None
+
+    def _confirm_route_rename(self, route_item: _RouteListItem) -> None:
+        new_name = route_item.current_rename_value()
+        if not new_name:
+            route_item.show_rename_error("路线名称不能为空")
+            return
+        if not self.route_mgr.rename_route(route_item.category, route_item.route_name, new_name):
+            route_item.show_rename_error("名称无效或已存在")
+            return
+        self._replace_recent_route_name(route_item.route_name, new_name)
+        self._active_route_rename_item = None
+        self._reload_route_list()
+
+    def _delete_route(self, category: str, name: str) -> None:
+        confirmed = styled_confirm(
+            self,
+            "删除路线",
+            f"确认删除路线“{name}”吗？",
+            confirm_text="删除",
+            cancel_text="取消",
+        )
+        if not confirmed:
+            return
+        if not self.route_mgr.delete_route(category, name):
+            return
+        self._remove_recent_route_name(name)
+        self._cancel_active_route_rename()
+        self._reload_route_list()
+
+    def _replace_recent_route_name(self, old_name: str, new_name: str) -> None:
+        updated: list[str] = []
+        for name in self._recent_route_names:
+            updated.append(new_name if name == old_name else name)
+        self._recent_route_names = list(dict.fromkeys(updated))
+        self._save_recent_routes()
+
+    def _remove_recent_route_name(self, name: str) -> None:
+        self._recent_route_names = [route_name for route_name in self._recent_route_names if route_name != name]
+        self._save_recent_routes()
+
     def _remove_recent_widgets(self) -> None:
         while self.recent_routes_layout.count():
             item = self.recent_routes_layout.takeAt(0)
@@ -654,7 +1033,7 @@ class IslandWindow(QWidget):
             if widget is None:
                 continue
             if isinstance(widget, QCheckBox):
-                self._unregister_route_checkbox(widget.text(), widget)
+                self._unregister_route_checkbox(self._route_checkbox_name(widget), widget)
             widget.deleteLater()
 
     def _remove_tracked_route_widgets(self) -> None:
@@ -664,7 +1043,7 @@ class IslandWindow(QWidget):
             if widget is None:
                 continue
             if isinstance(widget, QCheckBox):
-                self._unregister_route_checkbox(widget.text(), widget)
+                self._unregister_route_checkbox(self._route_checkbox_name(widget), widget)
             widget.deleteLater()
 
     def _refresh_recent_routes(self) -> None:
@@ -844,12 +1223,13 @@ class IslandWindow(QWidget):
         term = self.search_input.text().strip().casefold()
         for category, section in self._route_sections.items():
             visible_count = 0
-            for route_name, checkbox in self._route_widgets_by_category[category]:
+            for route_name, route_item in self._route_widgets_by_category[category]:
                 visible = self._matches_route(route_name, term)
-                checkbox.setVisible(visible)
+                route_item.setVisible(visible)
                 if visible:
                     visible_count += 1
-            section.setVisible(visible_count > 0)
+            has_routes = bool(self._route_widgets_by_category[category])
+            section.setVisible((not has_routes) or visible_count > 0)
             section.set_force_open(bool(term) and visible_count > 0)
         self._refresh_recent_routes()
 
@@ -1939,6 +2319,27 @@ class IslandWindow(QWidget):
             self._set_alert_mode(True, "目标丢失，正在持续尝试重新定位。", allow_terminate=True)
 
     def eventFilter(self, watched, event):
+        if (
+            self._active_route_rename_item is not None
+            and event.type() == QEvent.MouseButtonPress
+            and hasattr(event, "globalPosition")
+            and event.button() == Qt.LeftButton
+        ):
+            local_pos = self._active_route_rename_item.mapFromGlobal(event.globalPosition().toPoint())
+            if not self._active_route_rename_item.rect().contains(local_pos):
+                self._cancel_active_route_rename()
+
+        if (
+            self._adding_category
+            and event.type() == QEvent.MouseButtonPress
+            and hasattr(event, "globalPosition")
+            and event.button() == Qt.LeftButton
+            and self._add_category_row is not None
+        ):
+            local_pos = self._add_category_row.mapFromGlobal(event.globalPosition().toPoint())
+            if not self._add_category_row.rect().contains(local_pos):
+                self._cancel_add_category()
+
         if event.type() == QEvent.MouseButtonPress and hasattr(event, "globalPosition") and event.button() == Qt.LeftButton:
             if self._sidebar_resize_hit(event.globalPosition().toPoint()):
                 self._sidebar_resizing = True
