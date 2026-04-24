@@ -37,6 +37,10 @@ AI_FIELDS: list[Field] = [
 COMMON_FIELDS: list[Field] = [
     Field("MAX_LOST_FRAMES", "最大惯性帧数", int, "10~120", "丢失判定阈值"),
     Field("ROUTE_RECENT_LIMIT", "最近路线条数", int, "3~10", "面板保留数量"),
+    Field("ROUTE_GUIDE_NODE_DISTANCE", "导航节点偏离距离", int, "20~300 px", "超过此距离显示回到未访问节点的黑色指针"),
+    Field("ROUTE_GUIDE_SEGMENT_DISTANCE", "导航线段吸附距离", int, "10~150 px", "靠近路线线段时显示下一目标指引"),
+    Field("ROUTE_GUIDE_POINTER_SPACING", "导航指针间隔", int, "12~80 px", "连续黑色指针之间的距离"),
+    Field("ROUTE_GUIDE_POINTER_SIZE", "导航指针尺寸", int, "5~30 px", "单个黑色指针的长度"),
 ]
 
 TOOL_BUTTONS: list[str] = ["检查更新", "使用说明", "抓取点位", "路线编辑"]

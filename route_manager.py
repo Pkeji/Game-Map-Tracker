@@ -11,17 +11,42 @@ import os
 import shutil
 import time
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable
 
 import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+import config
 
 _CLOSE_THRESHOLD = 20
+_GUIDE_COLOR = (0, 0, 0)
+_GUIDE_PLAYER_CLEARANCE = 18
+_GUIDE_TARGET_CLEARANCE = 14
+_GUIDE_HINT_BG = (245, 245, 245, 220)
+_GUIDE_HINT_BORDER = (20, 20, 20, 185)
+_GUIDE_HINT_PADDING_X = 8
+_GUIDE_HINT_PADDING_Y = 5
+_GUIDE_HINT_FONT_SIZE = 15
 _PROGRESS_FILE = "progress.json"
 _VISIBILITY_FILE = "selected_routes.json"
 _RECENT_FILE = "recent_routes.json"
 _INVALID_FILE_NAME_CHARS = set('<>:"/\\|?*')
 _ROUTE_ID_SEQ_WIDTH = 2
+
+
+@dataclass(frozen=True)
+class _GuideTarget:
+    xy: tuple[float, float]
+    distance: float
+
+
+@dataclass(frozen=True)
+class _TeleportPoint:
+    xy: tuple[float, float]
+    label: str
 
 
 def _color_for_key(key: str) -> tuple[int, int, int]:
@@ -64,6 +89,364 @@ def _best_insertion_index(points: list[dict], new_xy: tuple[float, float]) -> in
     return best_index
 
 
+def _config_int(name: str, default: int, minimum: int = 0) -> int:
+    try:
+        return max(minimum, int(getattr(config, name, default) or default))
+    except (TypeError, ValueError):
+        return max(minimum, default)
+
+
+def _project_root() -> str:
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _default_teleport_dir() -> str:
+    return os.path.join(_project_root(), "tools", "points_get", "teleport")
+
+
+def _point_xy(point: dict) -> tuple[float, float] | None:
+    try:
+        return float(point["x"]), float(point["y"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _load_teleport_points(folder: str | os.PathLike[str] | None = None) -> list[_TeleportPoint]:
+    folder_path = os.fspath(folder) if folder is not None else _default_teleport_dir()
+    if not os.path.isdir(folder_path):
+        return []
+
+    points: list[_TeleportPoint] = []
+    for path in sorted(glob.glob(os.path.join(folder_path, "*.json"))):
+        try:
+            with open(path, "r", encoding="utf-8-sig") as handle:
+                payload = json.load(handle)
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for index, point in enumerate(payload.get("points") or [], 1):
+            if not isinstance(point, dict):
+                continue
+            xy = _point_xy(point)
+            if xy is None:
+                continue
+            raw_label = point.get("label") or payload.get("name") or f"传送点 {index}"
+            label = str(raw_label).strip()
+            points.append(_TeleportPoint(xy=xy, label=label or f"传送点 {index}"))
+    return points
+
+
+def _nearest_teleport_label(
+    teleports: Iterable[_TeleportPoint],
+    target_xy: tuple[float, float],
+) -> str | None:
+    best: tuple[float, str] | None = None
+    tx, ty = target_xy
+    for teleport in teleports:
+        dist = math.hypot(teleport.xy[0] - tx, teleport.xy[1] - ty)
+        if best is None or dist < best[0]:
+            best = (dist, teleport.label)
+    if best is None:
+        return None
+    return best[1]
+
+
+def _distance_to_segment(
+    point_xy: tuple[float, float],
+    start_xy: tuple[float, float],
+    end_xy: tuple[float, float],
+) -> tuple[float, tuple[float, float]]:
+    px, py = point_xy
+    ax, ay = start_xy
+    bx, by = end_xy
+    dx = bx - ax
+    dy = by - ay
+    length_sq = dx * dx + dy * dy
+    if length_sq <= 0:
+        return math.hypot(px - ax, py - ay), (ax, ay)
+
+    t = ((px - ax) * dx + (py - ay) * dy) / length_sq
+    t = max(0.0, min(1.0, t))
+    proj = (ax + t * dx, ay + t * dy)
+    return math.hypot(px - proj[0], py - proj[1]), proj
+
+
+def _iter_route_segments(points: list[dict], loop: bool) -> Iterable[tuple[int, int, dict, dict]]:
+    for index in range(len(points) - 1):
+        yield index, index + 1, points[index], points[index + 1]
+    if loop and len(points) > 2:
+        yield len(points) - 1, 0, points[-1], points[0]
+
+
+def _nearest_unvisited_node(
+    routes: Iterable[dict],
+    player_xy: tuple[float, float],
+) -> tuple[float, tuple[float, float], dict, int] | None:
+    best: tuple[float, tuple[float, float], dict, int] | None = None
+    for route in routes:
+        for index, point in enumerate(route.get("points") or []):
+            if point.get("visited", False):
+                continue
+            xy = _point_xy(point)
+            if xy is None:
+                continue
+            dist = math.hypot(xy[0] - player_xy[0], xy[1] - player_xy[1])
+            if best is None or dist < best[0]:
+                best = (dist, xy, route, index)
+    return best
+
+
+def _nearest_segment(
+    routes: Iterable[dict],
+    player_xy: tuple[float, float],
+    threshold: float,
+) -> tuple[float, dict, int, int, dict, dict] | None:
+    best: tuple[float, dict, int, int, dict, dict] | None = None
+    for route in routes:
+        points = route.get("points") or []
+        for start_index, end_index, start, end in _iter_route_segments(points, bool(route.get("loop"))):
+            start_xy = _point_xy(start)
+            end_xy = _point_xy(end)
+            if start_xy is None or end_xy is None:
+                continue
+            dist, _projection = _distance_to_segment(player_xy, start_xy, end_xy)
+            if dist > threshold:
+                continue
+            if best is None or dist < best[0]:
+                best = (dist, route, start_index, end_index, start, end)
+    return best
+
+
+def _guide_target_for_player(
+    routes: Iterable[dict],
+    player_xy: tuple[float, float],
+    node_distance: float,
+    segment_distance: float,
+) -> _GuideTarget | None:
+    route_list = list(routes)
+    nearest_node = _nearest_unvisited_node(route_list, player_xy)
+    nearest_segment = _nearest_segment(route_list, player_xy, segment_distance)
+
+    if nearest_segment is not None:
+        _dist, _route, _start_index, _end_index, start, end = nearest_segment
+        start_visited = bool(start.get("visited", False))
+        end_visited = bool(end.get("visited", False))
+        end_xy = _point_xy(end)
+        if start_visited and not end_visited and end_xy is not None:
+            return _GuideTarget(end_xy, math.hypot(end_xy[0] - player_xy[0], end_xy[1] - player_xy[1]))
+        if not start_visited and not end_visited and nearest_node is not None:
+            return _GuideTarget(nearest_node[1], nearest_node[0])
+
+    if nearest_node is not None and nearest_node[0] > node_distance:
+        return _GuideTarget(nearest_node[1], nearest_node[0])
+    return None
+
+
+def _target_in_crop(
+    target_xy: tuple[float, float],
+    *,
+    vx1: int,
+    vy1: int,
+    width: int,
+    height: int,
+) -> bool:
+    local_x = target_xy[0] - vx1
+    local_y = target_xy[1] - vy1
+    return 0 <= local_x < width and 0 <= local_y < height
+
+
+def _guide_distance_label(
+    target: _GuideTarget | None,
+    *,
+    vx1: int,
+    vy1: int,
+    width: int,
+    height: int,
+) -> str | None:
+    if target is None:
+        return None
+    if _target_in_crop(target.xy, vx1=vx1, vy1=vy1, width=width, height=height):
+        return None
+    return f"{int(round(target.distance))}px"
+
+
+_GUIDE_HINT_FONT: ImageFont.ImageFont | None = None
+
+
+def _guide_hint_font() -> ImageFont.ImageFont:
+    global _GUIDE_HINT_FONT
+    if _GUIDE_HINT_FONT is not None:
+        return _GUIDE_HINT_FONT
+
+    candidates = [
+        os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyh.ttc"),
+        os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "simhei.ttf"),
+        os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyhbd.ttc"),
+    ]
+    for path in candidates:
+        try:
+            _GUIDE_HINT_FONT = ImageFont.truetype(path, _GUIDE_HINT_FONT_SIZE)
+            return _GUIDE_HINT_FONT
+        except Exception:
+            continue
+    _GUIDE_HINT_FONT = ImageFont.load_default()
+    return _GUIDE_HINT_FONT
+
+
+def _text_size(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> tuple[int, int]:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
+def _fit_text_width(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
+    max_width: int,
+) -> str:
+    if max_width <= 0:
+        return ""
+    if _text_size(draw, text, font)[0] <= max_width:
+        return text
+    ellipsis = "..."
+    if _text_size(draw, ellipsis, font)[0] > max_width:
+        return ""
+    trimmed = text
+    while trimmed:
+        trimmed = trimmed[:-1]
+        candidate = trimmed.rstrip() + ellipsis
+        if _text_size(draw, candidate, font)[0] <= max_width:
+            return candidate
+    return ellipsis
+
+
+def _draw_spaced_direction_arrows(
+    canvas,
+    start_xy: tuple[float, float],
+    target_xy: tuple[float, float],
+    *,
+    vx1: int,
+    vy1: int,
+    spacing: int,
+    size: int,
+) -> None:
+    sx = start_xy[0] - vx1
+    sy = start_xy[1] - vy1
+    tx = target_xy[0] - vx1
+    ty = target_xy[1] - vy1
+    dx = tx - sx
+    dy = ty - sy
+    distance = math.hypot(dx, dy)
+    if distance <= _GUIDE_PLAYER_CLEARANCE + _GUIDE_TARGET_CLEARANCE:
+        return
+
+    ux = dx / distance
+    uy = dy / distance
+    spacing = max(8, spacing)
+    size = max(5, size)
+
+    cursor = float(_GUIDE_PLAYER_CLEARANCE)
+    last = distance - float(_GUIDE_TARGET_CLEARANCE)
+    while cursor < last:
+        tip = (int(round(sx + ux * cursor)), int(round(sy + uy * cursor)))
+        tail = (
+            int(round(sx + ux * max(0.0, cursor - size))),
+            int(round(sy + uy * max(0.0, cursor - size))),
+        )
+        cv2.arrowedLine(
+            canvas,
+            tail,
+            tip,
+            _GUIDE_COLOR,
+            2,
+            cv2.LINE_AA,
+            tipLength=0.65,
+        )
+        cursor += spacing
+
+
+def _draw_guide_distance_label(
+    canvas,
+    player_xy: tuple[float, float],
+    target: _GuideTarget,
+    distance_label: str,
+    *,
+    vx1: int,
+    vy1: int,
+    teleport_label: str | None = None,
+) -> None:
+    sx = player_xy[0] - vx1
+    sy = player_xy[1] - vy1
+    tx = target.xy[0] - vx1
+    ty = target.xy[1] - vy1
+    dx = tx - sx
+    dy = ty - sy
+    distance = math.hypot(dx, dy)
+    if distance <= 0:
+        return
+
+    ux = dx / distance
+    uy = dy / distance
+    anchor_distance = min(max(54.0, distance * 0.22), max(24.0, distance - _GUIDE_TARGET_CLEARANCE))
+    anchor_x = sx + ux * anchor_distance
+    anchor_y = sy + uy * anchor_distance
+
+    canvas_h, canvas_w = canvas.shape[:2]
+    if canvas_w <= 20 or canvas_h <= 20:
+        return
+
+    rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(rgb).convert("RGBA")
+    draw = ImageDraw.Draw(image, "RGBA")
+    font = _guide_hint_font()
+
+    right_label = (teleport_label or "").strip()
+    separator = "  |  " if right_label else ""
+    left_w, left_h = _text_size(draw, distance_label, font)
+    sep_w, sep_h = _text_size(draw, separator, font) if separator else (0, 0)
+    max_box_w = max(80, min(canvas_w - 8, 360))
+    max_right_w = max_box_w - left_w - sep_w - _GUIDE_HINT_PADDING_X * 2
+    right_label = _fit_text_width(draw, right_label, font, max_right_w)
+    separator = "  |  " if right_label else ""
+    sep_w, sep_h = _text_size(draw, separator, font) if separator else (0, 0)
+    right_w, right_h = _text_size(draw, right_label, font) if right_label else (0, 0)
+
+    text_w = left_w + sep_w + right_w
+    text_h = max(left_h, sep_h, right_h)
+    box_w = text_w + _GUIDE_HINT_PADDING_X * 2
+    box_h = text_h + _GUIDE_HINT_PADDING_Y * 2
+
+    offset_x = -uy * 14.0
+    offset_y = ux * 14.0
+    x = int(round(anchor_x + offset_x))
+    y = int(round(anchor_y + offset_y))
+    x = max(4, min(canvas_w - box_w - 4, x))
+    y = max(4, min(canvas_h - box_h - 4, y))
+
+    try:
+        draw.rounded_rectangle(
+            (x, y, x + box_w, y + box_h),
+            radius=5,
+            fill=_GUIDE_HINT_BG,
+            outline=_GUIDE_HINT_BORDER,
+            width=1,
+        )
+    except AttributeError:
+        draw.rectangle((x, y, x + box_w, y + box_h), fill=_GUIDE_HINT_BG, outline=_GUIDE_HINT_BORDER)
+
+    text_x = x + _GUIDE_HINT_PADDING_X
+    text_y = y + _GUIDE_HINT_PADDING_Y - 1
+    draw.text((text_x, text_y), distance_label, font=font, fill=(0, 0, 0, 255))
+    text_x += left_w
+    if separator:
+        draw.text((text_x, text_y), separator, font=font, fill=(80, 80, 80, 255))
+        text_x += sep_w
+        draw.text((text_x, text_y), right_label, font=font, fill=(0, 0, 0, 255))
+
+    canvas[:] = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+
+
 class RouteManager:
     def __init__(self, base_folder: str = "routes") -> None:
         self.base_folder = base_folder
@@ -73,6 +456,7 @@ class RouteManager:
         self._color_cache: dict[str, tuple[int, int, int]] = {}
         self._route_index_by_id: dict[str, dict] = {}
         self._category_by_route_id: dict[str, str] = {}
+        self._teleport_points_cache: list[_TeleportPoint] | None = None
 
         self._discover_categories()
         self._ensure_route_ids()
@@ -85,6 +469,11 @@ class RouteManager:
         if key not in self._color_cache:
             self._color_cache[key] = _color_for_key(key)
         return self._color_cache[key]
+
+    def teleport_points(self) -> list[_TeleportPoint]:
+        if self._teleport_points_cache is None:
+            self._teleport_points_cache = _load_teleport_points()
+        return self._teleport_points_cache
 
     @staticmethod
     def route_id(route: dict) -> str:
@@ -543,21 +932,26 @@ class RouteManager:
             local_player = (int(player_x - vx1), int(player_y - vy1))
 
         canvas_height, canvas_width = canvas.shape[:2]
+        visible_routes = [
+            route
+            for _category, route in self.iter_routes()
+            if self.route_id(route) and self.visibility.get(self.route_id(route), False)
+        ]
+        draw_records: list[tuple[dict, tuple[int, int, int], list[tuple[int, int]], list[dict]]] = []
 
-        for _category, route in self.iter_routes():
+        for route in visible_routes:
             route_id = self.route_id(route)
-            if not route_id or not self.visibility.get(route_id, False):
-                continue
-
             points = route.get("points", [])
             color = self.color_for(route_id)
             local_points = [(int(point["x"] - vx1), int(point["y"] - vy1)) for point in points]
+            draw_records.append((route, color, local_points, points))
 
             for index in range(len(local_points) - 1):
                 cv2.line(canvas, local_points[index], local_points[index + 1], color, 2, cv2.LINE_AA)
             if route.get("loop") and len(local_points) > 2:
                 cv2.line(canvas, local_points[-1], local_points[0], color, 2, cv2.LINE_AA)
 
+        for _route, _color, local_points, points in draw_records:
             for index, (local_point, point_data) in enumerate(zip(local_points, points)):
                 if not (0 <= local_point[0] <= canvas_width and 0 <= local_point[1] <= canvas_height):
                     continue
@@ -567,7 +961,49 @@ class RouteManager:
                     dist = math.hypot(local_point[0] - local_player[0], local_point[1] - local_player[1])
                     if dist < _CLOSE_THRESHOLD:
                         point_data["visited"] = True
-                        visited = True
+
+        if player_x is not None and player_y is not None:
+            target = _guide_target_for_player(
+                visible_routes,
+                (float(player_x), float(player_y)),
+                _config_int("ROUTE_GUIDE_NODE_DISTANCE", 80),
+                _config_int("ROUTE_GUIDE_SEGMENT_DISTANCE", 35),
+            )
+            if target is not None:
+                _draw_spaced_direction_arrows(
+                    canvas,
+                    (float(player_x), float(player_y)),
+                    target.xy,
+                    vx1=vx1,
+                    vy1=vy1,
+                    spacing=_config_int("ROUTE_GUIDE_POINTER_SPACING", 28, 8),
+                    size=_config_int("ROUTE_GUIDE_POINTER_SIZE", 10, 5),
+                )
+                label = _guide_distance_label(
+                    target,
+                    vx1=vx1,
+                    vy1=vy1,
+                    width=canvas_width,
+                    height=canvas_height,
+                )
+                if label is not None:
+                    teleport_label = _nearest_teleport_label(self.teleport_points(), target.xy)
+                    _draw_guide_distance_label(
+                        canvas,
+                        (float(player_x), float(player_y)),
+                        target,
+                        label,
+                        vx1=vx1,
+                        vy1=vy1,
+                        teleport_label=teleport_label,
+                    )
+
+        for _route, color, local_points, points in draw_records:
+            for index, (local_point, point_data) in enumerate(zip(local_points, points)):
+                if not (0 <= local_point[0] <= canvas_width and 0 <= local_point[1] <= canvas_height):
+                    continue
+
+                visited = point_data.get("visited", False)
 
                 if visited:
                     dot_color = (45, 45, 45)
