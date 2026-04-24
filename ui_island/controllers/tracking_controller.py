@@ -99,12 +99,16 @@ class TrackingController:
         self.window._frame_ready.emit(TrackResult(TrackState.SEARCHING, latency_ms=0.0))
 
     def set_alert_mode(self, enabled: bool, message: str = "", allow_terminate: bool = False) -> None:
-        self.window.alert_card.setVisible(enabled)
-        self.window.body_container.setVisible(not enabled)
-        self.window.state_hint_label.setVisible(not enabled)
-        if enabled and message:
-            self.window.alert_message.setText(message)
-        self.window.alert_terminate_btn.setVisible(allow_terminate)
+        if enabled:
+            if message:
+                self.window.alert_message.setText(message)
+            self.window.alert_terminate_btn.setVisible(allow_terminate)
+            self.window.window_mode_controller.apply_compact_constraints(True)
+            self.window.state_hint_label.setVisible(False)
+        else:
+            self.window.window_mode_controller.apply_compact_constraints(False)
+            self.window.alert_terminate_btn.setVisible(False)
+            self.window.state_hint_label.setVisible(True)
 
     def set_header_action_visibility(self, visible: bool) -> None:
         mode_enum = self.window._mode.__class__

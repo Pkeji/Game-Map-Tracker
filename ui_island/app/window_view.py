@@ -174,7 +174,7 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
     window.alert_card.setObjectName("AlertCard")
     window.alert_card.hide()
     alert_layout = QHBoxLayout(window.alert_card)
-    alert_layout.setContentsMargins(18, 16, 18, 16)
+    alert_layout.setContentsMargins(16, 10, 16, 10)
     alert_layout.setSpacing(12)
     alert_layout.addStretch()
 
@@ -186,6 +186,8 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
 
     window.alert_terminate_btn = QPushButton("终止导航")
     window.alert_terminate_btn.setObjectName("AlertAction")
+    window.alert_terminate_btn.setFixedHeight(theme.ALERT_ACTION_HEIGHT)
+    window.alert_terminate_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
     window.alert_terminate_btn.clicked.connect(window.tracking_controller.pause_navigation)
     alert_layout.addWidget(window.alert_terminate_btn)
     alert_layout.addStretch()
@@ -215,9 +217,26 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
     window.tracked_routes_layout.setContentsMargins(12, 0, 12, 0)
     window.tracked_routes_layout.setSpacing(4)
 
+    window.tracked_routes_header = QWidget()
+    window.tracked_routes_header_layout = QHBoxLayout(window.tracked_routes_header)
+    window.tracked_routes_header_layout.setContentsMargins(0, 0, 0, 0)
+    window.tracked_routes_header_layout.setSpacing(8)
+
     window.tracked_routes_title = QLabel("当前追踪路线")
     window.tracked_routes_title.setObjectName("TitleLabel")
-    window.tracked_routes_layout.addWidget(window.tracked_routes_title)
+    window.tracked_routes_title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    window.tracked_routes_header_layout.addWidget(window.tracked_routes_title, stretch=0)
+    window.tracked_routes_header_layout.addStretch(1)
+
+    window.tracked_guide_hint_label = QLabel("")
+    window.tracked_guide_hint_label.setObjectName("TrackedGuideHint")
+    window.tracked_guide_hint_label.setWordWrap(True)
+    window.tracked_guide_hint_label.setVisible(False)
+    window.tracked_guide_hint_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+    window.tracked_guide_hint_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    window.tracked_routes_header_layout.addWidget(window.tracked_guide_hint_label, stretch=0)
+
+    window.tracked_routes_layout.addWidget(window.tracked_routes_header)
 
     window.tracked_routes_scroll = QScrollArea()
     window.tracked_routes_scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)

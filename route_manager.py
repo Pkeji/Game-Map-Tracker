@@ -475,6 +475,38 @@ class RouteManager:
             self._teleport_points_cache = _load_teleport_points()
         return self._teleport_points_cache
 
+    def guide_hint_for_view(
+        self,
+        player_x: int | float | None,
+        player_y: int | float | None,
+        vx1: int,
+        vy1: int,
+        width: int,
+        height: int,
+    ) -> dict[str, str] | None:
+        if player_x is None or player_y is None:
+            return None
+        target = _guide_target_for_player(
+            self.visible_routes(),
+            (float(player_x), float(player_y)),
+            _config_int("ROUTE_GUIDE_NODE_DISTANCE", 80),
+            _config_int("ROUTE_GUIDE_SEGMENT_DISTANCE", 35),
+        )
+        label = _guide_distance_label(
+            target,
+            vx1=vx1,
+            vy1=vy1,
+            width=width,
+            height=height,
+        )
+        if target is None or label is None:
+            return None
+        teleport_label = _nearest_teleport_label(self.teleport_points(), target.xy)
+        hint: dict[str, str] = {"distance_label": label}
+        if teleport_label:
+            hint["teleport_label"] = teleport_label
+        return hint
+
     @staticmethod
     def route_id(route: dict) -> str:
         route_id = route.get("id")
@@ -979,25 +1011,6 @@ class RouteManager:
                     spacing=_config_int("ROUTE_GUIDE_POINTER_SPACING", 28, 8),
                     size=_config_int("ROUTE_GUIDE_POINTER_SIZE", 10, 5),
                 )
-                label = _guide_distance_label(
-                    target,
-                    vx1=vx1,
-                    vy1=vy1,
-                    width=canvas_width,
-                    height=canvas_height,
-                )
-                if label is not None:
-                    teleport_label = _nearest_teleport_label(self.teleport_points(), target.xy)
-                    _draw_guide_distance_label(
-                        canvas,
-                        (float(player_x), float(player_y)),
-                        target,
-                        label,
-                        vx1=vx1,
-                        vy1=vy1,
-                        teleport_label=teleport_label,
-                    )
-
         for _route, color, local_points, points in draw_records:
             for index, (local_point, point_data) in enumerate(zip(local_points, points)):
                 if not (0 <= local_point[0] <= canvas_width and 0 <= local_point[1] <= canvas_height):

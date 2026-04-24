@@ -14,6 +14,17 @@ from base import BaseTracker, TrackResult, TrackState
 from map_image_loader import load_map_image
 
 
+_EDGE_GUARD_PX = 24
+_EDGE_CONFIRM_DISTANCE_PX = 45.0
+_EDGE_CONFIRM_HITS = 2
+_MIN_INLIER_RATIO = 0.45
+_EDGE_MIN_INLIER_COUNT = 10
+_EDGE_MIN_INLIER_RATIO = 0.60
+_HIGH_CONF_INLIER_COUNT = 14
+_HIGH_CONF_INLIER_RATIO = 0.65
+_LARGE_JUMP_RADIUS_FACTOR = 1.8
+
+
 class SiftTracker(BaseTracker):
     def __init__(self) -> None:
         self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="SIFT logic map")
@@ -51,10 +62,58 @@ class SiftTracker(BaseTracker):
         self._last_y: int | None = None
         self._lost_frames = 0
         self._max_lost = config.MAX_LOST_FRAMES
+        self._pending_edge_xy: tuple[int, int] | None = None
+        self._pending_edge_hits = 0
 
     def set_anchor(self, x: int, y: int) -> None:
         self._last_x, self._last_y = int(x), int(y)
         self._lost_frames = 0
+        self._pending_edge_xy = None
+        self._pending_edge_hits = 0
+
+    @staticmethod
+    def _homography_quality(mask: np.ndarray | None, good_count: int) -> tuple[int, float]:
+        if mask is None or good_count <= 0:
+            return 0, 0.0
+        inlier_count = int(np.count_nonzero(mask.ravel()))
+        return inlier_count, inlier_count / float(good_count)
+
+    def _near_map_edge(self, x: int, y: int) -> bool:
+        return (
+            x < _EDGE_GUARD_PX
+            or y < _EDGE_GUARD_PX
+            or x >= self.map_width - _EDGE_GUARD_PX
+            or y >= self.map_height - _EDGE_GUARD_PX
+        )
+
+    def _is_large_jump(self, x: int, y: int) -> bool:
+        if self._last_x is None or self._last_y is None:
+            return False
+        dist = float(np.hypot(x - self._last_x, y - self._last_y))
+        return dist > self._local_radius * _LARGE_JUMP_RADIUS_FACTOR
+
+    @staticmethod
+    def _is_high_confidence(inlier_count: int, inlier_ratio: float) -> bool:
+        return inlier_count >= _HIGH_CONF_INLIER_COUNT and inlier_ratio >= _HIGH_CONF_INLIER_RATIO
+
+    def _accept_edge_candidate(self, x: int, y: int) -> bool:
+        if self._pending_edge_xy is None:
+            self._pending_edge_xy = (x, y)
+            self._pending_edge_hits = 1
+            return False
+
+        dist = float(np.hypot(x - self._pending_edge_xy[0], y - self._pending_edge_xy[1]))
+        if dist <= _EDGE_CONFIRM_DISTANCE_PX:
+            self._pending_edge_xy = (x, y)
+            self._pending_edge_hits += 1
+        else:
+            self._pending_edge_xy = (x, y)
+            self._pending_edge_hits = 1
+        return self._pending_edge_hits >= _EDGE_CONFIRM_HITS
+
+    def _reset_edge_candidate(self) -> None:
+        self._pending_edge_xy = None
+        self._pending_edge_hits = 0
 
     def _match(self, des_mini: np.ndarray) -> tuple[list, np.ndarray]:
         """优先在上次坐标附近做 BFMatcher 局部搜索，命中不足或没锚点时退回全图 FLANN。
@@ -113,7 +172,13 @@ class SiftTracker(BaseTracker):
                 dst = np.float32(
                     [self.kp_big[train_idx_map[m.trainIdx]].pt for m in good]
                 ).reshape(-1, 1, 2)
-                M, _ = cv2.findHomography(src, dst, cv2.RANSAC, config.SIFT_RANSAC_THRESHOLD)
+                M, mask = cv2.findHomography(src, dst, cv2.RANSAC, config.SIFT_RANSAC_THRESHOLD)
+                if M is not None:
+                    inlier_count, inlier_ratio = self._homography_quality(mask, good_count)
+                    min_inliers = max(config.SIFT_MIN_MATCH_COUNT, 6)
+                    if inlier_count < min_inliers or inlier_ratio < _MIN_INLIER_RATIO:
+                        M = None
+
                 if M is not None:
                     h, w = gray.shape
                     center = cv2.perspectiveTransform(
@@ -121,10 +186,23 @@ class SiftTracker(BaseTracker):
                     )
                     tx, ty = int(center[0][0][0]), int(center[0][0][1])
                     if 0 <= tx < self.map_width and 0 <= ty < self.map_height:
-                        locked = True
-                        cx, cy = tx, ty
-                        self._last_x, self._last_y = tx, ty
-                        self._lost_frames = 0
+                        near_edge = self._near_map_edge(tx, ty)
+                        high_conf = self._is_high_confidence(inlier_count, inlier_ratio)
+                        edge_quality_ok = (
+                            inlier_count >= _EDGE_MIN_INLIER_COUNT
+                            and inlier_ratio >= _EDGE_MIN_INLIER_RATIO
+                        )
+                        large_jump_ok = (not self._is_large_jump(tx, ty)) or high_conf
+                        edge_confirmed = (not near_edge) or self._accept_edge_candidate(tx, ty)
+
+                        if large_jump_ok and (not near_edge or edge_quality_ok) and edge_confirmed:
+                            locked = True
+                            cx, cy = tx, ty
+                            self._last_x, self._last_y = tx, ty
+                            self._lost_frames = 0
+                            self._reset_edge_candidate()
+                        elif not near_edge:
+                            self._reset_edge_candidate()
 
         latency = (time.time() - t0) * 1000.0
 
@@ -141,4 +219,5 @@ class SiftTracker(BaseTracker):
         # 后续帧应直接回到全图重搜，而不是继续被旧位置拖住。
         self._last_x = None
         self._last_y = None
+        self._reset_edge_candidate()
         return TrackResult(TrackState.LOST, latency_ms=latency)

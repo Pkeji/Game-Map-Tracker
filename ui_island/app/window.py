@@ -193,6 +193,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._frame_ready.connect(self._on_frame)
         self.map_view.add_point_requested.connect(self.map_interaction_controller.on_add_point_requested)
         self.map_view.delete_point_requested.connect(self.map_interaction_controller.on_delete_point_requested)
+        self.map_view.guide_hint_changed.connect(self._on_route_guide_hint_changed)
 
         self._minimap_region = self.settings_gateway.get_minimap()
         self.hotkey_controller.start_listener()
@@ -206,6 +207,70 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
     def _reset_map_view(self) -> None:
         self.map_view.reset_view()
 
+    def _clear_route_guide_hint(self) -> None:
+        label = getattr(self, "tracked_guide_hint_label", None)
+        if label is None:
+            return
+        label.clear()
+        label.setMinimumWidth(0)
+        label.setMaximumWidth(16777215)
+        label.setVisible(False)
+
+    def _fit_route_guide_hint_width(self) -> None:
+        label = getattr(self, "tracked_guide_hint_label", None)
+        header = getattr(self, "tracked_routes_header", None)
+        title = getattr(self, "tracked_routes_title", None)
+        layout = getattr(self, "tracked_routes_header_layout", None)
+        if label is None or header is None or title is None or layout is None or not label.text():
+            return
+
+        margins = layout.contentsMargins()
+        title_width = max(title.sizeHint().width(), title.fontMetrics().horizontalAdvance(title.text()))
+        header_width = header.width()
+
+        card = getattr(self, "tracked_routes_card", None)
+        card_width = card.width() if card is not None else 0
+        layout_margins = self.tracked_routes_layout.contentsMargins()
+        card_content_width = card_width - layout_margins.left() - layout_margins.right()
+        header_width = max(header_width, card_content_width, header.sizeHint().width())
+
+        available_width = header_width - title_width - layout.spacing() - margins.left() - margins.right()
+        available_width = max(80, available_width)
+        content_width = label.fontMetrics().horizontalAdvance(label.text()) + 20
+        target_width = min(content_width, available_width)
+        label.setMinimumWidth(target_width)
+        label.setMaximumWidth(target_width)
+        label.updateGeometry()
+
+    def _on_route_guide_hint_changed(self, hint: object) -> None:
+        label = getattr(self, "tracked_guide_hint_label", None)
+        if label is None:
+            return
+        mode_enum = self._mode.__class__
+        if self._mode == mode_enum.TRACKING_LOST or not isinstance(hint, dict):
+            self._clear_route_guide_hint()
+            self.route_panel_controller.sync_tracked_routes_height(len(self.route_mgr.visible_routes()))
+            self.window_mode_controller.schedule_layout_refresh()
+            return
+
+        distance_label = str(hint.get("distance_label") or "").strip()
+        teleport_label = str(hint.get("teleport_label") or "").strip()
+        if not distance_label:
+            self._clear_route_guide_hint()
+            self.route_panel_controller.sync_tracked_routes_height(len(self.route_mgr.visible_routes()))
+            self.window_mode_controller.schedule_layout_refresh()
+            return
+
+        text = f"目标约 {distance_label}"
+        if teleport_label:
+            text += f" ｜ 最近传送点：{teleport_label}"
+        label.setText(text)
+        label.setVisible(True)
+        self._fit_route_guide_hint_width()
+        QTimer.singleShot(0, self._fit_route_guide_hint_width)
+        self.route_panel_controller.sync_tracked_routes_height(len(self.route_mgr.visible_routes()))
+        self.window_mode_controller.schedule_layout_refresh()
+
     def _paint_default_map(self) -> None:
         cx = self.tracker.map_width // 2
         cy = self.tracker.map_height // 2
@@ -218,6 +283,9 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
     def _on_settings_applied(self) -> None:
         self._minimap_region = self.settings_gateway.get_minimap()
+        self._recent_limit = self.settings_gateway.get_route_recent_limit()
+        self._recent_route_names = self.recent_routes_store.load()
+        self.route_panel_controller.refresh_recent_routes()
 
     def _collapse_to_icon(self) -> None:
         if self._mini_icon is not None:
@@ -447,13 +515,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
             self._size_prefs[WindowMode.TRACKING_STABLE] = (self.width(), self.height())
             self._stable_size_save_timer.start()
         elif self._mode == WindowMode.TRACKING_LOST:
-            stable_width, stable_height = self._size_prefs.get(
-                WindowMode.TRACKING_STABLE,
-                self._size_prefs[WindowMode.PAUSED],
-            )
-            if self.width() != stable_width:
-                self._size_prefs[WindowMode.TRACKING_STABLE] = (self.width(), stable_height)
-                self._stable_size_save_timer.start()
+            return
         elif self._mode == WindowMode.PAUSED:
             self._size_prefs[WindowMode.PAUSED] = (self.width(), self.height())
             self._paused_size_save_timer.start()

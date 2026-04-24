@@ -338,18 +338,21 @@ class TrackedRouteItem(QWidget):
         self.route_id = route_id
         self.route_name = route_name
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setProperty("trackedRouteItem", True)
+        self.setProperty("checked", checked)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setMinimumWidth(0)
         self.setMinimumHeight(tokens.RECENT_ROUTE_ITEM_HEIGHT)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(0)
 
         self.checkbox = ElidedCheckBox(route_name, self)
         self.checkbox.setMinimumHeight(tokens.RECENT_ROUTE_ITEM_HEIGHT)
         self.checkbox.setChecked(checked)
         self.checkbox.setProperty("routeId", route_id)
+        self.checkbox.toggled.connect(self._sync_checked_state)
         layout.addWidget(self.checkbox, stretch=1)
 
         self.reset_btn = QPushButton("重置进度", self)
@@ -358,6 +361,17 @@ class TrackedRouteItem(QWidget):
         self.reset_btn.setToolTip("从第一个节点重新开始当前路线")
         self.reset_btn.setVisible(has_progress)
         layout.addWidget(self.reset_btn, alignment=Qt.AlignVCenter)
+
+        self.add_point_btn = QPushButton("⨁", self)
+        self.add_point_btn.setProperty("trackedRouteAddButton", True)
+        self.add_point_btn.setToolTip("将当前位置加入此路线")
+        self.add_point_btn.setFixedWidth(26)
+        layout.addWidget(self.add_point_btn, alignment=Qt.AlignVCenter)
+
+    def _sync_checked_state(self, checked: bool) -> None:
+        self.setProperty("checked", checked)
+        self.style().unpolish(self)
+        self.style().polish(self)
 
     def minimumSizeHint(self):
         hint = super().minimumSizeHint()

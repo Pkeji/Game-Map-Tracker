@@ -604,6 +604,9 @@ class RoutePanelController:
                 route_item.reset_btn.clicked.connect(
                     lambda _checked=False, known_route_id=route_id: self.reset_route_progress(known_route_id)
                 )
+                route_item.add_point_btn.clicked.connect(
+                    lambda _checked=False, known_route_id=route_id: self.add_current_position_to_route(known_route_id)
+                )
                 self.window._route_checkboxes.setdefault(route_id, []).append(route_item.checkbox)
                 row = index // 2
                 column = index % 2
@@ -641,7 +644,37 @@ class RoutePanelController:
         route_name = self.window.route_mgr.route_name_for_id(route_id) or route_id
         toast(self.window, f"已重置路线“{route_name}”进度")
 
+    def add_current_position_to_route(self, route_id: str) -> None:
+        player_xy = getattr(self.window, "_last_player_xy", None)
+        if player_xy is None:
+            styled_info(
+                self.window,
+                "无法添加节点",
+                "当前没有可用定位，请等待定位稳定后再添加。",
+            )
+            return
+
+        try:
+            x, y = int(player_xy[0]), int(player_xy[1])
+        except (TypeError, ValueError, IndexError):
+            styled_info(
+                self.window,
+                "无法添加节点",
+                "当前定位坐标无效，请等待定位稳定后再添加。",
+            )
+            return
+
+        self.window.map_interaction_controller.add_point_to_routes(
+            x,
+            y,
+            route_ids=[route_id],
+            show_dialog=False,
+        )
+
     def sync_tracked_routes_height(self, item_count: int) -> None:
+        fit_hint = getattr(self.window, "_fit_route_guide_hint_width", None)
+        if callable(fit_hint):
+            fit_hint()
         rows = max(1, (max(1, item_count) + 1) // 2)
         spacing = self.window.tracked_routes_grid.verticalSpacing()
         content_height = rows * theme.RECENT_ROUTE_ITEM_HEIGHT + max(0, rows - 1) * spacing
@@ -650,7 +683,7 @@ class RoutePanelController:
         margins = self.window.tracked_routes_layout.contentsMargins()
         card_height = (
             margins.top()
-            + self.window.tracked_routes_title.sizeHint().height()
+            + self.window.tracked_routes_header.sizeHint().height()
             + self.window.tracked_routes_layout.spacing()
             + target_height
             + margins.bottom()

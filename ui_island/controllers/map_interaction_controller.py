@@ -87,7 +87,13 @@ class MapInteractionController:
         except Exception:
             pass
 
-    def add_point_to_routes(self, x: int, y: int, route_ids: list[str] | None = None) -> None:
+    def add_point_to_routes(
+        self,
+        x: int,
+        y: int,
+        route_ids: list[str] | None = None,
+        show_dialog: bool = True,
+    ) -> None:
         """可复用入口:右键菜单与未来的"加入玩家定位"按钮都走这里。
         route_ids=None 时默认所有当前可见(追踪中)的路线。
         """
@@ -128,14 +134,18 @@ class MapInteractionController:
             )
             return
 
-        result = open_insert_point_dialog(self.window, x, y, candidates)
-        if result is None:
-            return
-        selected_ids, overrides = result
-        if not selected_ids:
-            return
+        if show_dialog:
+            result = open_insert_point_dialog(self.window, x, y, candidates)
+            if result is None:
+                return
+            selected_ids, overrides = result
+            if not selected_ids:
+                return
+        else:
+            selected_ids = [candidate["route_id"] for candidate in candidates]
+            overrides = {}
 
-        if len(selected_ids) > 1:
+        if show_dialog and len(selected_ids) > 1:
             confirmed = styled_confirm(
                 self.window,
                 strings.INSERT_POINT_MULTI_WARN_TITLE,

@@ -116,7 +116,7 @@ SETTINGS_SAVE_FAILED = "写入 config.json 失败：{error}"
 SETTINGS_INVALID_INPUT = "字段 {label} 的值“{value}”无法解析为 {type_name}。"
 SETTINGS_INVALID_MINIMAP = "小地图 {key} 的值“{value}”不是有效整数。"
 SETTINGS_RESTART_REQUIRED_TITLE = "需要重启"
-SETTINGS_RESTART_REQUIRED_MESSAGE = "已保存，但以下参数需要重启应用后才会生效：\n\n  路 {fields}"
+SETTINGS_RESTART_REQUIRED_MESSAGE = "已保存，但以下参数需要重启应用后才会生效：\n\n  {fields}"
 
 MINIMAP_PREVIEW_TITLE = "确认小地图截取区域"
 MINIMAP_RETAKE = "重新截取"

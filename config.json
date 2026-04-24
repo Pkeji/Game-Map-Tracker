@@ -46,5 +46,9 @@
         "植物": false,
         "测试": false,
         "矿物": false
-    }
+    },
+    "ROUTE_GUIDE_NODE_DISTANCE": 80,
+    "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
+    "ROUTE_GUIDE_POINTER_SPACING": 28,
+    "ROUTE_GUIDE_POINTER_SIZE": 10
 }

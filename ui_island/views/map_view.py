@@ -24,6 +24,7 @@ class MapView(QWidget):
     manual_view_changed = Signal()
     add_point_requested = Signal(int, int)
     delete_point_requested = Signal(str, int)
+    guide_hint_changed = Signal(object)
 
     _ABSOLUTE_MIN_ZOOM = 0.05
     _MAX_ZOOM = 3.5
@@ -107,6 +108,9 @@ class MapView(QWidget):
         self._last_crop_size = (crop.shape[1], crop.shape[0])
 
         self.route_mgr.draw_on(crop, vx1, vy1, max(crop_w, crop_h), cx, cy)
+        self.guide_hint_changed.emit(
+            self.route_mgr.guide_hint_for_view(cx, cy, vx1, vy1, crop.shape[1], crop.shape[0])
+        )
 
         local_x = cx - vx1
         local_y = cy - vy1

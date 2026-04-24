@@ -16,7 +16,8 @@ WINDOW_MIN_H = 240
 TRACKING_WINDOW_MIN_H = 360
 SIDEBAR_MIN_EXPANDED_W = 760
 SIDEBAR_MIN_EXPANDED_H = 420
-COMPACT_ALERT_HEIGHT = 170
+COMPACT_ALERT_HEIGHT = 140
+ALERT_ACTION_HEIGHT = 28
 TRACK_JUMP_DETECT_THRESHOLD = 220
 TRACK_JUMP_DETECT_LIMIT = 4
 RECENT_ROUTE_ITEM_HEIGHT = 26
@@ -100,6 +101,16 @@ QLabel#EmptyHint {{
 QLabel#MapHint {{
     font-size: 11px;
     color: {FG_DIM};
+}}
+QLabel#TrackedGuideHint {{
+    color: {FG_DIM};
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 7px;
+    padding: 0px 5px;
+    margin: 0px;
+    font-size: 11px;
+    font-weight: 500;
 }}
 QLabel#StateHint {{
     font-size: 11px;
@@ -368,6 +379,45 @@ QCheckBox::indicator {{
 QCheckBox::indicator:checked {{
     background: {ACCENT};
     border: 1px solid {ACCENT};
+}}
+QWidget[trackedRouteItem="true"] {{
+    background: transparent;
+    border-radius: 8px;
+}}
+QWidget[trackedRouteItem="true"]:hover {{
+    background: rgba(255, 255, 255, 0.08);
+}}
+QWidget[trackedRouteItem="true"][checked="true"] {{
+    background: rgba(255, 255, 255, 0.12);
+}}
+QWidget[trackedRouteItem="true"] QCheckBox {{
+    background: transparent;
+}}
+QWidget[trackedRouteItem="true"] QCheckBox:hover {{
+    background: transparent;
+}}
+QWidget[trackedRouteItem="true"] QCheckBox:checked {{
+    background: transparent;
+}}
+QPushButton[trackedRouteAddButton="true"] {{
+    background: transparent;
+    border: none;
+    min-width: 26px;
+    max-width: 26px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0px;
+    margin: 0px;
+    color: {FG};
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 7px;
+}}
+QPushButton[trackedRouteAddButton="true"]:hover {{
+    background: rgba(255, 255, 255, 0.12);
+}}
+QPushButton[trackedRouteAddButton="true"]:pressed {{
+    background: rgba(255, 255, 255, 0.18);
 }}
 QScrollArea {{
     background: transparent;

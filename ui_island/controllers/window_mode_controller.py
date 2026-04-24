@@ -92,31 +92,96 @@ class WindowModeController:
         root_layout.activate()
         header_item = root_layout.itemAt(0)
         header_height = header_item.sizeHint().height() if header_item is not None else 0
-        alert_height = self.window.alert_card.sizeHint().height()
         margins = root_layout.contentsMargins()
         spacing = root_layout.spacing()
-        self.window._compact_minimum_height = max(
-            theme.COMPACT_ALERT_HEIGHT + self.window._window_margin * 2,
+        visible_spacing = spacing if header_height > 0 else 0
+        self.window._compact_minimum_height = (
             self.window._window_margin * 2
             + margins.top()
             + margins.bottom()
             + header_height
-            + spacing
-            + alert_height,
+            + visible_spacing
+            + theme.COMPACT_ALERT_HEIGHT
         )
+
+    def apply_compact_constraints(self, enabled: bool) -> None:
+        clear_hint = getattr(self.window, "_clear_route_guide_hint", None)
+        if enabled and callable(clear_hint):
+            clear_hint()
+
+        self.sync_compact_minimum_height()
+        maximum = 16777215
+        root = self.window.root
+        body = self.window.body_container
+        map_shell = self.window.map_shell
+        tracked_card = self.window.tracked_routes_card
+        tracked_scroll = self.window.tracked_routes_scroll
+        alert = self.window.alert_card
+
+        if enabled:
+            root_height = max(0, self.window._compact_minimum_height - self.window._window_margin * 2)
+            root.setMinimumHeight(root_height)
+            root.setMaximumHeight(root_height)
+            body.hide()
+            body.setMinimumHeight(0)
+            body.setMaximumHeight(0)
+            map_shell.setMinimumHeight(0)
+            map_shell.setMaximumHeight(0)
+            tracked_card.setMinimumHeight(0)
+            tracked_card.setMaximumHeight(0)
+            tracked_scroll.setMinimumHeight(0)
+            tracked_scroll.setMaximumHeight(0)
+            alert.setMinimumHeight(theme.COMPACT_ALERT_HEIGHT)
+            alert.setMaximumHeight(theme.COMPACT_ALERT_HEIGHT)
+            self.window.alert_message.setMaximumHeight(theme.COMPACT_ALERT_HEIGHT)
+            self.window.alert_terminate_btn.setFixedHeight(theme.ALERT_ACTION_HEIGHT)
+            alert.show()
+            self.window.setMinimumHeight(self.window._compact_minimum_height)
+            self.window.setMaximumHeight(self.window._compact_minimum_height)
+        else:
+            root.setMinimumHeight(0)
+            root.setMaximumHeight(maximum)
+            self.window.setMaximumHeight(maximum)
+            body.setMaximumHeight(maximum)
+            map_shell.setMaximumHeight(maximum)
+            tracked_scroll.setMaximumHeight(theme.TRACKED_ROUTES_MAX_HEIGHT)
+            alert.setMinimumHeight(0)
+            alert.setMaximumHeight(maximum)
+            self.window.alert_message.setMaximumHeight(maximum)
+            self.window.alert_terminate_btn.setFixedHeight(theme.ALERT_ACTION_HEIGHT)
+            alert.hide()
+            body.show()
+            self.window.setMinimumHeight(self.window._normal_minimum_height)
+            sync_routes = getattr(self.window.route_panel_controller, "sync_tracked_routes_height", None)
+            if callable(sync_routes):
+                sync_routes(len(self.window.route_mgr.visible_routes()))
+
+        for layout in (
+            self.window.root.layout(),
+            self.window.body_container.layout(),
+            self.window.map_shell.layout(),
+            self.window.tracked_routes_layout,
+        ):
+            if layout is not None:
+                layout.invalidate()
+                layout.activate()
 
     def schedule_layout_refresh(self) -> None:
         QTimer.singleShot(0, self.refresh_layout_constraints)
 
     def refresh_layout_constraints(self) -> None:
-        self.sync_normal_minimum_height()
-        self.sync_compact_minimum_height()
-        self.window.setMinimumWidth(self.window._normal_minimum_width)
-
         mode_enum = self.window._mode.__class__
         if self.window._mode == mode_enum.TRACKING_LOST:
+            self.sync_compact_minimum_height()
+            self.window.setMinimumWidth(self.window._normal_minimum_width)
             self.window.setMinimumHeight(self.window._compact_minimum_height)
+            self.window.setMaximumHeight(self.window._compact_minimum_height)
             return
+
+        self.sync_normal_minimum_height()
+        self.sync_compact_minimum_height()
+        self.window.setMaximumHeight(16777215)
+        self.window.setMinimumWidth(self.window._normal_minimum_width)
 
         self.window.setMinimumHeight(self.window._normal_minimum_height)
 
@@ -249,6 +314,13 @@ class WindowModeController:
             if new_mode not in stable_family:
                 self.window._sidebar_expand_restore_geometry = None
 
+            entering_compact = new_mode == mode_enum.TRACKING_LOST
+            leaving_compact = old_mode == mode_enum.TRACKING_LOST and new_mode != mode_enum.TRACKING_LOST
+            if entering_compact:
+                self.apply_compact_constraints(True)
+            elif leaving_compact:
+                self.apply_compact_constraints(False)
+
             if new_mode == mode_enum.MAXIMIZED:
                 if old_mode != mode_enum.MAXIMIZED:
                     self.window._geometry_before_max = QRect(self.window.geometry())
@@ -294,6 +366,10 @@ class WindowModeController:
                     self.window.setMinimumHeight(self.window._normal_minimum_height)
 
             self.apply_mode_ui(new_mode, old_mode, tracking_modes)
+            if new_mode == mode_enum.TRACKING_LOST and not self.window.isMaximized():
+                self.apply_compact_constraints(True)
+                self.apply_geometry_for_mode(self.size_for_mode(new_mode))
+                QTimer.singleShot(0, lambda: self.apply_geometry_for_mode(self.size_for_mode(new_mode)))
             self.schedule_layout_refresh()
         finally:
             self.window._applying_mode = False
@@ -333,8 +409,10 @@ class WindowModeController:
                 theme.COMPACT_ALERT_HEIGHT + self.window._window_margin * 2,
             )
             self.window.setMinimumHeight(compact_minimum_height)
-            h = max(compact_minimum_height, h)
+            self.window.setMaximumHeight(compact_minimum_height)
+            h = compact_minimum_height
         else:
+            self.window.setMaximumHeight(16777215)
             self.window.setMinimumHeight(self.window._normal_minimum_height)
             h = max(self.window._normal_minimum_height, h)
 

@@ -113,13 +113,6 @@ class SettingsDialog(QDialog):
         shell_layout.addWidget(title_bar)
 
         minimap_row = self._build_minimap_row()
-        common_section = self._build_section(
-            "通用设置",
-            COMMON_FIELDS,
-            two_columns=True,
-            narrow_editor=True,
-            extra_widget=minimap_row,
-        )
         tools_section = self._build_tools_section()
 
         buttons_bar = QWidget()
@@ -145,14 +138,31 @@ class SettingsDialog(QDialog):
         apply_restart_btn.clicked.connect(self._on_apply_and_restart)
         btn_row.addWidget(apply_restart_btn)
 
+        common_probe = self._build_section(
+            "通用设置",
+            COMMON_FIELDS,
+            two_columns=True,
+            narrow_editor=True,
+            extra_widget=minimap_row,
+            extra_widget_position="top",
+        )
         top_section_max_height = self._compute_top_section_max_height(
             title_bar_height=title_bar.sizeHint().height(),
             bottom_row_height=max(
-                common_section.sizeHint().height(),
+                common_probe.sizeHint().height(),
                 tools_section.sizeHint().height(),
             ),
             button_row_height=buttons_bar.sizeHint().height(),
             shell_spacing=shell_layout.spacing(),
+        )
+        common_section = self._build_section(
+            "通用设置",
+            COMMON_FIELDS,
+            max_height=top_section_max_height,
+            two_columns=True,
+            narrow_editor=True,
+            extra_widget=minimap_row,
+            extra_widget_position="top",
         )
 
         columns = QHBoxLayout()
@@ -185,6 +195,7 @@ class SettingsDialog(QDialog):
         two_columns: bool = False,
         narrow_editor: bool = False,
         extra_widget: QWidget | None = None,
+        extra_widget_position: str = "bottom",
     ) -> QFrame:
         card = QFrame()
         card.setObjectName("PanelCard")
@@ -199,8 +210,15 @@ class SettingsDialog(QDialog):
         card_layout.addWidget(title_label)
 
         body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 8)
+        body_layout.setSpacing(10)
+        if extra_widget is not None and extra_widget_position == "top":
+            body_layout.addWidget(extra_widget)
+
+        fields_body = QWidget(body)
         if two_columns:
-            outer = QHBoxLayout(body)
+            outer = QHBoxLayout(fields_body)
             outer.setContentsMargins(0, 0, 0, 0)
             outer.setSpacing(18)
             for chunk in self._split_in_halves(fields):
@@ -211,11 +229,15 @@ class SettingsDialog(QDialog):
                 col.addStretch()
                 outer.addLayout(col, stretch=1)
         else:
-            form = QVBoxLayout(body)
+            form = QVBoxLayout(fields_body)
             form.setContentsMargins(0, 0, 0, 8)
             form.setSpacing(10)
             for field in fields:
                 form.addLayout(self._build_field(field, narrow_editor=narrow_editor))
+
+        body_layout.addWidget(fields_body)
+        if extra_widget is not None and extra_widget_position != "top":
+            body_layout.addWidget(extra_widget)
 
         if max_height is not None:
             natural = self._measure_body_height(body, self._estimate_top_section_body_width())
@@ -230,13 +252,9 @@ class SettingsDialog(QDialog):
                 scroll.setFixedHeight(max_height)
                 scroll.setWidget(body)
                 card_layout.addWidget(scroll)
-                if extra_widget is not None:
-                    card_layout.addWidget(extra_widget)
                 return card
 
         card_layout.addWidget(body)
-        if extra_widget is not None:
-            card_layout.addWidget(extra_widget)
         return card
 
     def _compute_top_section_max_height(
@@ -298,8 +316,10 @@ class SettingsDialog(QDialog):
         label.setStyleSheet(f"color: {tokens.FG}; font-size: 12px; font-weight: 600;")
         layout.addWidget(label)
 
+        minimap_control_height = 26
+
         set_btn = QPushButton("设置小地图")
-        set_btn.setMinimumHeight(28)
+        set_btn.setFixedHeight(minimap_control_height)
         set_btn.clicked.connect(self._on_open_minimap_calibrator)
         layout.addWidget(set_btn)
 
@@ -309,8 +329,9 @@ class SettingsDialog(QDialog):
             lbl.setObjectName("StatLabel")
             layout.addWidget(lbl)
             editor = QLineEdit()
-            editor.setMinimumHeight(28)
+            editor.setFixedHeight(minimap_control_height)
             editor.setFixedWidth(60)
+            editor.setStyleSheet("padding: 2px 6px;")
             editor.setAlignment(Qt.AlignRight)
             editor.setValidator(QIntValidator(-10_000, 10_000, editor))
             try:
@@ -421,7 +442,7 @@ class SettingsDialog(QDialog):
             parts.append(f'<span style="color:{tokens.ACCENT}; font-weight:600;">{field.value_range}</span>')
         if field.desc:
             parts.append(field.desc)
-        return " 路 ".join(parts)
+        return " · ".join(parts)
 
     def _collect(self) -> dict | None:
         result: dict = {}
@@ -491,7 +512,7 @@ class SettingsDialog(QDialog):
             styled_info(
                 self,
                 "需要重启",
-                "已保存，但以下参数需要重启应用后才会生效：\n\n  路 " + "\n  路 ".join(restart_fields),
+                "已保存，但以下参数需要重启应用后才会生效：\n\n  " + "\n  ".join(restart_fields),
             )
         else:
             toast(self, "设置已应用")
