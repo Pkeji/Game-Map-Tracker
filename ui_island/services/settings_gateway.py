@@ -36,5 +36,11 @@ class SettingsGateway:
     def get_route_recent_limit(self) -> int:
         return max(0, int(getattr(config, "ROUTE_RECENT_LIMIT", 5) or 0))
 
+    def get_route_section_expanded(self) -> dict[str, bool]:
+        raw = getattr(config, "ROUTE_SECTION_EXPANDED", None)
+        if not isinstance(raw, dict):
+            return {}
+        return {str(name): bool(expanded) for name, expanded in raw.items()}
+
     def get_tracker_refresh_rate(self, tracker) -> int:
         return int(config.AI_REFRESH_RATE if hasattr(tracker, "engine") else config.SIFT_REFRESH_RATE)

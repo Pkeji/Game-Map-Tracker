@@ -27,5 +27,11 @@ class WindowPrefsStore:
     def load_paused_view_size(self):
         return self._gateway.get_paused_view_size()
 
+    def load_route_section_expanded(self):
+        return self._gateway.get_route_section_expanded()
+
+    def save_route_section_expanded(self, expanded: dict[str, bool]) -> None:
+        self._gateway.save({"ROUTE_SECTION_EXPANDED": expanded})
+
     def save_payload(self, payload: dict) -> None:
         self._gateway.save(payload)

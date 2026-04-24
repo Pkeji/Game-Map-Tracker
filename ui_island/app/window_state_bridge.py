@@ -165,6 +165,14 @@ class WindowStateBridgeMixin:
         self.route_panel_state.route_sections = value
 
     @property
+    def _route_section_expanded(self):
+        return self.route_panel_state.route_section_expanded
+
+    @_route_section_expanded.setter
+    def _route_section_expanded(self, value) -> None:
+        self.route_panel_state.route_section_expanded = value
+
+    @property
     def _active_route_rename_item(self):
         return self.route_panel_state.active_route_rename_item
 

@@ -27,16 +27,19 @@ class RecentRoutesStore:
             return []
         if not isinstance(data, list):
             return []
-        known_routes = {
-            route.get("display_name")
-            for routes in self._route_mgr.route_groups.values()
-            for route in routes
-        }
-        return [name for name in data if isinstance(name, str) and name in known_routes]
+        recent_route_ids: list[str] = []
+        seen: set[str] = set()
+        for item in data:
+            route_id = self._route_mgr.resolve_route_id(item)
+            if route_id is None or route_id in seen:
+                continue
+            seen.add(route_id)
+            recent_route_ids.append(route_id)
+        return recent_route_ids
 
-    def save(self, recent_route_names: list[str]) -> None:
+    def save(self, recent_route_ids: list[str]) -> None:
         try:
             with open(self.path, "w", encoding="utf-8") as handle:
-                json.dump(recent_route_names, handle, indent=2, ensure_ascii=False)
+                json.dump(recent_route_ids, handle, indent=2, ensure_ascii=False)
         except Exception:
             pass

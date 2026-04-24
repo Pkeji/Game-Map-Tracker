@@ -6,10 +6,10 @@
         "height": 225
     },
     "WINDOW_GEOMETRY": {
-        "x": 1081,
+        "x": 1034,
         "y": 0,
         "width": 783,
-        "height": 529
+        "height": 510
     },
     "LOCKED_VIEW_SIZE": {
         "width": 420,
@@ -21,7 +21,7 @@
     },
     "SIDEBAR_COLLAPSED": true,
     "SIDEBAR_WIDTH": 200,
-    "PAUSED_SIDEBAR_WIDTH": 279,
+    "PAUSED_SIDEBAR_WIDTH": 237,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "DISPLAY_MAP_PATH": "big_map-1.png",
@@ -39,5 +39,12 @@
     "AI_SCAN_SIZE": 1600,
     "AI_SCAN_STEP": 1400,
     "AI_TRACK_RADIUS": 500,
-    "ROUTE_RECENT_LIMIT": 5
+    "ROUTE_RECENT_LIMIT": 5,
+    "ROUTE_SECTION_EXPANDED": {
+        "其他": false,
+        "地区路线": false,
+        "植物": false,
+        "测试": false,
+        "矿物": false
+    }
 }

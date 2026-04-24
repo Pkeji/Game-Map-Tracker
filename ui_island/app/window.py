@@ -83,6 +83,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._tracked_route_progress_signature: tuple[tuple[str, bool], ...] = ()
         self.route_panel_state.route_widgets_by_category = {}
         self.route_panel_state.route_sections = {}
+        self.route_panel_state.route_section_expanded = self.window_prefs_store.load_route_section_expanded()
         self.route_panel_state.active_route_rename_item = None
         self.route_panel_state.adding_category = False
         self.route_panel_state.add_category_row = None
@@ -469,6 +470,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
     def closeEvent(self, event):
         self._running = False
         self.hotkey_controller.stop_listener()
+        self.route_panel_controller.save_route_section_expanded()
         self.route_mgr.save_visibility()
         self.route_mgr.save_progress()
         self.window_mode_controller.save_window_geometry()

@@ -42,6 +42,7 @@ class RoutePanelState:
     route_checkboxes: dict[str, list[QCheckBox]] = field(default_factory=dict)
     route_widgets_by_category: dict[str, list[tuple[str, object]]] = field(default_factory=dict)
     route_sections: dict[str, object] = field(default_factory=dict)
+    route_section_expanded: dict[str, bool] = field(default_factory=dict)
     active_route_rename_item: object | None = None
     adding_category: bool = False
     add_category_row: QFrame | None = None

@@ -11,14 +11,15 @@ import numpy as np
 
 import config
 from base import BaseTracker, TrackResult, TrackState
+from map_image_loader import load_map_image
 
 
 class SiftTracker(BaseTracker):
     def __init__(self) -> None:
-        self.logic_map_bgr = cv2.imread(config.LOGIC_MAP_PATH)
+        self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="SIFT logic map")
         if self.logic_map_bgr is None:
             raise FileNotFoundError(f"找不到逻辑地图：{config.LOGIC_MAP_PATH}")
-        self.display_map_bgr = cv2.imread(config.DISPLAY_MAP_PATH)
+        self.display_map_bgr = load_map_image(config.DISPLAY_MAP_PATH, label="SIFT display map")
         if self.display_map_bgr is None:
             raise FileNotFoundError(f"找不到显示地图：{config.DISPLAY_MAP_PATH}")
 

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSizePolicy,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -48,8 +48,11 @@ class StatusDot(QWidget):
 
 
 class RouteSection(QWidget):
+    context_menu_requested = Signal(object)
+
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
+        self._title = title
         self._expanded = False
         self._force_open = False
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -58,15 +61,31 @@ class RouteSection(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        self.header = QToolButton()
+        self.header = QPushButton(self)
         self.header.setObjectName("SectionHeader")
         self.header.setProperty("compact", True)
-        self.header.setText(title)
         self.header.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.header.setCheckable(True)
         self.header.setChecked(True)
-        self.header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.header.toggled.connect(self.set_expanded)
+        header_button_layout = QHBoxLayout(self.header)
+        header_button_layout.setContentsMargins(10, 0, 0, 0)
+        header_button_layout.setSpacing(0)
+
+        self.header_label = QLabel(self.header)
+        self.header_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.header_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        header_button_layout.addWidget(self.header_label, stretch=1)
+
+        self.add_route_btn = QPushButton("+", self.header)
+        self.add_route_btn.setObjectName("SectionHeaderAddButton")
+        self.add_route_btn.setProperty("compact", True)
+        self.add_route_btn.setProperty("iconRole", "add")
+        self.add_route_btn.setToolTip("新建路线")
+        self.add_route_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.add_route_btn.setFixedWidth(30)
+        header_button_layout.addWidget(self.add_route_btn)
+
         layout.addWidget(self.header)
 
         self.body = QWidget()
@@ -76,7 +95,40 @@ class RouteSection(QWidget):
         self.body_layout.setContentsMargins(8, 2, 0, 4)
         self.body_layout.setSpacing(4)
         self.body_layout.setSizeConstraint(QVBoxLayout.SetMinAndMaxSize)
+
+        self.add_route_row = QWidget(self.body)
+        self.add_route_row.setAttribute(Qt.WA_StyledBackground, True)
+        self.add_route_row.hide()
+        add_row_layout = QHBoxLayout(self.add_route_row)
+        add_row_layout.setContentsMargins(0, 0, 0, 0)
+        add_row_layout.setSpacing(6)
+
+        self.add_route_input = QLineEdit(self.add_route_row)
+        self.add_route_input.setPlaceholderText("输入路线名称...")
+        add_row_layout.addWidget(self.add_route_input, stretch=1)
+
+        self.add_route_confirm_btn = QPushButton("✓", self.add_route_row)
+        self.add_route_confirm_btn.setObjectName("HeaderWindowButton")
+        self.add_route_confirm_btn.setProperty("iconRole", "confirm")
+        self.add_route_confirm_btn.setToolTip("确认创建路线")
+        self.add_route_confirm_btn.setFixedWidth(26)
+        add_row_layout.addWidget(self.add_route_confirm_btn)
+
+        self.add_route_cancel_btn = QPushButton("×", self.add_route_row)
+        self.add_route_cancel_btn.setObjectName("HeaderWindowButton")
+        self.add_route_cancel_btn.setProperty("iconRole", "close")
+        self.add_route_cancel_btn.setToolTip("取消新建路线")
+        self.add_route_cancel_btn.setFixedWidth(26)
+        add_row_layout.addWidget(self.add_route_cancel_btn)
+
+        self.body_layout.addWidget(self.add_route_row)
+
         layout.addWidget(self.body)
+        for widget in (self.header, self.add_route_btn):
+            widget.setContextMenuPolicy(Qt.CustomContextMenu)
+            widget.customContextMenuRequested.connect(
+                lambda pos, source=widget: self.context_menu_requested.emit(source.mapToGlobal(pos))
+            )
         self._sync_state()
 
     def add_widget(self, widget: QWidget) -> None:
@@ -86,17 +138,49 @@ class RouteSection(QWidget):
         self._expanded = expanded
         self._sync_state()
 
+    def is_expanded(self) -> bool:
+        return self._expanded
+
     def set_force_open(self, force_open: bool) -> None:
         self._force_open = force_open
         self._sync_state()
+
+    def is_force_open(self) -> bool:
+        return self._force_open
+
+    def show_add_route_row(self) -> None:
+        if not self._expanded:
+            self._expanded = True
+        self.add_route_input.clear()
+        self.add_route_input.setPlaceholderText("输入路线名称...")
+        self.add_route_row.show()
+        self._sync_state()
+        self.add_route_input.setFocus()
+
+    def hide_add_route_row(self) -> None:
+        self.add_route_input.clear()
+        self.add_route_input.setPlaceholderText("输入路线名称...")
+        self.add_route_row.hide()
+
+    def is_adding_route(self) -> bool:
+        return self.add_route_row.isVisible()
+
+    def current_add_route_name(self) -> str:
+        return self.add_route_input.text().strip()
+
+    def show_add_route_error(self, message: str) -> None:
+        self.add_route_input.clear()
+        self.add_route_input.setPlaceholderText(message)
+        self.add_route_input.setFocus()
 
     def _sync_state(self) -> None:
         visible = self._expanded or self._force_open
         self.body.setVisible(visible)
         self.header.blockSignals(True)
         self.header.setChecked(self._expanded)
+        self.header.setText("")
+        self.header_label.setText(f"{'▾' if visible else '▸'} {self._title}")
         self.header.blockSignals(False)
-        self.header.setArrowType(Qt.DownArrow if visible else Qt.RightArrow)
 
 
 class ElidedCheckBox(QCheckBox):
@@ -132,9 +216,12 @@ class ElidedCheckBox(QCheckBox):
 
 
 class RouteListItem(QWidget):
-    def __init__(self, category: str, route_name: str, checked: bool, parent=None):
+    context_menu_requested = Signal(object)
+
+    def __init__(self, category: str, route_id: str, route_name: str, checked: bool, parent=None):
         super().__init__(parent)
         self.category = category
+        self.route_id = route_id
         self.route_name = route_name
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -156,18 +243,9 @@ class RouteListItem(QWidget):
         self.checkbox.setChecked(checked)
         self.checkbox.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         self.checkbox.setMinimumWidth(0)
+        self.checkbox.setProperty("routeId", route_id)
         self.checkbox.setToolTip(route_name)
         display_layout.addWidget(self.checkbox, stretch=1)
-
-        self.rename_btn = QPushButton(strings.ROUTE_RENAME, self.display_row)
-        self.rename_btn.setProperty("headerButton", True)
-        self.rename_btn.setProperty("compact", True)
-        display_layout.addWidget(self.rename_btn)
-
-        self.delete_btn = QPushButton(strings.ROUTE_DELETE, self.display_row)
-        self.delete_btn.setProperty("headerButton", True)
-        self.delete_btn.setProperty("compact", True)
-        display_layout.addWidget(self.delete_btn)
 
         self.edit_row = QWidget(self)
         self.edit_row.hide()
@@ -183,7 +261,7 @@ class RouteListItem(QWidget):
         self.rename_input.setMinimumWidth(0)
         edit_layout.addWidget(self.rename_input, stretch=1)
 
-        self.rename_confirm_btn = QPushButton("√", self.edit_row)
+        self.rename_confirm_btn = QPushButton("✓", self.edit_row)
         self.rename_confirm_btn.setObjectName("HeaderWindowButton")
         self.rename_confirm_btn.setProperty("iconRole", "confirm")
         self.rename_confirm_btn.setToolTip(strings.ROUTE_RENAME_CONFIRM)
@@ -199,6 +277,12 @@ class RouteListItem(QWidget):
 
         layout.addWidget(self.display_row)
         layout.addWidget(self.edit_row)
+
+        for widget in (self, self.display_row, self.checkbox):
+            widget.setContextMenuPolicy(Qt.CustomContextMenu)
+            widget.customContextMenuRequested.connect(
+                lambda pos, source=widget: self.context_menu_requested.emit(source.mapToGlobal(pos))
+            )
 
     def start_rename(self) -> None:
         self.display_row.hide()
@@ -249,8 +333,9 @@ class RouteListItem(QWidget):
 
 
 class TrackedRouteItem(QWidget):
-    def __init__(self, route_name: str, checked: bool, has_progress: bool, parent=None):
+    def __init__(self, route_id: str, route_name: str, checked: bool, has_progress: bool, parent=None):
         super().__init__(parent)
+        self.route_id = route_id
         self.route_name = route_name
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -264,6 +349,7 @@ class TrackedRouteItem(QWidget):
         self.checkbox = ElidedCheckBox(route_name, self)
         self.checkbox.setMinimumHeight(tokens.RECENT_ROUTE_ITEM_HEIGHT)
         self.checkbox.setChecked(checked)
+        self.checkbox.setProperty("routeId", route_id)
         layout.addWidget(self.checkbox, stretch=1)
 
         self.reset_btn = QPushButton("重置进度", self)

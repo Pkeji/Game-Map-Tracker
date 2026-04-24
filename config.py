@@ -46,6 +46,7 @@ DEFAULT_CONFIG = {
     "AI_SCAN_STEP": 1400,
     "AI_TRACK_RADIUS": 500,
     "ROUTE_RECENT_LIMIT": 5,
+    "ROUTE_SECTION_EXPANDED": {},
 }
 
 
@@ -104,6 +105,7 @@ SIDEBAR_WIDTH = settings.get("SIDEBAR_WIDTH")
 PAUSED_SIDEBAR_WIDTH = settings.get("PAUSED_SIDEBAR_WIDTH")
 LOCKED_VIEW_SIZE = settings.get("LOCKED_VIEW_SIZE")
 PAUSED_VIEW_SIZE = settings.get("PAUSED_VIEW_SIZE")
+ROUTE_SECTION_EXPANDED = settings.get("ROUTE_SECTION_EXPANDED") or {}
 
 
 def parse_window_geometry(raw) -> dict | None:

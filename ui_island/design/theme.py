@@ -278,7 +278,8 @@ QPushButton#AlertAction {{
     padding: 6px 12px;
     font-size: 11px;
 }}
-QToolButton#SectionHeader {{
+QToolButton#SectionHeader,
+QPushButton#SectionHeader {{
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid {BORDER};
     border-radius: 10px;
@@ -286,15 +287,36 @@ QToolButton#SectionHeader {{
     font-size: 10px;
     font-weight: 500;
     padding: 5px 8px;
-    text-align: center;
+    text-align: left;
 }}
-QToolButton#SectionHeader[compact="true"] {{
+QToolButton#SectionHeader[compact="true"],
+QPushButton#SectionHeader[compact="true"] {{
     border-radius: 8px;
     font-size: 10px;
     padding: 3px 8px;
 }}
-QToolButton#SectionHeader:hover {{
+QToolButton#SectionHeader:hover,
+QPushButton#SectionHeader:hover {{
     background: rgba(255, 255, 255, 0.14);
+}}
+QPushButton#SectionHeaderAddButton {{
+    background: transparent;
+    color: {FG};
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0px;
+    min-width: 30px;
+    max-width: 30px;
+    padding: 0px;
+    margin: 0px;
+    font-size: 14px;
+    font-weight: 700;
+}}
+QPushButton#SectionHeaderAddButton:hover {{
+    background: rgba(255, 255, 255, 0.10);
+}}
+QPushButton#SectionHeaderAddButton:pressed {{
+    background: rgba(255, 255, 255, 0.16);
 }}
 QLineEdit {{
     background: rgba(255, 255, 255, 0.08);
@@ -306,6 +328,19 @@ QLineEdit {{
     selection-background-color: {ACCENT};
 }}
 QLineEdit:focus {{
+    border: 1px solid rgba(10, 132, 255, 0.65);
+    background: {ACCENT_SOFT};
+}}
+QPlainTextEdit {{
+    background: rgba(255, 255, 255, 0.08);
+    color: {FG};
+    border: 1px solid {BORDER};
+    border-radius: 10px;
+    padding: 7px 10px;
+    font-size: 11px;
+    selection-background-color: {ACCENT};
+}}
+QPlainTextEdit:focus {{
     border: 1px solid rgba(10, 132, 255, 0.65);
     background: {ACCENT_SOFT};
 }}
@@ -348,5 +383,25 @@ QScrollBar:vertical {{
 QScrollBar::handle:vertical {{
     background: rgba(255, 255, 255, 0.35);
     border-radius: 3px;
+}}
+QMenu {{
+    background: rgba(28, 28, 30, 245);
+    color: {FG};
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 6px 0px;
+}}
+QMenu::item {{
+    padding: 6px 16px;
+    margin: 2px 6px;
+    border-radius: 7px;
+}}
+QMenu::item:selected {{
+    background: rgba(255, 255, 255, 0.12);
+}}
+QMenu::separator {{
+    height: 1px;
+    margin: 6px 10px;
+    background: rgba(255, 255, 255, 0.08);
 }}
 """

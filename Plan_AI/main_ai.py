@@ -14,6 +14,7 @@ from pynput import keyboard
 
 
 from .tracker_engine import LoftrEngine
+from map_image_loader import load_map_image
 from route_manager import RouteManager
 from ui_island.dialogs.minimap_selector import run_minimap_calibrator
 
@@ -92,8 +93,9 @@ class MapSelectorWindow:
             for route in self.route_mgr.route_groups[cat]:
                 r_name = route.get("display_name")
                 # 🌟 关键：使用主窗口传来的 tk.BooleanVar，这样两边打钩状态自动双向绑定
-                var = self.shared_check_vars[r_name]
-                menu.add_checkbutton(label=r_name, variable=var, command=lambda n=r_name: self.toggle_route(n))
+                route_id = self.route_mgr.route_id(route)
+                var = self.shared_check_vars[route_id]
+                menu.add_checkbutton(label=r_name, variable=var, command=lambda rid=route_id: self.toggle_route(rid))
 
         # 3. 图像展示画布
         self.canvas = tk.Canvas(self.top, bg="#1e1e1e", cursor="crosshair")
@@ -103,9 +105,9 @@ class MapSelectorWindow:
         self.close_callback()
         self.top.destroy()
 
-    def toggle_route(self, name):
+    def toggle_route(self, route_id):
         # 更新路线管理器的可见性，并重新画图
-        self.route_mgr.visibility[name] = self.shared_check_vars[name].get()
+        self.route_mgr.visibility[route_id] = self.shared_check_vars[route_id].get()
         self.draw_map()
 
     def center_map(self):
@@ -122,12 +124,13 @@ class MapSelectorWindow:
         for cat in self.route_mgr.categories:
             for route in self.route_mgr.route_groups[cat]:
                 name = route.get("display_name")
-                if not self.route_mgr.visibility.get(name, False):
+                route_id = self.route_mgr.route_id(route)
+                if not self.route_mgr.visibility.get(route_id, False):
                     continue
 
                 pts = route.get("points", [])
 
-                bgr_color = self.route_mgr.color_for(name)
+                bgr_color = self.route_mgr.color_for(route_id)
                 rgb_color = (bgr_color[2], bgr_color[1], bgr_color[0])
 
                 # 将路线的坐标乘以当前的地图缩放比例
@@ -198,9 +201,9 @@ class AIMapTrackerApp:
         print(f"使用设备: {self.device}")
 
         # 加载地图数据
-        self.logic_map_bgr = cv2.imread(config.LOGIC_MAP_PATH)
+        self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="AI main logic map")
         self.map_height, self.map_width = self.logic_map_bgr.shape[:2]
-        self.display_map_bgr = cv2.imread(config.DISPLAY_MAP_PATH)
+        self.display_map_bgr = load_map_image(config.DISPLAY_MAP_PATH, label="AI main display map")
 
         # 状态机与追踪变量
         self.state = "MANUAL_RELOCATE"
@@ -241,10 +244,11 @@ class AIMapTrackerApp:
 
             for route in self.route_mgr.route_groups[cat]:
                 r_name = route.get("display_name")
+                route_id = self.route_mgr.route_id(route)
                 var = tk.BooleanVar(value=False)
-                self.check_vars[r_name] = var
+                self.check_vars[route_id] = var
                 menu.add_checkbutton(label=r_name, variable=var,
-                                     command=lambda n=r_name: self.toggle_route(n))
+                                     command=lambda rid=route_id: self.toggle_route(rid))
 
         # B. 透明度调节滑动条
         tk.Label(self.menu_frame, text=" 透明度:", bg="#333333", fg="white", font=("微软雅黑", 9)).pack(side=tk.LEFT,
@@ -375,11 +379,11 @@ class AIMapTrackerApp:
         # 这个属性会作用于整个窗口，包括地图图片、路线和按钮
         self.root.attributes("-alpha", float(value))
 
-    def toggle_route(self, name):
+    def toggle_route(self, route_id):
         """更新路线管理器的可见性状态"""
-        new_state = self.check_vars[name].get()
-        self.route_mgr.visibility[name] = new_state
-        print(f"路线 [{name}] 显示状态修改为: {new_state}")
+        new_state = self.check_vars[route_id].get()
+        self.route_mgr.visibility[route_id] = new_state
+        print(f"路线 [{self.route_mgr.route_name_for_id(route_id)}] 显示状态修改为: {new_state}")
 
     def trigger_manual_relocate(self):
         self.selector_open = False  # 强制重置一次标志位，确保能打开
