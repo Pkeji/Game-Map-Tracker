@@ -19,7 +19,7 @@ from ..services import RecentRoutesStore, SettingsGateway, WindowPrefsStore
 from ..state import HotkeyState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
 from ..widgets import RestoreIcon
 from ..platform.win_overlay import apply_overlay_flags, set_click_through
-from ..controllers import HotkeyController, InteractionController, RoutePanelController, TrackingController, WindowModeController
+from ..controllers import HotkeyController, InteractionController, MapInteractionController, RoutePanelController, TrackingController, WindowModeController
 from .window_state_bridge import WindowStateBridgeMixin
 from .window_view import build_window_ui
 
@@ -64,6 +64,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.window_mode_controller = WindowModeController(self)
         self.tracking_controller = TrackingController(self)
         self.interaction_controller = InteractionController(self)
+        self.map_interaction_controller = MapInteractionController(self)
         self.hotkey_controller = HotkeyController(self)
 
         self.tracking_state.locked = False
@@ -190,6 +191,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
         self._toggle_lock_requested.connect(self.toggle_lock, Qt.QueuedConnection)
         self._frame_ready.connect(self._on_frame)
+        self.map_view.add_point_requested.connect(self.map_interaction_controller.on_add_point_requested)
+        self.map_view.delete_point_requested.connect(self.map_interaction_controller.on_delete_point_requested)
 
         self._minimap_region = self.settings_gateway.get_minimap()
         self.hotkey_controller.start_listener()

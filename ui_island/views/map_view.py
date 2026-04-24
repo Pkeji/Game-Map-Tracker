@@ -7,10 +7,14 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QMenu, QWidget
 
 from base import TrackState
 from route_manager import RouteManager
+
+from ..design import strings
+
+_HIT_RADIUS_WIDGET_PX = 8
 
 
 class MapView(QWidget):
@@ -18,6 +22,8 @@ class MapView(QWidget):
 
     relocate_requested = Signal(int, int)
     manual_view_changed = Signal()
+    add_point_requested = Signal(int, int)
+    delete_point_requested = Signal(str, int)
 
     _ABSOLUTE_MIN_ZOOM = 0.05
     _MAX_ZOOM = 3.5
@@ -308,3 +314,39 @@ class MapView(QWidget):
         if mapped is None:
             return
         self.relocate_requested.emit(int(mapped[0]), int(mapped[1]))
+
+    def _hit_test_node(self, widget_pos: QPointF) -> tuple[str, int] | None:
+        mapped = self._widget_to_map(widget_pos)
+        if mapped is None:
+            return None
+        draw_rect = self._last_draw_rect if not self._last_draw_rect.isNull() else self._draw_rect()
+        if draw_rect.width() <= 0 or self._last_crop_size[0] <= 0:
+            return None
+        ratio = self._last_crop_size[0] / draw_rect.width()
+        map_threshold = max(6.0, _HIT_RADIUS_WIDGET_PX * ratio)
+        return self.route_mgr.hit_test_point(mapped[0], mapped[1], map_threshold)
+
+    def contextMenuEvent(self, event):
+        pos = QPointF(event.pos())
+        hit = self._hit_test_node(pos)
+        if hit is not None:
+            route_id, point_index = hit
+            menu = QMenu(self)
+            top = self.window()
+            if top is not None:
+                menu.setStyleSheet(top.styleSheet())
+            action = menu.addAction(strings.DELETE_POINT_MENU_LABEL)
+            action.triggered.connect(
+                lambda _checked=False, rid=route_id, idx=point_index:
+                self.delete_point_requested.emit(rid, idx)
+            )
+            menu.exec(event.globalPos())
+            event.accept()
+            return
+
+        mapped = self._widget_to_map(pos)
+        if mapped is None:
+            event.ignore()
+            return
+        self.add_point_requested.emit(int(mapped[0]), int(mapped[1]))
+        event.accept()

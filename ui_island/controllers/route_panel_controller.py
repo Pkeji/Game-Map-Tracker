@@ -570,6 +570,10 @@ class RoutePanelController:
         self.sync_route_checkboxes(route_id, enabled, source)
         self.refresh_tracked_routes()
         self.refresh_recent_routes()
+        try:
+            self.window.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
 
     def sync_route_checkboxes(self, route_id: str, enabled: bool, source: QCheckBox) -> None:
         for checkbox in list(self.window._route_checkboxes.get(route_id, [])):

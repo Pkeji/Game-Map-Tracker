@@ -32,6 +32,38 @@ def _color_for_key(key: str) -> tuple[int, int, int]:
     return int(b * 255), int(g * 255), int(r * 255)
 
 
+def _best_insertion_index(points: list[dict], new_xy: tuple[float, float]) -> int:
+    """返回让总路径长度增量最小的插入下标。
+    空列表 → 0;单点 → 1(尾部);多点遍历每段边及首尾外插。
+    """
+    if not points:
+        return 0
+    if len(points) == 1:
+        return 1
+
+    nx, ny = float(new_xy[0]), float(new_xy[1])
+    best_index = 0
+    best_cost = math.hypot(nx - points[0]["x"], ny - points[0]["y"])
+
+    for i in range(1, len(points)):
+        prev, curr = points[i - 1], points[i]
+        orig = math.hypot(curr["x"] - prev["x"], curr["y"] - prev["y"])
+        detour = (
+            math.hypot(nx - prev["x"], ny - prev["y"])
+            + math.hypot(curr["x"] - nx, curr["y"] - ny)
+            - orig
+        )
+        if detour < best_cost:
+            best_cost = detour
+            best_index = i
+
+    tail_cost = math.hypot(nx - points[-1]["x"], ny - points[-1]["y"])
+    if tail_cost < best_cost:
+        best_index = len(points)
+
+    return best_index
+
+
 class RouteManager:
     def __init__(self, base_folder: str = "routes") -> None:
         self.base_folder = base_folder
@@ -40,6 +72,7 @@ class RouteManager:
         self.visibility: dict[str, bool] = {}
         self._color_cache: dict[str, tuple[int, int, int]] = {}
         self._route_index_by_id: dict[str, dict] = {}
+        self._category_by_route_id: dict[str, str] = {}
 
         self._discover_categories()
         self._ensure_route_ids()
@@ -67,6 +100,194 @@ class RouteManager:
         if not isinstance(route_id, str):
             return None
         return self._route_index_by_id.get(route_id)
+
+    def category_for_route_id(self, route_id: str) -> str | None:
+        if not isinstance(route_id, str):
+            return None
+        return self._category_by_route_id.get(route_id)
+
+    def summarize_route(self, route_id: str) -> dict | None:
+        route = self.route_for_id(route_id)
+        category = self.category_for_route_id(route_id)
+        if route is None or category is None:
+            return None
+        return {
+            "display_label": route.get("display_name", ""),
+            "points_count": len(route.get("points", []) or []),
+            "category": category,
+        }
+
+    def suggest_insertion_index(self, route_id: str, x: float, y: float) -> int | None:
+        route = self.route_for_id(route_id)
+        if route is None:
+            return None
+        return _best_insertion_index(route.get("points", []) or [], (x, y))
+
+    def hit_test_point(
+        self,
+        map_x: float,
+        map_y: float,
+        threshold: float,
+        route_ids: list[str] | None = None,
+    ) -> tuple[str, int] | None:
+        """在给定 map 坐标附近查找最近的路线节点。
+        route_ids=None 时只在可见路线中查找;threshold 为 map 像素距离上限。
+        命中多个时返回距离最近者(相等时取遍历顺序首者)。
+        """
+        if threshold <= 0:
+            return None
+
+        if route_ids is None:
+            candidates = [
+                (self.route_id(route), route)
+                for route in self.visible_routes()
+            ]
+        else:
+            candidates = []
+            for rid in route_ids:
+                route = self.route_for_id(rid)
+                if route is not None:
+                    candidates.append((rid, route))
+
+        best: tuple[float, str, int] | None = None
+        for rid, route in candidates:
+            if not rid:
+                continue
+            points = route.get("points") or []
+            for index, point in enumerate(points):
+                try:
+                    px = float(point["x"])
+                    py = float(point["y"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                dist = math.hypot(px - map_x, py - map_y)
+                if dist > threshold:
+                    continue
+                if best is None or dist < best[0]:
+                    best = (dist, rid, index)
+
+        if best is None:
+            return None
+        return best[1], best[2]
+
+    def delete_points_from_routes(
+        self,
+        deletions: dict[str, list[int]],
+    ) -> dict[str, list[int]]:
+        """从多条路线批量删除指定下标的节点并写回 JSON。
+        deletions: route_id -> 待删除 index 列表(重复/越界/非 int 会自动剔除)。
+        返回每条路线实际删除成功的 index 列表(升序);失败或无效项返回空 list。
+        删除采用从高到低 pop 避免偏移;写盘失败回滚内存状态。
+        """
+        outcomes: dict[str, list[int]] = {}
+        any_success = False
+
+        for route_id, raw_indexes in deletions.items():
+            outcomes[route_id] = []
+            route = self.route_for_id(route_id)
+            category = self.category_for_route_id(route_id)
+            if route is None or category is None:
+                continue
+
+            points = route.get("points")
+            if not points:
+                continue
+
+            cleaned: set[int] = set()
+            for item in raw_indexes or []:
+                if isinstance(item, bool):
+                    continue
+                if not isinstance(item, int):
+                    continue
+                if 0 <= item < len(points):
+                    cleaned.add(item)
+            if not cleaned:
+                continue
+
+            descending = sorted(cleaned, reverse=True)
+            popped_points: list[dict] = []
+            popped_indexes: list[int] = []
+            for idx in descending:
+                popped_points.append(points.pop(idx))
+                popped_indexes.append(idx)
+
+            try:
+                self._write_route_file(category, route.get("display_name", ""), route)
+            except Exception as e:
+                for idx, saved in zip(reversed(popped_indexes), reversed(popped_points)):
+                    points.insert(idx, saved)
+                print(f"Delete points write failed route_id={route_id}: {e}")
+                continue
+
+            outcomes[route_id] = sorted(cleaned)
+            any_success = True
+
+        if any_success:
+            try:
+                self.save_progress()
+            except Exception as e:
+                print(f"Save progress after delete failed: {e}")
+
+        return outcomes
+
+    def insert_point_into_routes(
+        self,
+        x: int,
+        y: int,
+        route_ids: list[str],
+        overrides: dict[str, int] | None = None,
+    ) -> dict[str, int | None]:
+        """为每个 route_id 在最佳位置插入 (x, y) 节点并写回 JSON。
+        overrides: route_id -> 强制 index(0-based),超出范围会 clamp。
+        返回每个 route_id 实际插入的 index;失败为 None。
+        """
+        overrides = overrides or {}
+        outcomes: dict[str, int | None] = {}
+        any_success = False
+
+        for route_id in route_ids:
+            route = self.route_for_id(route_id)
+            category = self.category_for_route_id(route_id)
+            if route is None or category is None:
+                outcomes[route_id] = None
+                continue
+
+            points = route.get("points")
+            if points is None:
+                points = []
+                route["points"] = points
+
+            if route_id in overrides:
+                raw = overrides[route_id]
+                try:
+                    index = int(raw)
+                except (TypeError, ValueError):
+                    index = _best_insertion_index(points, (x, y))
+                index = max(0, min(len(points), index))
+            else:
+                index = _best_insertion_index(points, (x, y))
+
+            new_point = {"x": int(x), "y": int(y), "visited": False}
+            points.insert(index, new_point)
+
+            try:
+                self._write_route_file(category, route.get("display_name", ""), route)
+            except Exception as e:
+                points.pop(index)
+                print(f"Insert point write failed route_id={route_id}: {e}")
+                outcomes[route_id] = None
+                continue
+
+            outcomes[route_id] = index
+            any_success = True
+
+        if any_success:
+            try:
+                self.save_progress()
+            except Exception as e:
+                print(f"Save progress after insert failed: {e}")
+
+        return outcomes
 
     def route_name_for_id(self, route_id: str) -> str:
         route = self.route_for_id(route_id)
@@ -120,6 +341,7 @@ class RouteManager:
         self.visibility = {}
         self._color_cache = {}
         self._route_index_by_id = {}
+        self._category_by_route_id = {}
         self._discover_categories()
         self._ensure_route_ids()
         self._load_all_routes()
@@ -155,7 +377,12 @@ class RouteManager:
 
         index = self.categories.index(old_name)
         self.categories[index] = new_name
-        self.route_groups[new_name] = self.route_groups.pop(old_name, [])
+        moved_routes = self.route_groups.pop(old_name, [])
+        self.route_groups[new_name] = moved_routes
+        for route in moved_routes:
+            route_id = self.route_id(route)
+            if route_id:
+                self._category_by_route_id[route_id] = new_name
         return True
 
     def delete_category(self, name: str) -> bool:
@@ -173,6 +400,7 @@ class RouteManager:
                 self.visibility.pop(route_id, None)
                 self._color_cache.pop(route_id, None)
                 self._route_index_by_id.pop(route_id, None)
+                self._category_by_route_id.pop(route_id, None)
 
         try:
             shutil.rmtree(path)
@@ -275,6 +503,7 @@ class RouteManager:
             self.visibility.pop(route_id, None)
             self._color_cache.pop(route_id, None)
             self._route_index_by_id.pop(route_id, None)
+            self._category_by_route_id.pop(route_id, None)
         self.save_visibility()
         self.save_progress()
         return True
@@ -476,6 +705,7 @@ class RouteManager:
 
                     self.route_groups[category].append(data)
                     self._route_index_by_id[route_id] = data
+                    self._category_by_route_id[route_id] = category
                     self.visibility[route_id] = False
                 except Exception as e:
                     print(f"Load route failed {path}: {e}")
