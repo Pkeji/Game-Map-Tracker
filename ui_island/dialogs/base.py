@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from ..design import qss, tokens
+from ..design import qss
 
 
 class StyledDialogBase(QDialog):
@@ -50,6 +52,34 @@ class StyledDialogBase(QDialog):
         title_row.addWidget(self.close_btn)
         self.shell_layout.addWidget(self.title_bar)
 
+    def add_action_row(
+        self,
+        *,
+        confirm_text: str | None = None,
+        cancel_text: str | None = None,
+        on_confirm: Callable[[], None] | None = None,
+        on_cancel: Callable[[], None] | None = None,
+        confirm_default: bool = True,
+    ) -> tuple[QPushButton | None, QPushButton | None]:
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+
+        cancel_btn = None
+        if cancel_text:
+            cancel_btn = QPushButton(cancel_text)
+            cancel_btn.clicked.connect(on_cancel or self.reject)
+            button_row.addWidget(cancel_btn)
+
+        confirm_btn = None
+        if confirm_text:
+            confirm_btn = QPushButton(confirm_text)
+            confirm_btn.setDefault(confirm_default)
+            confirm_btn.clicked.connect(on_confirm or self.accept)
+            button_row.addWidget(confirm_btn)
+
+        self.shell_layout.addLayout(button_row)
+        return confirm_btn, cancel_btn
+
     def _is_on_title_bar(self, global_pos: QPoint) -> bool:
         local = self._title_bar.mapFromGlobal(global_pos)
         return self._title_bar.rect().contains(local)
@@ -78,18 +108,12 @@ class StyledMessage(StyledDialogBase):
     def __init__(self, parent, title: str, message: str) -> None:
         super().__init__(parent, title)
         body = QLabel(message)
-        body.setStyleSheet(f"color: {tokens.FG}; font-size: 12px;")
+        body.setObjectName("BodyLabel")
         body.setWordWrap(True)
         body.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.shell_layout.addWidget(body, stretch=1)
 
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-        ok_btn = QPushButton("确定")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(self.accept)
-        button_row.addWidget(ok_btn)
-        self.shell_layout.addLayout(button_row)
+        self.add_action_row(confirm_text="确定")
         self.adjustSize()
 
 
@@ -97,21 +121,12 @@ class StyledConfirm(StyledDialogBase):
     def __init__(self, parent, title: str, message: str, confirm_text: str = "确定", cancel_text: str = "取消") -> None:
         super().__init__(parent, title)
         body = QLabel(message)
-        body.setStyleSheet(f"color: {tokens.FG}; font-size: 12px;")
+        body.setObjectName("BodyLabel")
         body.setWordWrap(True)
         body.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.shell_layout.addWidget(body, stretch=1)
 
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-        cancel_btn = QPushButton(cancel_text)
-        cancel_btn.clicked.connect(self.reject)
-        button_row.addWidget(cancel_btn)
-        ok_btn = QPushButton(confirm_text)
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(self.accept)
-        button_row.addWidget(ok_btn)
-        self.shell_layout.addLayout(button_row)
+        self.add_action_row(confirm_text=confirm_text, cancel_text=cancel_text)
         self.adjustSize()
 
 

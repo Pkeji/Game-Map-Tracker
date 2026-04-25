@@ -8,14 +8,13 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QPushButton,
-    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from ..design import strings, tokens
+from ..widgets.factory import make_label, make_scroll_area
 from . import StyledDialogBase, center_dialog
 
 
@@ -27,21 +26,18 @@ class InsertPointDialog(StyledDialogBase):
         self._candidates = list(candidates)
         self._rows: list[dict] = []
 
-        coord_lbl = QLabel(strings.INSERT_POINT_COORD_FMT.format(x=self._x, y=self._y))
-        coord_lbl.setStyleSheet(f"color: {tokens.FG}; font-size: 12px;")
+        coord_lbl = make_label(strings.INSERT_POINT_COORD_FMT.format(x=self._x, y=self._y), object_name="BodyLabel")
         self.shell_layout.addWidget(coord_lbl)
 
-        routes_lbl = QLabel(strings.INSERT_POINT_ROUTES_LABEL)
-        routes_lbl.setStyleSheet(f"color: {tokens.FG_DIM}; font-size: 11px;")
+        routes_lbl = make_label(strings.INSERT_POINT_ROUTES_LABEL, object_name="DimLabel")
         self.shell_layout.addWidget(routes_lbl)
 
-        scroll = QScrollArea()
-        scroll.setObjectName("AnnotationPanelScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setMinimumHeight(120)
-        scroll.setMaximumHeight(260)
+        scroll = make_scroll_area(
+            object_name="AnnotationPanelScroll",
+            horizontal_policy=Qt.ScrollBarAlwaysOff,
+            min_height=120,
+            max_height=260,
+        )
 
         list_host = QWidget()
         list_host.setObjectName("AnnotationPanelInner")
@@ -69,8 +65,7 @@ class InsertPointDialog(StyledDialogBase):
 
             spin: QSpinBox | None = None
             if single:
-                pos_lbl = QLabel(strings.INSERT_POINT_POSITION_LABEL)
-                pos_lbl.setStyleSheet(f"color: {tokens.FG_DIM}; font-size: 11px;")
+                pos_lbl = make_label(strings.INSERT_POINT_POSITION_LABEL, object_name="DimLabel")
                 row_layout.addWidget(pos_lbl)
                 spin = QSpinBox()
                 spin.setRange(1, total + 1)
@@ -78,10 +73,10 @@ class InsertPointDialog(StyledDialogBase):
                 spin.setSuffix(f" / {total + 1}")
                 row_layout.addWidget(spin)
             else:
-                suggest_lbl = QLabel(
-                    strings.INSERT_POINT_SUGGEST_FMT.format(pos=suggested_ui, total=total + 1)
+                suggest_lbl = make_label(
+                    strings.INSERT_POINT_SUGGEST_FMT.format(pos=suggested_ui, total=total + 1),
+                    object_name="DimLabel",
                 )
-                suggest_lbl.setStyleSheet(f"color: {tokens.FG_DIM}; font-size: 11px;")
                 row_layout.addWidget(suggest_lbl)
 
             list_layout.addWidget(row_widget)
@@ -97,20 +92,15 @@ class InsertPointDialog(StyledDialogBase):
         self.shell_layout.addWidget(scroll, stretch=1)
 
         self._hint_label = QLabel("")
-        self._hint_label.setStyleSheet("color: #e06e6e; font-size: 11px;")
+        self._hint_label.setObjectName("ErrorLabel")
         self._hint_label.setVisible(False)
         self.shell_layout.addWidget(self._hint_label)
 
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-        cancel_btn = QPushButton(strings.INSERT_POINT_CANCEL)
-        cancel_btn.clicked.connect(self.reject)
-        button_row.addWidget(cancel_btn)
-        confirm_btn = QPushButton(strings.INSERT_POINT_CONFIRM)
-        confirm_btn.setDefault(True)
-        confirm_btn.clicked.connect(self._on_confirm)
-        button_row.addWidget(confirm_btn)
-        self.shell_layout.addLayout(button_row)
+        self.add_action_row(
+            confirm_text=strings.INSERT_POINT_CONFIRM,
+            cancel_text=strings.INSERT_POINT_CANCEL,
+            on_confirm=self._on_confirm,
+        )
 
         self.adjustSize()
 

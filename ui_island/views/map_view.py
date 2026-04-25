@@ -7,12 +7,13 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QMenu, QWidget
+from PySide6.QtWidgets import QWidget
 
 from base import TrackState
 from route_manager import RouteManager
 
 from ..design import strings
+from ..widgets.context_menu import ContextMenuItem, show_context_menu
 
 _HIT_RADIUS_WIDGET_PX = 8
 
@@ -353,54 +354,42 @@ class MapView(QWidget):
         hit = self._hit_test_node(pos)
         if hit is not None:
             route_id, point_index = hit
-            menu = QMenu(self)
-            menu.setObjectName("MapNodeContextMenu")
-            menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-            menu.setAttribute(Qt.WA_NoSystemBackground, True)
-            menu.setAttribute(Qt.WA_TranslucentBackground, True)
-            top = self.window()
-            if top is not None:
-                menu.setStyleSheet(top.styleSheet())
-
             visited = self.route_mgr.point_visited(route_id, point_index)
-            if visited:
-                mark_action = menu.addAction(strings.MARK_POINT_UNVISITED_MENU_LABEL)
-                mark_action.triggered.connect(
-                    lambda _checked=False, rid=route_id, idx=point_index:
-                    self.mark_point_visited_requested.emit(rid, idx, False)
-                )
-            else:
-                mark_action = menu.addAction(strings.MARK_POINT_VISITED_MENU_LABEL)
-                mark_action.triggered.connect(
-                    lambda _checked=False, rid=route_id, idx=point_index:
-                    self.mark_point_visited_requested.emit(rid, idx, True)
-                )
-
             has_annotation = self.route_mgr.route_point_has_annotation(route_id, point_index)
             annotation_label = (
                 strings.CHANGE_POINT_ANNOTATION_MENU_LABEL
                 if has_annotation
                 else strings.ADD_POINT_ANNOTATION_MENU_LABEL
             )
-            annotation_action = menu.addAction(annotation_label)
-            annotation_action.triggered.connect(
-                lambda _checked=False, rid=route_id, idx=point_index:
-                self.change_point_annotation_requested.emit(rid, idx)
-            )
+            items = [
+                ContextMenuItem(
+                    strings.MARK_POINT_UNVISITED_MENU_LABEL if visited else strings.MARK_POINT_VISITED_MENU_LABEL,
+                    lambda rid=route_id, idx=point_index, state=not bool(visited):
+                    self.mark_point_visited_requested.emit(rid, idx, state),
+                ),
+                ContextMenuItem(
+                    annotation_label,
+                    lambda rid=route_id, idx=point_index: self.change_point_annotation_requested.emit(rid, idx),
+                ),
+            ]
             if has_annotation:
-                delete_annotation_action = menu.addAction(strings.DELETE_POINT_ANNOTATION_MENU_LABEL)
-                delete_annotation_action.triggered.connect(
-                    lambda _checked=False, rid=route_id, idx=point_index:
-                    self.delete_point_annotation_requested.emit(rid, idx)
+                items.append(
+                    ContextMenuItem(
+                        strings.DELETE_POINT_ANNOTATION_MENU_LABEL,
+                        lambda rid=route_id, idx=point_index:
+                        self.delete_point_annotation_requested.emit(rid, idx),
+                    )
                 )
-
-            menu.addSeparator()
-            delete_action = menu.addAction(strings.DELETE_POINT_MENU_LABEL)
-            delete_action.triggered.connect(
-                lambda _checked=False, rid=route_id, idx=point_index:
-                self.delete_point_requested.emit(rid, idx)
+            items.extend(
+                [
+                    ContextMenuItem.separator_item(),
+                    ContextMenuItem(
+                        strings.DELETE_POINT_MENU_LABEL,
+                        lambda rid=route_id, idx=point_index: self.delete_point_requested.emit(rid, idx),
+                    ),
+                ]
             )
-            menu.exec(event.globalPos())
+            show_context_menu(self, event.globalPos(), items, object_name="MapNodeContextMenu")
             event.accept()
             return
 
@@ -408,32 +397,27 @@ class MapView(QWidget):
         if annotation_hit is not None:
             type_id = str(annotation_hit.get("typeId") or "")
             point_index = int(annotation_hit.get("pointIndex"))
-            menu = QMenu(self)
-            menu.setObjectName("MapAnnotationContextMenu")
-            menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-            menu.setAttribute(Qt.WA_NoSystemBackground, True)
-            menu.setAttribute(Qt.WA_TranslucentBackground, True)
-            top = self.window()
-            if top is not None:
-                menu.setStyleSheet(top.styleSheet())
-
-            change_action = menu.addAction(strings.MAP_CHANGE_ANNOTATION_MENU_LABEL)
-            change_action.triggered.connect(
-                lambda _checked=False, tid=type_id, idx=point_index:
-                self.change_annotation_requested.emit(tid, idx)
+            show_context_menu(
+                self,
+                event.globalPos(),
+                [
+                    ContextMenuItem(
+                        strings.MAP_CHANGE_ANNOTATION_MENU_LABEL,
+                        lambda tid=type_id, idx=point_index: self.change_annotation_requested.emit(tid, idx),
+                    ),
+                    ContextMenuItem(
+                        strings.MAP_ADD_ANNOTATION_TO_ROUTE_MENU_LABEL,
+                        lambda tid=type_id, idx=point_index:
+                        self.add_annotation_to_route_requested.emit(tid, idx),
+                    ),
+                    ContextMenuItem.separator_item(),
+                    ContextMenuItem(
+                        strings.MAP_DELETE_ANNOTATION_MENU_LABEL,
+                        lambda tid=type_id, idx=point_index: self.delete_annotation_requested.emit(tid, idx),
+                    ),
+                ],
+                object_name="MapAnnotationContextMenu",
             )
-            add_to_route_action = menu.addAction(strings.MAP_ADD_ANNOTATION_TO_ROUTE_MENU_LABEL)
-            add_to_route_action.triggered.connect(
-                lambda _checked=False, tid=type_id, idx=point_index:
-                self.add_annotation_to_route_requested.emit(tid, idx)
-            )
-            menu.addSeparator()
-            delete_action = menu.addAction(strings.MAP_DELETE_ANNOTATION_MENU_LABEL)
-            delete_action.triggered.connect(
-                lambda _checked=False, tid=type_id, idx=point_index:
-                self.delete_annotation_requested.emit(tid, idx)
-            )
-            menu.exec(event.globalPos())
             event.accept()
             return
 
@@ -443,22 +427,19 @@ class MapView(QWidget):
             return
         map_x = int(mapped[0])
         map_y = int(mapped[1])
-        menu = QMenu(self)
-        menu.setObjectName("MapBlankContextMenu")
-        menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-        menu.setAttribute(Qt.WA_NoSystemBackground, True)
-        menu.setAttribute(Qt.WA_TranslucentBackground, True)
-        top = self.window()
-        if top is not None:
-            menu.setStyleSheet(top.styleSheet())
-
-        add_annotation_action = menu.addAction(strings.MAP_ADD_ANNOTATION_MENU_LABEL)
-        add_annotation_action.triggered.connect(
-            lambda _checked=False, x=map_x, y=map_y: self.add_annotation_requested.emit(x, y)
+        show_context_menu(
+            self,
+            event.globalPos(),
+            [
+                ContextMenuItem(
+                    strings.MAP_ADD_ANNOTATION_MENU_LABEL,
+                    lambda x=map_x, y=map_y: self.add_annotation_requested.emit(x, y),
+                ),
+                ContextMenuItem(
+                    strings.MAP_ADD_POINT_MENU_LABEL,
+                    lambda x=map_x, y=map_y: self.add_point_requested.emit(x, y),
+                ),
+            ],
+            object_name="MapBlankContextMenu",
         )
-        add_point_action = menu.addAction(strings.MAP_ADD_POINT_MENU_LABEL)
-        add_point_action.triggered.connect(
-            lambda _checked=False, x=map_x, y=map_y: self.add_point_requested.emit(x, y)
-        )
-        menu.exec(event.globalPos())
         event.accept()

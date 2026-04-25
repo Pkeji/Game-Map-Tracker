@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
+from PySide6.QtWidgets import QDialog, QLabel, QPlainTextEdit
 
 from .base import StyledDialogBase, center_dialog
-from ..design import strings, tokens
+from ..design import strings
 
 
 class RouteNotesDialog(StyledDialogBase):
@@ -23,38 +23,9 @@ class RouteNotesDialog(StyledDialogBase):
         self.editor.setPlaceholderText(strings.ROUTE_NOTES_PLACEHOLDER)
         self.editor.setPlainText(notes)
         self.editor.setMinimumHeight(180)
-        self.editor.setStyleSheet(
-            f"""
-            QPlainTextEdit {{
-                background: rgba(255, 255, 255, 0.08);
-                color: {tokens.FG};
-                border: 1px solid {tokens.BORDER};
-                border-radius: 10px;
-                padding: 8px 10px;
-                font-size: 11px;
-                selection-background-color: {tokens.ACCENT};
-            }}
-            QPlainTextEdit:focus {{
-                border: 1px solid rgba(10, 132, 255, 0.65);
-                background: rgba(10, 132, 255, 0.16);
-            }}
-            """
-        )
         self.shell_layout.addWidget(self.editor, stretch=1)
 
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-
-        cancel_btn = QPushButton(strings.ROUTE_NOTES_CANCEL)
-        cancel_btn.clicked.connect(self.reject)
-        button_row.addWidget(cancel_btn)
-
-        confirm_btn = QPushButton(strings.ROUTE_NOTES_CONFIRM)
-        confirm_btn.setDefault(True)
-        confirm_btn.clicked.connect(self.accept)
-        button_row.addWidget(confirm_btn)
-
-        self.shell_layout.addLayout(button_row)
+        self.add_action_row(confirm_text=strings.ROUTE_NOTES_CONFIRM, cancel_text=strings.ROUTE_NOTES_CANCEL)
         self.resize(460, 300)
 
     def notes_text(self) -> str:

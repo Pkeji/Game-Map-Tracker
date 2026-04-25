@@ -6,15 +6,12 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QMenu,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -22,6 +19,9 @@ from PySide6.QtWidgets import (
 
 from ..design import strings, theme
 from ..services.annotation_preferences import common_annotation_types, normalize_type_ids, touch_recent_type
+from .annotation_type_widgets import build_annotation_type_button, group_annotation_types
+from .context_menu import ContextMenuItem, show_context_menu
+from .factory import make_scroll_area
 
 
 class AnnotationPanel(QFrame):
@@ -94,12 +94,7 @@ class AnnotationPanel(QFrame):
         self._message.setWordWrap(True)
         root.addWidget(self._message)
 
-        self._scroll = QScrollArea()
-        self._scroll.setObjectName("AnnotationPanelScroll")
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setFrameShape(QFrame.NoFrame)
-        self._scroll.viewport().setAutoFillBackground(False)
-        self._scroll.setMaximumHeight(330)
+        self._scroll = make_scroll_area(object_name="AnnotationPanelScroll", max_height=330)
         self._inner = QWidget()
         self._inner.setObjectName("AnnotationPanelInner")
         self._list_layout = QVBoxLayout(self._inner)
@@ -170,15 +165,7 @@ class AnnotationPanel(QFrame):
                 self._list_layout.addWidget(row)
 
     def _render_grouped_types(self, selected: set[str]) -> None:
-        groups: dict[str, list[dict]] = {}
-        group_order: list[str] = []
-        for item in self._visible_types():
-            group_name = str(item.get("group") or "其他")
-            if group_name not in groups:
-                groups[group_name] = []
-                group_order.append(group_name)
-            groups[group_name].append(item)
-        for group_name in group_order:
+        for group_name, group_items in group_annotation_types(self._visible_types()):
             title = QLabel(group_name)
             title.setObjectName("AnnotationGroupTitle")
             self._list_layout.addWidget(title)
@@ -187,7 +174,7 @@ class AnnotationPanel(QFrame):
             grid.setContentsMargins(0, 0, 0, 0)
             grid.setHorizontalSpacing(6)
             grid.setVerticalSpacing(6)
-            for index, item in enumerate(groups[group_name]):
+            for index, item in enumerate(group_items):
                 row = self._build_row(item, selected)
                 if row is not None:
                     grid.addWidget(row, index // 2, index % 2)
@@ -198,22 +185,13 @@ class AnnotationPanel(QFrame):
         if not type_id:
             return None
         type_name = str(item.get("type") or type_id)
-        row = QPushButton()
-        row.setObjectName("AnnotationTypeRow")
-        row.setProperty("selected", type_id in selected)
-        row.setCheckable(True)
-        row.setChecked(type_id in selected)
-        row.setText(f"{type_name}  ·  {item.get('count') or 0}")
-        row.setToolTip(type_name)
-        font = row.font()
-        font.setStrikeOut(type_id not in selected)
-        row.setFont(font)
-        icon_path = Path("tools") / "points_icon" / str(item.get("iconPath") or f"{type_id}.png")
-        if icon_path.exists():
-            pixmap = QPixmap(str(icon_path))
-            if type_id not in selected:
-                pixmap = _faded_pixmap(pixmap, 0.35)
-            row.setIcon(QIcon(pixmap))
+        row = build_annotation_type_button(
+            item,
+            selected=type_id in selected,
+            fade_icon=True,
+            strike_out=True,
+            icon_size=None,
+        )
         row.clicked.connect(lambda _checked=False, tid=type_id: self._toggle_type(tid))
         row.setContextMenuPolicy(Qt.CustomContextMenu)
         row.customContextMenuRequested.connect(
@@ -226,18 +204,17 @@ class AnnotationPanel(QFrame):
         return row
 
     def _show_type_context_menu(self, type_id: str, type_name: str, global_pos) -> None:
-        menu = QMenu(self)
-        menu.setObjectName("AnnotationContextMenu")
-        menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-        menu.setAttribute(Qt.WA_NoSystemBackground, True)
-        menu.setAttribute(Qt.WA_TranslucentBackground, True)
-        menu.setAutoFillBackground(False)
-        menu.setStyleSheet(theme.ISLAND_QSS)
-        plan_action = menu.addAction(strings.ANNOTATION_PLAN_ROUTE)
-
-        selected = menu.exec(global_pos)
-        if selected is plan_action:
-            self.plan_route_requested.emit(type_id, type_name)
+        show_context_menu(
+            self,
+            global_pos,
+            [
+                ContextMenuItem(
+                    strings.ANNOTATION_PLAN_ROUTE,
+                    lambda: self.plan_route_requested.emit(type_id, type_name),
+                )
+            ],
+            object_name="AnnotationContextMenu",
+        )
 
     def _toggle_type(self, type_id: str) -> None:
         selected = normalize_type_ids(self._selected_type_ids)
@@ -292,15 +269,3 @@ class AnnotationPanel(QFrame):
         self._drag_offset = None
         self.panel_hidden.emit()
         super().hideEvent(event)
-
-
-def _faded_pixmap(pixmap: QPixmap, opacity: float) -> QPixmap:
-    if pixmap.isNull():
-        return pixmap
-    faded = QPixmap(pixmap.size())
-    faded.fill(Qt.transparent)
-    painter = QPainter(faded)
-    painter.setOpacity(opacity)
-    painter.drawPixmap(0, 0, pixmap)
-    painter.end()
-    return faded

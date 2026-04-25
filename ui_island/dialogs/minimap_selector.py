@@ -10,10 +10,10 @@ import numpy as np
 import config
 from PySide6.QtCore import QEventLoop, QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton, QVBoxLayout, QWidget, QHBoxLayout
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QVBoxLayout, QWidget
 
 from . import StyledDialogBase
-from ..design import qss, tokens
+from ..design import qss
 
 _DEFAULT_SIZE = 150
 _MIN_SIZE = 80
@@ -136,20 +136,11 @@ class _PreviewDialog(StyledDialogBase):
         self.shell_layout.addWidget(preview, alignment=Qt.AlignCenter)
 
         info = QLabel(f"X: {x}   |   Y: {y}   |   尺寸: {size} × {size}")
-        info.setStyleSheet(f"color: {tokens.FG}; font-size: 12px; font-weight: 600;")
+        info.setObjectName("FieldLabel")
         info.setAlignment(Qt.AlignCenter)
         self.shell_layout.addWidget(info)
 
-        buttons = QHBoxLayout()
-        buttons.addStretch()
-        retake_btn = QPushButton("重新截取")
-        retake_btn.clicked.connect(self._on_retake)
-        buttons.addWidget(retake_btn)
-        ok_btn = QPushButton("确定")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(self.accept)
-        buttons.addWidget(ok_btn)
-        self.shell_layout.addLayout(buttons)
+        self.add_action_row(confirm_text="确定", cancel_text="重新截取", on_cancel=self._on_retake)
 
     def _on_retake(self) -> None:
         self.retake_requested.emit()

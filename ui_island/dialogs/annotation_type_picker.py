@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import QDialog, QGridLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
-
-from ..design import strings, tokens
+from ..design import strings
+from ..widgets.annotation_type_widgets import build_annotation_type_button, group_annotation_types
+from ..widgets.factory import make_scroll_area
 from . import StyledDialogBase, center_dialog
 
 
@@ -24,19 +23,18 @@ class AnnotationTypePickerDialog(StyledDialogBase):
         if not self._items:
             empty = QLabel(strings.ANNOTATION_TYPE_PICKER_EMPTY)
             empty.setWordWrap(True)
-            empty.setStyleSheet(f"color: {tokens.FG_DIM}; font-size: 12px;")
+            empty.setObjectName("DimLabel")
             self.shell_layout.addWidget(empty)
             self._add_cancel_row()
             self.adjustSize()
             return
 
-        scroll = QScrollArea()
-        scroll.setObjectName("AnnotationPanelScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setMinimumHeight(180)
-        scroll.setMaximumHeight(360)
+        scroll = make_scroll_area(
+            object_name="AnnotationPanelScroll",
+            horizontal_policy=Qt.ScrollBarAlwaysOff,
+            min_height=180,
+            max_height=360,
+        )
 
         host = QWidget()
         host.setObjectName("AnnotationPanelInner")
@@ -69,44 +67,20 @@ class AnnotationTypePickerDialog(StyledDialogBase):
         self.adjustSize()
 
     def _grouped_items(self) -> list[tuple[str, list[dict]]]:
-        groups: dict[str, list[dict]] = {}
-        group_order: list[str] = []
-        for item in self._items:
-            group_name = str(item.get("group") or "其他")
-            if group_name not in groups:
-                groups[group_name] = []
-                group_order.append(group_name)
-            groups[group_name].append(item)
-        return [(group_name, groups[group_name]) for group_name in group_order]
+        return group_annotation_types(self._items)
 
     def _build_type_button(self, item: dict) -> QPushButton:
         type_id = str(item.get("typeId") or "")
-        type_name = str(item.get("type") or type_id)
-        count = item.get("count") or 0
-
-        button = QPushButton(f"{type_name}  ·  {count}")
-        button.setObjectName("AnnotationTypeRow")
-        button.setProperty("selected", bool(type_id and type_id == self._current_type_id))
-        button.setCheckable(True)
-        button.setChecked(bool(type_id and type_id == self._current_type_id))
-        button.setToolTip(type_name)
-        button.setMinimumHeight(30)
-        button.setIconSize(QSize(20, 20))
-
-        icon_path = Path("tools") / "points_icon" / str(item.get("iconPath") or f"{type_id}.png")
-        if icon_path.exists():
-            button.setIcon(QIcon(QPixmap(str(icon_path))))
-
+        button = build_annotation_type_button(
+            item,
+            selected=bool(type_id and type_id == self._current_type_id),
+            min_height=30,
+        )
         button.clicked.connect(lambda _checked=False, known_item=dict(item): self._select(known_item))
         return button
 
     def _add_cancel_row(self) -> None:
-        cancel_btn = QPushButton(strings.ANNOTATION_TYPE_PICKER_CANCEL)
-        cancel_btn.clicked.connect(self.reject)
-        row = QVBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(cancel_btn, alignment=Qt.AlignRight)
-        self.shell_layout.addLayout(row)
+        self.add_action_row(cancel_text=strings.ANNOTATION_TYPE_PICKER_CANCEL)
 
     def _select(self, item: dict) -> None:
         self._selected = item

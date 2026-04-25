@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
 
 from ..design import strings, theme
 from ..dialogs import toast
@@ -15,6 +15,8 @@ from ..dialogs.route_notes_dialog import edit_route_notes
 from ..dialogs.settings_dialog import styled_confirm, styled_info
 from ..dialogs.text_input_dialog import prompt_text_input
 from ..widgets import ElidedCheckBox, RouteListItem, RouteSection, TrackedRouteItem
+from ..widgets.context_menu import ContextMenuItem, show_context_menu
+from ..widgets.factory import make_header_icon_button
 
 
 class RoutePanelController:
@@ -75,19 +77,21 @@ class RoutePanelController:
         add_category_input.editingFinished.connect(self.queue_cancel_add_category_if_needed)
         row_layout.addWidget(add_category_input, stretch=1)
 
-        add_category_confirm_btn = QPushButton("✓")
-        add_category_confirm_btn.setObjectName("HeaderWindowButton")
-        add_category_confirm_btn.setProperty("iconRole", "confirm")
-        add_category_confirm_btn.setToolTip(strings.ROUTE_ADD_CATEGORY_CONFIRM)
-        add_category_confirm_btn.setFixedWidth(30)
+        add_category_confirm_btn = make_header_icon_button(
+            "✓",
+            role="confirm",
+            tooltip=strings.ROUTE_ADD_CATEGORY_CONFIRM,
+            width=30,
+        )
         add_category_confirm_btn.clicked.connect(self.confirm_add_category)
         row_layout.addWidget(add_category_confirm_btn)
 
-        add_category_cancel_btn = QPushButton("×")
-        add_category_cancel_btn.setObjectName("HeaderWindowButton")
-        add_category_cancel_btn.setProperty("iconRole", "close")
-        add_category_cancel_btn.setToolTip(strings.ROUTE_ADD_CATEGORY_CANCEL)
-        add_category_cancel_btn.setFixedWidth(30)
+        add_category_cancel_btn = make_header_icon_button(
+            "×",
+            role="close",
+            tooltip=strings.ROUTE_ADD_CATEGORY_CANCEL,
+            width=30,
+        )
         add_category_cancel_btn.clicked.connect(self.cancel_add_category)
         row_layout.addWidget(add_category_cancel_btn)
 
@@ -205,41 +209,41 @@ class RoutePanelController:
         return route_item
 
     def show_route_context_menu(self, route_item: RouteListItem, global_pos) -> None:
-        menu = QMenu(self.window)
-        menu.setStyleSheet(self.window.styleSheet())
-
-        rename_action = menu.addAction(strings.ROUTE_RENAME)
-        notes_action = menu.addAction(strings.ROUTE_NOTES)
-        delete_action = menu.addAction(strings.ROUTE_DELETE)
-        menu.addSeparator()
-        open_location_action = menu.addAction(strings.ROUTE_OPEN_FILE_LOCATION)
-
-        selected = menu.exec(global_pos)
-        if selected is rename_action:
-            self.begin_route_rename(route_item)
-        elif selected is notes_action:
-            self.show_route_notes_dialog(route_item.category, route_item.route_name)
-        elif selected is delete_action:
-            self.delete_route(route_item.category, route_item.route_name)
-        elif selected is open_location_action:
-            self.open_route_file_location(route_item.category, route_item.route_name)
+        show_context_menu(
+            self.window,
+            global_pos,
+            [
+                ContextMenuItem(strings.ROUTE_RENAME, lambda: self.begin_route_rename(route_item)),
+                ContextMenuItem(
+                    strings.ROUTE_NOTES,
+                    lambda: self.show_route_notes_dialog(route_item.category, route_item.route_name),
+                ),
+                ContextMenuItem(
+                    strings.ROUTE_DELETE,
+                    lambda: self.delete_route(route_item.category, route_item.route_name),
+                ),
+                ContextMenuItem.separator_item(),
+                ContextMenuItem(
+                    strings.ROUTE_OPEN_FILE_LOCATION,
+                    lambda: self.open_route_file_location(route_item.category, route_item.route_name),
+                ),
+            ],
+        )
 
     def show_category_context_menu(self, category: str, global_pos) -> None:
-        menu = QMenu(self.window)
-        menu.setStyleSheet(self.window.styleSheet())
-
-        rename_action = menu.addAction(strings.ROUTE_CATEGORY_RENAME)
-        delete_action = menu.addAction(strings.ROUTE_CATEGORY_DELETE)
-        menu.addSeparator()
-        open_location_action = menu.addAction(strings.ROUTE_CATEGORY_OPEN_FILE_LOCATION)
-
-        selected = menu.exec(global_pos)
-        if selected is rename_action:
-            self.rename_category(category)
-        elif selected is delete_action:
-            self.delete_category(category)
-        elif selected is open_location_action:
-            self.open_category_file_location(category)
+        show_context_menu(
+            self.window,
+            global_pos,
+            [
+                ContextMenuItem(strings.ROUTE_CATEGORY_RENAME, lambda: self.rename_category(category)),
+                ContextMenuItem(strings.ROUTE_CATEGORY_DELETE, lambda: self.delete_category(category)),
+                ContextMenuItem.separator_item(),
+                ContextMenuItem(
+                    strings.ROUTE_CATEGORY_OPEN_FILE_LOCATION,
+                    lambda: self.open_category_file_location(category),
+                ),
+            ],
+        )
 
     def show_add_category_row(self) -> None:
         if self.window._add_category_row is None or self.window._add_category_input is None:

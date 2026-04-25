@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -27,6 +26,7 @@ import config
 from . import StyledConfirm, StyledMessage, center_dialog, place_left_of, toast
 from ..design import qss, strings, tokens
 from ..services.settings_schema import ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
+from ..widgets.factory import make_scroll_area
 
 
 def styled_info(parent, title: str, message: str) -> None:
@@ -244,13 +244,11 @@ class SettingsDialog(QDialog):
             natural = self._measure_body_height(body, self._estimate_top_section_body_width())
             if natural > max_height:
                 body.setMinimumHeight(natural)
-                scroll = QScrollArea()
-                scroll.setWidgetResizable(True)
-                scroll.setFrameShape(QFrame.NoFrame)
-                scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-                scroll.viewport().setAutoFillBackground(False)
-                scroll.setFixedHeight(max_height)
+                scroll = make_scroll_area(
+                    horizontal_policy=Qt.ScrollBarAlwaysOff,
+                    vertical_policy=Qt.ScrollBarAsNeeded,
+                    fixed_height=max_height,
+                )
                 scroll.setWidget(body)
                 card_layout.addWidget(scroll)
                 return card
@@ -336,7 +334,7 @@ class SettingsDialog(QDialog):
         layout.setSpacing(8)
 
         label = QLabel("小地图")
-        label.setStyleSheet(f"color: {tokens.FG}; font-size: 12px; font-weight: 600;")
+        label.setObjectName("FieldLabel")
         layout.addWidget(label)
 
         minimap_control_height = 26
@@ -428,7 +426,7 @@ class SettingsDialog(QDialog):
         if field.needs_restart:
             label_text += "  ⟲"
         label = QLabel(label_text)
-        label.setStyleSheet(f"color: {tokens.FG}; font-size: 12px; font-weight: 600;")
+        label.setObjectName("FieldLabel")
         label.setWordWrap(True)
         if field.needs_restart:
             label.setToolTip("此参数需要重启应用后才生效")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, Qt
 from PySide6.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ..design import qss, tokens
+from ..design import qss
 
 
 class Toast(QWidget):
@@ -29,11 +29,11 @@ class Toast(QWidget):
         row.setSpacing(10)
 
         icon = QLabel("✓")
-        icon.setStyleSheet(f"color: {tokens.DOT_LOCKED}; font-size: 16px; font-weight: 700;")
+        icon.setObjectName("ToastIcon")
         row.addWidget(icon)
 
         body = QLabel(message)
-        body.setStyleSheet(f"color: {tokens.FG}; font-size: 12px;")
+        body.setObjectName("BodyLabel")
         row.addWidget(body)
 
         outer = QVBoxLayout(self)

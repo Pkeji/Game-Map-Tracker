@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -21,6 +20,7 @@ from PySide6.QtWidgets import (
 from ..design import theme
 from ..views.map_view import MapView
 from ..widgets import AnnotationPanel, StatusDot
+from ..widgets.factory import make_scroll_area
 
 
 def build_window_ui(window) -> None:
@@ -239,13 +239,11 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
 
     window.tracked_routes_layout.addWidget(window.tracked_routes_header)
 
-    window.tracked_routes_scroll = QScrollArea()
-    window.tracked_routes_scroll.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-    window.tracked_routes_scroll.setWidgetResizable(True)
-    window.tracked_routes_scroll.setFrameShape(QFrame.NoFrame)
-    window.tracked_routes_scroll.viewport().setAutoFillBackground(False)
-    window.tracked_routes_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    window.tracked_routes_scroll.setMaximumHeight(theme.TRACKED_ROUTES_MAX_HEIGHT)
+    window.tracked_routes_scroll = make_scroll_area(
+        max_height=theme.TRACKED_ROUTES_MAX_HEIGHT,
+        vertical_policy=Qt.ScrollBarAsNeeded,
+        size_policy=(QSizePolicy.Preferred, QSizePolicy.Fixed),
+    )
 
     window.tracked_routes_inner = QWidget()
     window.tracked_routes_grid = QGridLayout(window.tracked_routes_inner)
@@ -268,11 +266,7 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
     shell_layout.setContentsMargins(0, 0, 0, 0)
     shell_layout.setSpacing(0)
 
-    window.side_scroll = QScrollArea()
-    window.side_scroll.setWidgetResizable(True)
-    window.side_scroll.setFrameShape(QFrame.NoFrame)
-    window.side_scroll.viewport().setAutoFillBackground(False)
-    window.side_scroll.setMinimumWidth(200)
+    window.side_scroll = make_scroll_area(min_width=200)
 
     window.side_panel = QFrame()
     window.side_panel.setObjectName("PanelCard")
@@ -312,12 +306,10 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
     recent_card_layout.setContentsMargins(10, 10, 10, 10)
     recent_card_layout.setSpacing(4)
 
-    window.recent_scroll = QScrollArea()
-    window.recent_scroll.setWidgetResizable(True)
-    window.recent_scroll.setFrameShape(QFrame.NoFrame)
-    window.recent_scroll.viewport().setAutoFillBackground(False)
-    window.recent_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    window.recent_scroll.setMaximumHeight(theme.RECENT_ROUTES_MAX_HEIGHT)
+    window.recent_scroll = make_scroll_area(
+        max_height=theme.RECENT_ROUTES_MAX_HEIGHT,
+        vertical_policy=Qt.ScrollBarAsNeeded,
+    )
 
     window.recent_scroll_inner = QWidget()
     window.recent_scroll_inner.setAttribute(Qt.WA_StyledBackground, True)
@@ -354,11 +346,7 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
 
     side_layout.addLayout(routes_header)
 
-    window.routes_scroll = QScrollArea()
-    window.routes_scroll.setWidgetResizable(True)
-    window.routes_scroll.setFrameShape(QFrame.NoFrame)
-    window.routes_scroll.viewport().setAutoFillBackground(False)
-    window.routes_scroll.setMinimumHeight(theme.ROUTES_LIST_MIN_HEIGHT)
+    window.routes_scroll = make_scroll_area(min_height=theme.ROUTES_LIST_MIN_HEIGHT)
 
     window.routes_scroll_inner = QWidget()
     window.routes_scroll_inner.setObjectName("RoutesScrollInner")

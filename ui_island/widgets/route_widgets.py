@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from base import TrackState
 
 from ..design import strings, tokens
+from .factory import make_header_icon_button
 
 
 class StatusDot(QWidget):
@@ -107,18 +108,20 @@ class RouteSection(QWidget):
         self.add_route_input.setPlaceholderText("输入路线名称...")
         add_row_layout.addWidget(self.add_route_input, stretch=1)
 
-        self.add_route_confirm_btn = QPushButton("✓", self.add_route_row)
-        self.add_route_confirm_btn.setObjectName("HeaderWindowButton")
-        self.add_route_confirm_btn.setProperty("iconRole", "confirm")
-        self.add_route_confirm_btn.setToolTip("确认创建路线")
-        self.add_route_confirm_btn.setFixedWidth(26)
+        self.add_route_confirm_btn = make_header_icon_button(
+            "✓",
+            role="confirm",
+            tooltip="确认创建路线",
+            parent=self.add_route_row,
+        )
         add_row_layout.addWidget(self.add_route_confirm_btn)
 
-        self.add_route_cancel_btn = QPushButton("×", self.add_route_row)
-        self.add_route_cancel_btn.setObjectName("HeaderWindowButton")
-        self.add_route_cancel_btn.setProperty("iconRole", "close")
-        self.add_route_cancel_btn.setToolTip("取消新建路线")
-        self.add_route_cancel_btn.setFixedWidth(26)
+        self.add_route_cancel_btn = make_header_icon_button(
+            "×",
+            role="close",
+            tooltip="取消新建路线",
+            parent=self.add_route_row,
+        )
         add_row_layout.addWidget(self.add_route_cancel_btn)
 
         self.body_layout.addWidget(self.add_route_row)
@@ -261,18 +264,20 @@ class RouteListItem(QWidget):
         self.rename_input.setMinimumWidth(0)
         edit_layout.addWidget(self.rename_input, stretch=1)
 
-        self.rename_confirm_btn = QPushButton("✓", self.edit_row)
-        self.rename_confirm_btn.setObjectName("HeaderWindowButton")
-        self.rename_confirm_btn.setProperty("iconRole", "confirm")
-        self.rename_confirm_btn.setToolTip(strings.ROUTE_RENAME_CONFIRM)
-        self.rename_confirm_btn.setFixedWidth(26)
+        self.rename_confirm_btn = make_header_icon_button(
+            "✓",
+            role="confirm",
+            tooltip=strings.ROUTE_RENAME_CONFIRM,
+            parent=self.edit_row,
+        )
         edit_layout.addWidget(self.rename_confirm_btn)
 
-        self.rename_cancel_btn = QPushButton("×", self.edit_row)
-        self.rename_cancel_btn.setObjectName("HeaderWindowButton")
-        self.rename_cancel_btn.setProperty("iconRole", "close")
-        self.rename_cancel_btn.setToolTip(strings.ROUTE_RENAME_CANCEL)
-        self.rename_cancel_btn.setFixedWidth(26)
+        self.rename_cancel_btn = make_header_icon_button(
+            "×",
+            role="close",
+            tooltip=strings.ROUTE_RENAME_CANCEL,
+            parent=self.edit_row,
+        )
         edit_layout.addWidget(self.rename_cancel_btn)
 
         layout.addWidget(self.display_row)

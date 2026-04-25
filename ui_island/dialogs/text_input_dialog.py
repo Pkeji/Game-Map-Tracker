@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton
+from PySide6.QtWidgets import QDialog, QLabel, QLineEdit
 
 from .base import StyledDialogBase, center_dialog
 
@@ -33,19 +33,7 @@ class TextInputDialog(StyledDialogBase):
         self.input.selectAll()
         self.shell_layout.addWidget(self.input)
 
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-
-        cancel_btn = QPushButton(cancel_text)
-        cancel_btn.clicked.connect(self.reject)
-        button_row.addWidget(cancel_btn)
-
-        confirm_btn = QPushButton(confirm_text)
-        confirm_btn.setDefault(True)
-        confirm_btn.clicked.connect(self.accept)
-        button_row.addWidget(confirm_btn)
-
-        self.shell_layout.addLayout(button_row)
+        self.add_action_row(confirm_text=confirm_text, cancel_text=cancel_text)
         self.resize(380, 150)
 
     def value(self) -> str:

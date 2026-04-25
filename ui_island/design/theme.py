@@ -94,6 +94,28 @@ QLabel#TitleLabel {{
     color: {FG_DIM};
     font-weight: 600;
 }}
+QLabel#BodyLabel {{
+    font-size: 12px;
+    color: {FG};
+}}
+QLabel#DimLabel {{
+    font-size: 11px;
+    color: {FG_DIM};
+}}
+QLabel#FieldLabel {{
+    font-size: 12px;
+    color: {FG};
+    font-weight: 600;
+}}
+QLabel#ErrorLabel {{
+    font-size: 11px;
+    color: #e06e6e;
+}}
+QLabel#ToastIcon {{
+    color: {DOT_LOCKED};
+    font-size: 16px;
+    font-weight: 700;
+}}
 QLabel#EmptyHint {{
     font-size: 11px;
     color: {FG_DIM};
