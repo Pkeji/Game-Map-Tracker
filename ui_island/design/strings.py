@@ -89,6 +89,8 @@ INSERT_POINT_EMPTY_TITLE = "无追踪路线"
 INSERT_POINT_EMPTY_BODY = "请先在侧边栏勾选至少一条路线后再添加节点。"
 
 DELETE_POINT_MENU_LABEL = "删除此节点"
+MARK_POINT_VISITED_MENU_LABEL = "标记已到"
+MARK_POINT_UNVISITED_MENU_LABEL = "标记未到"
 DELETE_POINT_TITLE = "删除节点"
 DELETE_POINT_SINGLE_BODY_FMT = "确认删除路线“{name}”的第 {pos} 个节点吗？"
 DELETE_POINT_MULTI_SINGLE_ROUTE_FMT = "确认删除路线“{name}”的 {count} 个节点吗？"

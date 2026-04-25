@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 import config
+from tools.route_point_optimizer import best_insertion_index
 
 _CLOSE_THRESHOLD = 20
 _GUIDE_COLOR = (0, 0, 0)
@@ -35,6 +36,9 @@ _VISIBILITY_FILE = "selected_routes.json"
 _RECENT_FILE = "recent_routes.json"
 _INVALID_FILE_NAME_CHARS = set('<>:"/\\|?*')
 _ROUTE_ID_SEQ_WIDTH = 2
+_POINT_ICON_SIZE = 24
+_POINT_ICON_VISITED_ALPHA = 0.35
+_ANNOTATION_ICON_SIZE = 20
 
 
 @dataclass(frozen=True)
@@ -57,36 +61,7 @@ def _color_for_key(key: str) -> tuple[int, int, int]:
     return int(b * 255), int(g * 255), int(r * 255)
 
 
-def _best_insertion_index(points: list[dict], new_xy: tuple[float, float]) -> int:
-    """返回让总路径长度增量最小的插入下标。
-    空列表 → 0;单点 → 1(尾部);多点遍历每段边及首尾外插。
-    """
-    if not points:
-        return 0
-    if len(points) == 1:
-        return 1
-
-    nx, ny = float(new_xy[0]), float(new_xy[1])
-    best_index = 0
-    best_cost = math.hypot(nx - points[0]["x"], ny - points[0]["y"])
-
-    for i in range(1, len(points)):
-        prev, curr = points[i - 1], points[i]
-        orig = math.hypot(curr["x"] - prev["x"], curr["y"] - prev["y"])
-        detour = (
-            math.hypot(nx - prev["x"], ny - prev["y"])
-            + math.hypot(curr["x"] - nx, curr["y"] - ny)
-            - orig
-        )
-        if detour < best_cost:
-            best_cost = detour
-            best_index = i
-
-    tail_cost = math.hypot(nx - points[-1]["x"], ny - points[-1]["y"])
-    if tail_cost < best_cost:
-        best_index = len(points)
-
-    return best_index
+_best_insertion_index = best_insertion_index
 
 
 def _config_int(name: str, default: int, minimum: int = 0) -> int:
@@ -102,6 +77,14 @@ def _project_root() -> str:
 
 def _default_teleport_dir() -> str:
     return os.path.join(_project_root(), "tools", "points_get", "teleport")
+
+
+def _default_point_icon_dir() -> str:
+    return os.path.join(_project_root(), "tools", "points_icon")
+
+
+def _default_annotation_points_file() -> str:
+    return os.path.join(_project_root(), "tools", "points_all", "points.json")
 
 
 def _point_xy(point: dict) -> tuple[float, float] | None:
@@ -135,6 +118,82 @@ def _load_teleport_points(folder: str | os.PathLike[str] | None = None) -> list[
             label = str(raw_label).strip()
             points.append(_TeleportPoint(xy=xy, label=label or f"传送点 {index}"))
     return points
+
+
+def _load_point_icon_index(folder: str | os.PathLike[str] | None = None) -> dict[str, str]:
+    folder_path = os.fspath(folder) if folder is not None else _default_point_icon_dir()
+    index_path = os.path.join(folder_path, "icons.json")
+    if not os.path.exists(index_path):
+        return {}
+    try:
+        with open(index_path, "r", encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return {}
+    if not isinstance(payload, list):
+        return {}
+
+    result: dict[str, str] = {}
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        type_id = str(item.get("typeId") or "")
+        icon_path = str(item.get("iconPath") or "")
+        if type_id and icon_path:
+            result[type_id] = os.path.join(folder_path, icon_path)
+    return result
+
+
+def _load_annotation_points(path: str | os.PathLike[str] | None = None) -> dict[str, list[dict]]:
+    file_path = os.fspath(path) if path is not None else _default_annotation_points_file()
+    if not os.path.exists(file_path):
+        return {}
+    try:
+        with open(file_path, "r", encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return {}
+    points_by_type = payload.get("pointsByType") if isinstance(payload, dict) else None
+    if not isinstance(points_by_type, dict):
+        return {}
+    result: dict[str, list[dict]] = {}
+    for type_id, points in points_by_type.items():
+        if isinstance(points, list):
+            result[str(type_id)] = [point for point in points if isinstance(point, dict) and _point_xy(point) is not None]
+    return result
+
+
+def _overlay_bgra_icon(
+    canvas: np.ndarray,
+    icon: np.ndarray,
+    center: tuple[int, int],
+    *,
+    opacity: float,
+) -> None:
+    if icon.size == 0:
+        return
+    x = int(center[0] - icon.shape[1] / 2)
+    y = int(center[1] - icon.shape[0] / 2)
+    x1 = max(0, x)
+    y1 = max(0, y)
+    x2 = min(canvas.shape[1], x + icon.shape[1])
+    y2 = min(canvas.shape[0], y + icon.shape[0])
+    if x1 >= x2 or y1 >= y2:
+        return
+
+    icon_x1 = x1 - x
+    icon_y1 = y1 - y
+    icon_x2 = icon_x1 + (x2 - x1)
+    icon_y2 = icon_y1 + (y2 - y1)
+    icon_crop = icon[icon_y1:icon_y2, icon_x1:icon_x2]
+    if icon_crop.shape[2] == 4:
+        alpha = (icon_crop[:, :, 3:4].astype(np.float32) / 255.0) * float(opacity)
+        rgb = icon_crop[:, :, :3].astype(np.float32)
+    else:
+        alpha = np.full(icon_crop.shape[:2] + (1,), float(opacity), dtype=np.float32)
+        rgb = icon_crop[:, :, :3].astype(np.float32)
+    roi = canvas[y1:y2, x1:x2].astype(np.float32)
+    canvas[y1:y2, x1:x2] = (rgb * alpha + roi * (1.0 - alpha)).astype(np.uint8)
 
 
 def _nearest_teleport_label(
@@ -457,6 +516,10 @@ class RouteManager:
         self._route_index_by_id: dict[str, dict] = {}
         self._category_by_route_id: dict[str, str] = {}
         self._teleport_points_cache: list[_TeleportPoint] | None = None
+        self._point_icon_index: dict[str, str] | None = None
+        self._point_icon_cache: dict[str, np.ndarray | None] = {}
+        self._annotation_points_cache: dict[str, list[dict]] | None = None
+        self._annotation_type_ids: set[str] = set()
 
         self._discover_categories()
         self._ensure_route_ids()
@@ -474,6 +537,40 @@ class RouteManager:
         if self._teleport_points_cache is None:
             self._teleport_points_cache = _load_teleport_points()
         return self._teleport_points_cache
+
+    def point_icon_for(self, type_id: object) -> np.ndarray | None:
+        key = str(type_id or "")
+        if not key:
+            return None
+        if self._point_icon_index is None:
+            self._point_icon_index = _load_point_icon_index()
+        if key in self._point_icon_cache:
+            return self._point_icon_cache[key]
+        path = self._point_icon_index.get(key)
+        icon = None
+        if path and os.path.exists(path):
+            icon = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+            if icon is not None:
+                icon = cv2.resize(icon, (_POINT_ICON_SIZE, _POINT_ICON_SIZE), interpolation=cv2.INTER_AREA)
+        self._point_icon_cache[key] = icon
+        return icon
+
+    def annotation_icon_for(self, type_id: object) -> np.ndarray | None:
+        icon = self.point_icon_for(type_id)
+        if icon is None or icon.shape[0] == _ANNOTATION_ICON_SIZE:
+            return icon
+        return cv2.resize(icon, (_ANNOTATION_ICON_SIZE, _ANNOTATION_ICON_SIZE), interpolation=cv2.INTER_AREA)
+
+    def set_annotation_type_ids(self, type_ids: Iterable[object]) -> None:
+        self._annotation_type_ids = {str(type_id) for type_id in type_ids if str(type_id or "")}
+
+    def annotation_type_ids(self) -> list[str]:
+        return sorted(self._annotation_type_ids)
+
+    def annotation_points(self) -> dict[str, list[dict]]:
+        if self._annotation_points_cache is None:
+            self._annotation_points_cache = _load_annotation_points()
+        return self._annotation_points_cache
 
     def guide_hint_for_view(
         self,
@@ -754,6 +851,28 @@ class RouteManager:
             return False
         return any(point.get("visited", False) for point in route.get("points", []))
 
+    def point_visited(self, route_ref: str, point_index: int) -> bool | None:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return None
+        route = self.route_for_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return None
+        return bool(points[point_index].get("visited", False))
+
+    def set_point_visited(self, route_ref: str, point_index: int, visited: bool) -> bool:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return False
+        route = self.route_for_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return False
+        points[point_index]["visited"] = bool(visited)
+        self.save_progress()
+        return True
+
     def reload(self) -> None:
         self.save_visibility()
         self.save_progress()
@@ -964,6 +1083,7 @@ class RouteManager:
             local_player = (int(player_x - vx1), int(player_y - vy1))
 
         canvas_height, canvas_width = canvas.shape[:2]
+        self._draw_annotations(canvas, vx1, vy1, canvas_width, canvas_height)
         visible_routes = [
             route
             for _category, route in self.iter_routes()
@@ -1017,21 +1137,31 @@ class RouteManager:
                     continue
 
                 visited = point_data.get("visited", False)
+                point_icon = self.point_icon_for(point_data.get("typeId"))
 
                 if visited:
                     dot_color = (45, 45, 45)
                     border_color = (90, 90, 90)
-                    text_color = (100, 100, 100)
+                    text_color = (170, 170, 170) if point_icon is not None else (100, 100, 100)
                 else:
                     dot_color = color
                     border_color = (255, 255, 255)
                     text_color = color
 
-                cv2.circle(canvas, local_point, 5, dot_color, -1)
-                cv2.circle(canvas, local_point, 5, border_color, 1, cv2.LINE_AA)
+                if point_icon is not None:
+                    _overlay_bgra_icon(
+                        canvas,
+                        point_icon,
+                        local_point,
+                        opacity=_POINT_ICON_VISITED_ALPHA if visited else 1.0,
+                    )
+                else:
+                    cv2.circle(canvas, local_point, 5, dot_color, -1)
+                    cv2.circle(canvas, local_point, 5, border_color, 1, cv2.LINE_AA)
 
                 label = str(index + 1)
-                text_x, text_y = local_point[0] + 7, local_point[1] - 4
+                text_x = local_point[0] + (10 if point_icon is not None else 7)
+                text_y = local_point[1] - (9 if point_icon is not None else 4)
                 cv2.putText(
                     canvas,
                     label,
@@ -1052,6 +1182,23 @@ class RouteManager:
                     1,
                     cv2.LINE_AA,
                 )
+
+    def _draw_annotations(self, canvas, vx1, vy1, canvas_width: int, canvas_height: int) -> None:
+        if not self._annotation_type_ids:
+            return
+        points_by_type = self.annotation_points()
+        for type_id in sorted(self._annotation_type_ids):
+            icon = self.annotation_icon_for(type_id)
+            if icon is None:
+                continue
+            for point in points_by_type.get(type_id, []):
+                xy = _point_xy(point)
+                if xy is None:
+                    continue
+                local_point = (int(xy[0] - vx1), int(xy[1] - vy1))
+                if not (0 <= local_point[0] <= canvas_width and 0 <= local_point[1] <= canvas_height):
+                    continue
+                _overlay_bgra_icon(canvas, icon, local_point, opacity=1.0)
 
     def _assign_route_colors(self) -> None:
         all_route_ids = sorted(

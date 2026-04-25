@@ -7,7 +7,7 @@ import threading
 from collections import deque
 from enum import Enum
 
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -16,6 +16,7 @@ from route_manager import RouteManager
 
 from ..design import button_specs, qss, theme
 from ..services import RecentRoutesStore, SettingsGateway, WindowPrefsStore
+from ..services.annotation_preferences import normalize_type_ids
 from ..state import HotkeyState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
 from ..widgets import RestoreIcon
 from ..platform.win_overlay import apply_overlay_flags, set_click_through
@@ -91,6 +92,9 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.route_panel_state.add_category_input = None
         self.route_panel_state.add_category_confirm_btn = None
         self.route_panel_state.add_category_cancel_btn = None
+        self.annotation_type_ids = self.window_prefs_store.load_annotation_type_ids()
+        self.annotation_recent_type_ids = self.window_prefs_store.load_annotation_recent_type_ids()
+        self.route_mgr.set_annotation_type_ids(self.annotation_type_ids)
 
         saved_collapsed = self.window_prefs_store.load_sidebar_collapsed()
         saved_sidebar_w = self.window_prefs_store.load_sidebar_width()
@@ -193,7 +197,13 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._frame_ready.connect(self._on_frame)
         self.map_view.add_point_requested.connect(self.map_interaction_controller.on_add_point_requested)
         self.map_view.delete_point_requested.connect(self.map_interaction_controller.on_delete_point_requested)
+        self.map_view.mark_point_visited_requested.connect(self.map_interaction_controller.mark_point_visited)
         self.map_view.guide_hint_changed.connect(self._on_route_guide_hint_changed)
+        self.annotation_toggle_btn.clicked.connect(lambda _checked=False: self._toggle_annotation_panel())
+        self.annotation_panel.load_index("tools/points_all/points.json")
+        self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
+        self.annotation_panel.selection_changed.connect(self._on_annotation_selection_changed)
+        self.annotation_panel.panel_hidden.connect(lambda: self.annotation_toggle_btn.setChecked(False))
 
         self._minimap_region = self.settings_gateway.get_minimap()
         self.hotkey_controller.start_listener()
@@ -203,6 +213,33 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
     def _handle_manual_map_navigation(self) -> None:
         self.map_view.set_center_locked(False)
+
+    def _toggle_annotation_panel(self) -> None:
+        if self.annotation_panel.isVisible():
+            self.annotation_panel.hide()
+            self.annotation_toggle_btn.setChecked(False)
+            return
+        self.annotation_panel.load_index("tools/points_all/points.json")
+        self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
+        self._position_annotation_panel()
+        self.annotation_panel.show()
+        self.annotation_toggle_btn.setChecked(True)
+
+    def _position_annotation_panel(self) -> None:
+        global_pos = self.mapToGlobal(QPoint(0, self.height()))
+        panel_width = max(320, min(720, self.width()))
+        self.annotation_panel.setFixedWidth(panel_width)
+        self.annotation_panel.move(global_pos.x(), global_pos.y())
+
+    def _on_annotation_selection_changed(self, type_ids: list, recent_type_ids: list) -> None:
+        self.annotation_type_ids = normalize_type_ids(type_ids)
+        self.annotation_recent_type_ids = normalize_type_ids(recent_type_ids)
+        self.route_mgr.set_annotation_type_ids(self.annotation_type_ids)
+        self.window_prefs_store.save_annotation_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
+        try:
+            self.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
 
     def _reset_map_view(self) -> None:
         self.map_view.reset_view()
@@ -277,9 +314,18 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.map_view.preview_relocate(cx, cy, TrackState.SEARCHING)
 
     def _open_settings(self) -> None:
-        from ..dialogs.settings_dialog import open_settings_dialog
+        from ..dialogs.settings_dialog import close_active_settings_dialog, has_active_settings_dialog, open_settings_dialog
 
-        open_settings_dialog(self, on_applied=self._on_settings_applied)
+        if has_active_settings_dialog():
+            close_active_settings_dialog()
+            self.settings_btn.setChecked(False)
+            return
+        self.settings_btn.setChecked(True)
+        open_settings_dialog(
+            self,
+            on_applied=self._on_settings_applied,
+            on_closed=lambda: self.settings_btn.setChecked(False),
+        )
 
     def _on_settings_applied(self) -> None:
         self._minimap_region = self.settings_gateway.get_minimap()
@@ -527,6 +573,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         super().moveEvent(event)
         if not self._applying_mode and not self.isMaximized():
             self._preferred_right_edge = self.x() + self.width()
+        if getattr(self, "annotation_panel", None) is not None and self.annotation_panel.isVisible():
+            self._position_annotation_panel()
 
     def showEvent(self, event):
         super().showEvent(event)

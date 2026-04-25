@@ -28,6 +28,7 @@ API_URL = f"https://terra-api.17173.com/app/location/list?mapIds={MAP_ID}"
 TOOL_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = TOOL_DIR / "points_get"
 CACHE_FILE = OUTPUT_DIR / ".cache_17173_locations.json"
+ICON_INDEX_FILE = TOOL_DIR / "points_icon" / "icons.json"
 
 # 来自参考 scraper.py 的手工标定拟合公式: 17173 API 坐标 -> 本项目导航地图像素坐标。
 DEFAULT_SCALE_X = 5824.0800
@@ -204,7 +205,36 @@ def fetch_all_locations(*, use_cache: bool = True, timeout: int = 30) -> list[di
 
 
 def category_name(category_id: object) -> str:
-    return CATEGORY_MAP.get(str(category_id), "")
+    type_id = str(category_id)
+    icon_item = icon_metadata_by_id().get(type_id)
+    if icon_item:
+        return icon_item.get("type", "")
+    return CATEGORY_MAP.get(type_id, "")
+
+
+def icon_metadata_by_id() -> dict[str, dict[str, str]]:
+    if not ICON_INDEX_FILE.exists():
+        return {}
+    try:
+        payload = _read_json(ICON_INDEX_FILE)
+    except Exception:
+        return {}
+    if not isinstance(payload, list):
+        return {}
+    result: dict[str, dict[str, str]] = {}
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        type_id = str(item.get("typeId") or "")
+        type_name = item.get("type")
+        if type_id and isinstance(type_name, str):
+            result[type_id] = {
+                "typeId": type_id,
+                "type": type_name,
+                "groupId": str(item.get("groupId") or ""),
+                "group": str(item.get("group") or ""),
+            }
+    return result
 
 
 def match_points(locations: list[dict], keyword: str, mode: str = "auto") -> list[dict]:
@@ -213,9 +243,11 @@ def match_points(locations: list[dict], keyword: str, mode: str = "auto") -> lis
         return []
 
     if mode in ("category", "auto"):
+        categories = {**CATEGORY_MAP}
+        categories.update({type_id: item["type"] for type_id, item in icon_metadata_by_id().items()})
         exact_category_ids = [
             category_id
-            for category_id, name in CATEGORY_MAP.items()
+            for category_id, name in categories.items()
             if name == keyword
         ]
         if exact_category_ids:
@@ -230,7 +262,7 @@ def match_points(locations: list[dict], keyword: str, mode: str = "auto") -> lis
 
         partial_category_ids = [
             category_id
-            for category_id, name in CATEGORY_MAP.items()
+            for category_id, name in categories.items()
             if keyword in name
         ]
         if partial_category_ids:
@@ -245,7 +277,9 @@ def match_points(locations: list[dict], keyword: str, mode: str = "auto") -> lis
 
 def suggest_similar(keyword: str, locations: list[dict], limit: int = 15) -> list[str]:
     titles = {item.get("title") for item in locations if item.get("title")}
-    candidates = {name for name in CATEGORY_MAP.values() if name} | titles
+    category_names = {name for name in CATEGORY_MAP.values() if name}
+    category_names.update(item["type"] for item in icon_metadata_by_id().values() if item.get("type"))
+    candidates = category_names | titles
     keyword = keyword.strip()
     scored = []
     for candidate in candidates:
@@ -278,12 +312,16 @@ def points_to_route(points: list[dict], *, name: str, radius: int, loop: bool) -
         except ValueError:
             continue
         x, y = latlng_to_xy(latitude, longitude)
+        type_id = str(item.get("category_id") or "")
+        type_name = category_name(type_id)
         out_points.append(
             {
                 "x": x,
                 "y": y,
                 "label": point_label(item, index),
                 "radius": radius,
+                "type": type_name,
+                "typeId": type_id,
             }
         )
 

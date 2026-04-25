@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..design import theme
 from ..views.map_view import MapView
-from ..widgets import StatusDot
+from ..widgets import AnnotationPanel, StatusDot
 
 
 def build_window_ui(window) -> None:
@@ -95,6 +95,7 @@ def _build_header(window, root_layout: QVBoxLayout) -> None:
     window.settings_btn = QPushButton("⚙")
     window.settings_btn.setObjectName("WindowControl")
     window.settings_btn.setToolTip("设置")
+    window.settings_btn.setCheckable(True)
     window.settings_btn.clicked.connect(window._open_settings)
     header.addWidget(window.settings_btn)
 
@@ -280,9 +281,21 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
     side_layout.setSpacing(10)
     side_layout.setSizeConstraint(QVBoxLayout.SetMinAndMaxSize)
 
+    window.map_hint_row = QWidget()
+    map_hint_layout = QHBoxLayout(window.map_hint_row)
+    map_hint_layout.setContentsMargins(0, 0, 0, 0)
+    map_hint_layout.setSpacing(8)
     map_hint = QLabel("滚轮缩放，左键拖动，双击选点")
     map_hint.setObjectName("MapHint")
-    side_layout.addWidget(map_hint)
+    map_hint_layout.addWidget(map_hint, stretch=1)
+    window.annotation_toggle_btn = QPushButton("标注")
+    window.annotation_toggle_btn.setObjectName("AnnotationToggleButton")
+    window.annotation_toggle_btn.setCheckable(True)
+    map_hint_layout.addWidget(window.annotation_toggle_btn, stretch=0)
+    side_layout.addWidget(window.map_hint_row)
+
+    window.annotation_panel = AnnotationPanel(window)
+    window.annotation_panel.hide()
 
     window.search_input = QLineEdit()
     window.search_input.setPlaceholderText("搜索路线...")

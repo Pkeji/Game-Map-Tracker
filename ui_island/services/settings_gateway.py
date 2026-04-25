@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import config
 
+from .annotation_preferences import normalize_type_ids
+
 
 class SettingsGateway:
     def save(self, values: dict) -> None:
@@ -41,6 +43,12 @@ class SettingsGateway:
         if not isinstance(raw, dict):
             return {}
         return {str(name): bool(expanded) for name, expanded in raw.items()}
+
+    def get_annotation_type_ids(self) -> list[str]:
+        return normalize_type_ids(getattr(config, "ANNOTATION_TYPE_IDS", []))
+
+    def get_annotation_recent_type_ids(self) -> list[str]:
+        return normalize_type_ids(getattr(config, "ANNOTATION_RECENT_TYPE_IDS", []))
 
     def get_tracker_refresh_rate(self, tracker) -> int:
         return int(config.AI_REFRESH_RATE if hasattr(tracker, "engine") else config.SIFT_REFRESH_RATE)

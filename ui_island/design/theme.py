@@ -224,6 +224,11 @@ QPushButton#WindowControl {{
     padding: 0px;
     font-size: 16px;
 }}
+QPushButton#WindowControl:checked {{
+    color: #ffffff;
+    background: rgba(74, 144, 226, 0.92);
+    border-color: rgba(160, 205, 255, 0.42);
+}}
 QPushButton#HeaderWindowButton {{
     min-width: 28px;
     max-width: 28px;
@@ -452,6 +457,120 @@ QMenu::item:selected {{
 QMenu::separator {{
     height: 1px;
     margin: 6px 10px;
+    background: rgba(255, 255, 255, 0.08);
+}}
+QMenu#MapNodeContextMenu {{
+    background: rgb(28, 28, 30);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 3px 0px;
+}}
+QMenu#MapNodeContextMenu::item {{
+    padding: 4px 12px;
+    margin: 1px 4px;
+    border-radius: 5px;
+}}
+QMenu#MapNodeContextMenu::separator {{
+    margin: 4px 8px;
+}}
+QPushButton#AnnotationToggleButton {{
+    min-height: 22px;
+    padding: 2px 9px;
+    border-radius: 8px;
+    color: {FG};
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}}
+QPushButton#AnnotationToggleButton:hover,
+QPushButton#AnnotationToggleButton:checked {{
+    background: rgba(255, 255, 255, 0.16);
+}}
+QPushButton#AnnotationToggleButton:checked {{
+    color: #ffffff;
+    background: rgba(74, 144, 226, 0.92);
+    border-color: rgba(160, 205, 255, 0.42);
+}}
+QFrame#AnnotationPanel {{
+    background: transparent;
+    border: none;
+}}
+QFrame#AnnotationPanelSurface {{
+    background: rgba(22, 24, 28, 250);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+}}
+QScrollArea#AnnotationPanelScroll,
+QWidget#AnnotationPanelInner {{
+    background: transparent;
+    border: none;
+}}
+QLabel#AnnotationPanelTitle {{
+    color: {FG};
+    font-weight: 700;
+    font-size: 13px;
+}}
+QLabel#AnnotationPanelMessage {{
+    color: {FG_DIM};
+    font-size: 11px;
+}}
+QPushButton#AnnotationPanelToggle {{
+    min-height: 22px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    color: {FG};
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}}
+QPushButton#AnnotationPanelBulkButton {{
+    min-height: 22px;
+    padding: 2px 7px;
+    border-radius: 8px;
+    color: {FG};
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+}}
+QPushButton#AnnotationPanelBulkButton:hover {{
+    background: rgba(74, 144, 226, 0.22);
+    border-color: rgba(120, 180, 255, 0.35);
+}}
+QPushButton#AnnotationPanelClose {{
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0px;
+    border-radius: 8px;
+    color: {FG};
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    font-size: 15px;
+    font-weight: 700;
+}}
+QPushButton#AnnotationPanelClose:hover {{
+    background: rgba(255, 255, 255, 0.16);
+}}
+QLabel#AnnotationGroupTitle {{
+    color: {FG_DIM};
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 2px 0px 2px;
+}}
+QPushButton#AnnotationTypeRow {{
+    min-height: 24px;
+    padding: 2px 6px;
+    border-radius: 7px;
+    text-align: left;
+    color: rgba(255, 255, 255, 0.48);
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.045);
+}}
+QPushButton#AnnotationTypeRow[selected="true"] {{
+    color: {FG};
+    background: rgba(74, 144, 226, 0.20);
+    border-color: rgba(120, 180, 255, 0.35);
+}}
+QPushButton#AnnotationTypeRow:hover {{
     background: rgba(255, 255, 255, 0.08);
 }}
 """

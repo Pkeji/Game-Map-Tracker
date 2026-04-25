@@ -12,6 +12,7 @@ from route_manager import (
     _nearest_segment,
     _nearest_teleport_label,
     _nearest_unvisited_node,
+    RouteManager,
 )
 
 
@@ -191,6 +192,53 @@ class RouteGuideTests(unittest.TestCase):
         self.assertEqual(points, [])
         self.assertEqual(_load_teleport_points(Path(tmp) / "missing"), [])
         self.assertIsNone(_nearest_teleport_label([], (0.0, 0.0)))
+
+    def test_set_point_visited_updates_progress_without_rewriting_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "采集"
+            category.mkdir()
+            route_file = category / "路线.json"
+            route_file.write_text(
+                json.dumps(
+                    {
+                        "id": "2026010101",
+                        "name": "路线",
+                        "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manager = RouteManager(str(base))
+
+            self.assertFalse(manager.point_visited("2026010101", 1))
+            self.assertTrue(manager.set_point_visited("2026010101", 1, True))
+            self.assertTrue(manager.point_visited("2026010101", 1))
+            progress = json.loads((base / "progress.json").read_text(encoding="utf-8"))
+            self.assertEqual(progress, {"2026010101": [1]})
+            route_payload = json.loads(route_file.read_text(encoding="utf-8"))
+            self.assertNotIn("visited", route_payload["points"][1])
+
+            self.assertTrue(manager.set_point_visited("2026010101", 1, False))
+            self.assertFalse(manager.point_visited("2026010101", 1))
+            self.assertEqual(json.loads((base / "progress.json").read_text(encoding="utf-8")), {})
+
+    def test_point_visited_rejects_invalid_route_or_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "采集"
+            category.mkdir()
+            (category / "路线.json").write_text(
+                json.dumps({"id": "2026010101", "name": "路线", "points": [{"x": 1, "y": 2}]}),
+                encoding="utf-8",
+            )
+            manager = RouteManager(str(base))
+
+            self.assertIsNone(manager.point_visited("missing", 0))
+            self.assertIsNone(manager.point_visited("2026010101", 9))
+            self.assertFalse(manager.set_point_visited("missing", 0, True))
+            self.assertFalse(manager.set_point_visited("2026010101", 9, True))
 
 
 if __name__ == "__main__":

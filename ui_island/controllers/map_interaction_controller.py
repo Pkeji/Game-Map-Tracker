@@ -23,6 +23,19 @@ class MapInteractionController:
     def on_delete_point_requested(self, route_id: str, point_index: int) -> None:
         self.delete_points_from_routes({route_id: [point_index]})
 
+    def mark_point_visited(self, route_id: str, point_index: int, visited: bool) -> None:
+        if not self.window.route_mgr.set_point_visited(route_id, point_index, visited):
+            print(f"Mark point visited failed route_id={route_id} point_index={point_index}")
+            return
+        try:
+            self.window.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
+        try:
+            self.window.route_panel_controller.refresh_tracked_routes()
+        except Exception:
+            pass
+
     def delete_points_from_routes(self, deletions: dict[str, list[int]]) -> None:
         """可复用的批量删除入口:命中节点右键、未来的批量选择器都走这里。
         负责 confirm + 调用数据层 + toast 反馈 + 视图刷新。

@@ -24,6 +24,7 @@ class MapView(QWidget):
     manual_view_changed = Signal()
     add_point_requested = Signal(int, int)
     delete_point_requested = Signal(str, int)
+    mark_point_visited_requested = Signal(str, int, bool)
     guide_hint_changed = Signal(object)
 
     _ABSOLUTE_MIN_ZOOM = 0.05
@@ -336,11 +337,31 @@ class MapView(QWidget):
         if hit is not None:
             route_id, point_index = hit
             menu = QMenu(self)
+            menu.setObjectName("MapNodeContextMenu")
+            menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+            menu.setAttribute(Qt.WA_NoSystemBackground, True)
+            menu.setAttribute(Qt.WA_TranslucentBackground, True)
             top = self.window()
             if top is not None:
                 menu.setStyleSheet(top.styleSheet())
-            action = menu.addAction(strings.DELETE_POINT_MENU_LABEL)
-            action.triggered.connect(
+
+            visited = self.route_mgr.point_visited(route_id, point_index)
+            if visited:
+                mark_action = menu.addAction(strings.MARK_POINT_UNVISITED_MENU_LABEL)
+                mark_action.triggered.connect(
+                    lambda _checked=False, rid=route_id, idx=point_index:
+                    self.mark_point_visited_requested.emit(rid, idx, False)
+                )
+            else:
+                mark_action = menu.addAction(strings.MARK_POINT_VISITED_MENU_LABEL)
+                mark_action.triggered.connect(
+                    lambda _checked=False, rid=route_id, idx=point_index:
+                    self.mark_point_visited_requested.emit(rid, idx, True)
+                )
+
+            menu.addSeparator()
+            delete_action = menu.addAction(strings.DELETE_POINT_MENU_LABEL)
+            delete_action.triggered.connect(
                 lambda _checked=False, rid=route_id, idx=point_index:
                 self.delete_point_requested.emit(rid, idx)
             )

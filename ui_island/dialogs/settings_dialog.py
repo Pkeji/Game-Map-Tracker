@@ -572,6 +572,7 @@ _active_dialog: SettingsDialog | None = None
 def open_settings_dialog(
     parent,
     on_applied: Callable[[], None] | None = None,
+    on_closed: Callable[[], None] | None = None,
 ) -> None:
     global _active_dialog
     if _active_dialog is not None:
@@ -590,9 +591,27 @@ def open_settings_dialog(
     def _clear_ref():
         global _active_dialog
         _active_dialog = None
+        if on_closed is not None:
+            on_closed()
 
     dialog.destroyed.connect(lambda _=None: _clear_ref())
     _active_dialog = dialog
     if parent is not None:
         place_left_of(dialog, parent)
     dialog.show()
+
+
+def close_active_settings_dialog() -> bool:
+    global _active_dialog
+    if _active_dialog is None:
+        return False
+    try:
+        _active_dialog.close()
+        return True
+    except RuntimeError:
+        _active_dialog = None
+        return False
+
+
+def has_active_settings_dialog() -> bool:
+    return _active_dialog is not None
