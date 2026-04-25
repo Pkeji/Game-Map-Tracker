@@ -697,6 +697,7 @@ class RoutePanelController:
 
     def apply_route_filter(self) -> None:
         term = self.window.search_input.text().strip().casefold()
+        has_search = bool(term)
         for category, section in self.window._route_sections.items():
             visible_count = 0
             for _route_id, route_name, route_item in self.window._route_widgets_by_category[category]:
@@ -704,7 +705,6 @@ class RoutePanelController:
                 route_item.setVisible(visible)
                 if visible:
                     visible_count += 1
-            has_routes = bool(self.window._route_widgets_by_category[category])
-            section.setVisible((not has_routes) or visible_count > 0)
-            section.set_force_open(bool(term) and visible_count > 0)
+            section.setVisible((not has_search) or visible_count > 0)
+            section.set_force_open(has_search and visible_count > 0)
         self.refresh_recent_routes()

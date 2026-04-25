@@ -59,11 +59,7 @@ class InteractionController:
 
     def resize_sidebar(self, global_x: int) -> None:
         delta = global_x - self.window._sidebar_resize_start_x
-        max_width = self.window.window_mode_controller.max_sidebar_width_for_current_window()
-        self.window._sidebar_width = max(
-            self.window._SIDEBAR_MIN_WIDTH,
-            min(max_width, self.window._sidebar_resize_start_width - delta),
-        )
+        self.window._sidebar_width = max(self.window._SIDEBAR_MIN_WIDTH, self.window._sidebar_resize_start_width - delta)
         self.window.window_mode_controller.apply_sidebar_state()
 
     def resize_edges_at(self, global_pos) -> Qt.Edges:

@@ -673,6 +673,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_window_controls()
+        self.window_mode_controller.position_sidebar_overlay()
 
         if self.isMaximized() or self._applying_mode:
             return

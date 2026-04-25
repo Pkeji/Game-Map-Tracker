@@ -262,11 +262,13 @@ def _build_body(window, root_layout: QVBoxLayout) -> None:
     body.addWidget(window.map_shell, stretch=7)
 
     window.sidebar_shell = QWidget()
+    window.sidebar_shell.setObjectName("SidebarOverlay")
+    window.sidebar_shell.setAttribute(Qt.WA_StyledBackground, True)
     shell_layout = QVBoxLayout(window.sidebar_shell)
     shell_layout.setContentsMargins(0, 0, 0, 0)
     shell_layout.setSpacing(0)
 
-    window.side_scroll = make_scroll_area(min_width=200)
+    window.side_scroll = make_scroll_area(object_name="SidebarOverlayScroll", min_width=200)
 
     window.side_panel = QFrame()
     window.side_panel.setObjectName("PanelCard")

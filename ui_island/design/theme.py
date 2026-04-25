@@ -167,6 +167,11 @@ QFrame#SidebarRail {{
     border: 1px solid {BORDER};
     border-radius: 12px;
 }}
+QWidget#SidebarOverlay {{
+    background: rgba(18, 18, 20, 245);
+    border: 1px solid {BORDER};
+    border-radius: 12px;
+}}
 QWidget#RoutesScrollInner {{
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid {BORDER};
@@ -449,6 +454,16 @@ QPushButton[trackedRouteAddButton="true"]:pressed {{
 QScrollArea {{
     background: transparent;
     border: none;
+}}
+QScrollArea#SidebarOverlayScroll {{
+    background: transparent;
+    border: none;
+}}
+QScrollArea#SidebarOverlayScroll > QWidget {{
+    background: transparent;
+}}
+QScrollArea#SidebarOverlayScroll > QWidget > QWidget {{
+    background: transparent;
 }}
 QScrollArea > QWidget > QWidget {{
     background: transparent;

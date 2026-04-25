@@ -196,50 +196,14 @@ class WindowModeController:
         return self.window._mode in (mode_enum.PAUSED, mode_enum.MAXIMIZED)
 
     def set_sidebar_collapsed(self, collapsed: bool, restore_size: bool) -> None:
-        mode_enum = self.window._mode.__class__
-        stable_family = self._stable_family()
         if collapsed == self.window._sidebar_collapsed:
             self.apply_sidebar_state()
             return
-        restore_geometry = (
-            QRect(self.window.geometry())
-            if (
-                restore_size
-                and not collapsed
-                and self.window._mode in stable_family
-                and self.window.width() < self.expanded_layout_minimum_width()
-            )
-            else None
-        )
         self.window._sidebar_collapsed = collapsed
+        self.window._sidebar_expand_restore_geometry = None
         self.apply_sidebar_state()
-        if (
-            restore_size
-            and not self.window.isMaximized()
-            and self.window._mode != mode_enum.MAXIMIZED
-            and not self.window._applying_mode
-        ):
-            self.window._applying_mode = True
-            try:
-                if collapsed and self.window._sidebar_expand_restore_geometry is not None:
-                    restore = QRect(self.window._sidebar_expand_restore_geometry)
-                    self.window.setGeometry(restore)
-                    self.window._preferred_right_edge = restore.x() + restore.width()
-                    if self.window._mode in stable_family:
-                        self.window._size_prefs[mode_enum.TRACKING_STABLE] = (
-                            restore.width(),
-                            restore.height(),
-                        )
-                    self.window._sidebar_expand_restore_geometry = None
-                else:
-                    self.window._sidebar_expand_restore_geometry = (
-                        QRect(restore_geometry) if restore_geometry is not None else None
-                    )
-                    self.apply_geometry_for_mode(self.size_for_mode(self.window._mode))
-            finally:
-                self.window._applying_mode = False
 
-    def expanded_layout_minimum_width(self) -> int:
+    def _horizontal_layout_metrics(self) -> tuple[int, int]:
         root_layout = self.window.root.layout()
         body_layout = self.window.body_container.layout()
         root_margins = root_layout.contentsMargins() if root_layout is not None else None
@@ -250,32 +214,54 @@ class WindowModeController:
         if body_margins is not None:
             horizontal_padding += body_margins.left() + body_margins.right()
         body_spacing = body_layout.spacing() if body_layout is not None else 0
+        return horizontal_padding, body_spacing
+
+    def width_for_sidebar_width(self, sidebar_width: int) -> int:
+        horizontal_padding, body_spacing = self._horizontal_layout_metrics()
         return max(
             self.window._normal_minimum_width,
             self.window.map_view.minimumWidth()
-            + max(self.window._SIDEBAR_MIN_WIDTH, self.window._sidebar_width)
+            + max(self.window._SIDEBAR_MIN_WIDTH, int(sidebar_width))
             + body_spacing
             + horizontal_padding,
         )
 
+    def expanded_layout_minimum_width(self) -> int:
+        return self.width_for_sidebar_width(self.window._sidebar_width)
+
     def max_sidebar_width_for_current_window(self) -> int:
-        root_layout = self.window.root.layout()
-        body_layout = self.window.body_container.layout()
-        root_margins = root_layout.contentsMargins() if root_layout is not None else None
-        body_margins = body_layout.contentsMargins() if body_layout is not None else None
-        horizontal_padding = self.window._window_margin * 2
-        if root_margins is not None:
-            horizontal_padding += root_margins.left() + root_margins.right()
-        if body_margins is not None:
-            horizontal_padding += body_margins.left() + body_margins.right()
-        body_spacing = body_layout.spacing() if body_layout is not None else 0
+        horizontal_padding, body_spacing = self._horizontal_layout_metrics()
         available = self.window.width() - self.window.map_view.minimumWidth() - body_spacing - horizontal_padding
         return max(self.window._SIDEBAR_MIN_WIDTH, available)
 
+    def set_sidebar_in_body_layout(self, in_layout: bool) -> None:
+        body_layout = self.window.body_container.layout()
+        if body_layout is None:
+            return
+        index = body_layout.indexOf(self.window.sidebar_shell)
+        if in_layout and index < 0:
+            body_layout.addWidget(self.window.sidebar_shell, stretch=4)
+            body_layout.setStretch(0, 7)
+            body_layout.setStretch(1, 4)
+        elif not in_layout and index >= 0:
+            body_layout.removeWidget(self.window.sidebar_shell)
+            self.window.sidebar_shell.setParent(self.window.body_container)
+
+    def position_sidebar_overlay(self) -> None:
+        mode_enum = self.window._mode.__class__
+        if self.window._mode in (mode_enum.PAUSED, mode_enum.MAXIMIZED):
+            return
+        if self.window._sidebar_collapsed or not self.window.sidebar_shell.isVisible():
+            return
+        target_width = max(self.window._SIDEBAR_MIN_WIDTH, self.window._sidebar_width)
+        body_rect = self.window.body_container.rect()
+        x = max(0, body_rect.width() - target_width)
+        self.window.sidebar_shell.setGeometry(x, 0, target_width, body_rect.height())
+        self.window.sidebar_shell.raise_()
+
     def sync_window_minimum_width(self) -> None:
         mode_enum = self.window._mode.__class__
-        sidebar_visible = self.window._mode == mode_enum.PAUSED or not self.window._sidebar_collapsed
-        if sidebar_visible:
+        if self.window._mode in (mode_enum.PAUSED, mode_enum.MAXIMIZED):
             self.window.setMinimumWidth(self.expanded_layout_minimum_width())
         else:
             self.window.setMinimumWidth(self.window._normal_minimum_width)
@@ -283,6 +269,7 @@ class WindowModeController:
     def apply_sidebar_state(self) -> None:
         target_width = max(self.window._SIDEBAR_MIN_WIDTH, self.window._sidebar_width)
         if self.is_pause_mode():
+            self.set_sidebar_in_body_layout(True)
             self.window.sidebar_shell.setVisible(True)
             self.window.side_scroll.setVisible(True)
             self.window.sidebar_shell.setMinimumWidth(target_width)
@@ -292,12 +279,15 @@ class WindowModeController:
             return
 
         if self.window._sidebar_collapsed:
+            self.set_sidebar_in_body_layout(False)
             self.window.sidebar_shell.setVisible(False)
         else:
+            self.set_sidebar_in_body_layout(False)
             self.window.sidebar_shell.setVisible(True)
             self.window.side_scroll.setVisible(True)
             self.window.sidebar_shell.setMinimumWidth(target_width)
             self.window.sidebar_shell.setMaximumWidth(target_width)
+            self.position_sidebar_overlay()
         self.sync_window_minimum_width()
         self.window._update_header_button_labels()
 
