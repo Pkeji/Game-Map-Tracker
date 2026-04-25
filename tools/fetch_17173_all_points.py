@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Iterable
 
 try:
-    from fetch_17173_points import (
+    from tools.fetch_17173_points import (
         MAP_ID,
         TOOL_DIR,
         _as_float,
@@ -27,7 +27,7 @@ try:
         point_label,
     )
 except ModuleNotFoundError:
-    from tools.fetch_17173_points import (
+    from fetch_17173_points import (
         MAP_ID,
         TOOL_DIR,
         _as_float,

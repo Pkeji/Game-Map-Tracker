@@ -36,6 +36,8 @@ def _minimap_is_configured() -> bool:
 
 
 def main() -> int:
+    os.chdir(config.BASE_DIR)
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--engine",
@@ -67,7 +69,7 @@ def main() -> int:
         print("<<< 选择器关闭，坐标已更新！")
 
     tracker = build_tracker()
-    route_mgr = RouteManager("routes")
+    route_mgr = RouteManager(config.app_path("routes"))
 
     window = IslandWindow(tracker, route_mgr)
     window.show()

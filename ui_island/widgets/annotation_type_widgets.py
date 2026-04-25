@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import config
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QPushButton
@@ -22,7 +23,7 @@ def group_annotation_types(items: list[dict]) -> list[tuple[str, list[dict]]]:
 
 
 def annotation_icon_path(item: dict, type_id: str) -> Path:
-    return Path("tools") / "points_icon" / str(item.get("iconPath") or f"{type_id}.png")
+    return Path(config.app_path("tools", "points_icon", str(item.get("iconPath") or f"{type_id}.png")))
 
 
 def annotation_type_button_text(item: dict, type_id: str | None = None) -> str:

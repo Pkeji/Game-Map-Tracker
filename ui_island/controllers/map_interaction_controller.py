@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import config
 from ..design import strings
 from ..dialogs import toast
 from ..dialogs.annotation_type_picker import open_annotation_type_picker
@@ -20,7 +21,7 @@ class MapInteractionController:
         self.window = window
 
     def _refresh_annotation_ui(self) -> None:
-        self.window.annotation_panel.load_index("tools/points_all/points.json")
+        self.window.annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
         self.window.annotation_panel.set_preferences(
             self.window.annotation_type_ids,
             self.window.annotation_recent_type_ids,

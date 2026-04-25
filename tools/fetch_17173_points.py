@@ -23,9 +23,14 @@ from typing import Iterable
 
 import requests
 
+try:
+    import config
+except Exception:
+    config = None
+
 MAP_ID = 4010
 API_URL = f"https://terra-api.17173.com/app/location/list?mapIds={MAP_ID}"
-TOOL_DIR = Path(__file__).resolve().parent
+TOOL_DIR = Path(config.app_path("tools")) if config is not None else Path(__file__).resolve().parent
 OUTPUT_DIR = TOOL_DIR / "points_get"
 CACHE_FILE = OUTPUT_DIR / ".cache_17173_locations.json"
 ICON_INDEX_FILE = TOOL_DIR / "points_icon" / "icons.json"

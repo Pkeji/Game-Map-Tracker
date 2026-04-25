@@ -74,7 +74,7 @@ def _config_int(name: str, default: int, minimum: int = 0) -> int:
 
 
 def _project_root() -> str:
-    return os.path.dirname(os.path.abspath(__file__))
+    return config.BASE_DIR
 
 
 def _default_teleport_dir() -> str:
@@ -543,7 +543,7 @@ def _draw_guide_distance_label(
 
 class RouteManager:
     def __init__(self, base_folder: str = "routes") -> None:
-        self.base_folder = base_folder
+        self.base_folder = base_folder if os.path.isabs(base_folder) else config.app_path(base_folder)
         self.categories: list[str] = []
         self.route_groups: dict[str, list[dict]] = {}
         self.visibility: dict[str, bool] = {}

@@ -18,8 +18,13 @@ from urllib.parse import urljoin
 
 import requests
 
+try:
+    import config
+except Exception:
+    config = None
+
 MAP_PAGE_URL = "https://map.17173.com/rocom/maps/shijie"
-TOOL_DIR = Path(__file__).resolve().parent
+TOOL_DIR = Path(config.app_path("tools")) if config is not None else Path(__file__).resolve().parent
 ICON_DIR = TOOL_DIR / "points_icon"
 ICON_INDEX_FILE = ICON_DIR / "icons.json"
 

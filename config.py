@@ -14,6 +14,21 @@ else:
 
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
+
+def app_path(*parts: str) -> str:
+    """Return a path under the editable application directory."""
+    return os.path.join(BASE_DIR, *parts)
+
+
+def resolve_app_path(path: str | os.PathLike[str] | None) -> str | None:
+    """Resolve relative config paths against the application directory."""
+    if path is None:
+        return None
+    raw_path = os.fspath(path)
+    if os.path.isabs(raw_path):
+        return raw_path
+    return app_path(raw_path)
+
 # ==========================================
 # 默认配置字典 (如果 JSON 文件丢失，用来兜底并重新生成)
 # ==========================================
@@ -63,6 +78,8 @@ def save_config(new_values: dict) -> None:
 
     # 同步更新模块级常量，避免进程内各处读到旧值
     globals().update(new_values)
+    if "LOGIC_MAP_PATH" in new_values:
+        globals()["LOGIC_MAP_PATH"] = resolve_app_path(new_values["LOGIC_MAP_PATH"])
     settings.update(new_values)
 
 
@@ -137,7 +154,7 @@ def parse_window_geometry(raw) -> dict | None:
                 return None
     return None
 VIEW_SIZE = settings.get("VIEW_SIZE")
-LOGIC_MAP_PATH = settings.get("LOGIC_MAP_PATH")
+LOGIC_MAP_PATH = resolve_app_path(settings.get("LOGIC_MAP_PATH"))
 MAX_LOST_FRAMES = settings.get("MAX_LOST_FRAMES")
 
 # SIFT 专属

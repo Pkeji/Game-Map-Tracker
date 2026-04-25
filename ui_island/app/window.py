@@ -8,6 +8,7 @@ import traceback
 from collections import deque
 from enum import Enum
 
+import config
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import QApplication, QWidget
@@ -213,7 +214,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.map_view.delete_annotation_requested.connect(self.map_interaction_controller.delete_map_annotation)
         self.map_view.guide_hint_changed.connect(self._on_route_guide_hint_changed)
         self.annotation_toggle_btn.clicked.connect(lambda _checked=False: self._toggle_annotation_panel())
-        self.annotation_panel.load_index("tools/points_all/points.json")
+        self.annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
         self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
         self.annotation_panel.selection_changed.connect(self._on_annotation_selection_changed)
         self.annotation_panel.plan_route_requested.connect(self._on_annotation_plan_route_requested)
@@ -233,7 +234,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
             self.annotation_panel.hide()
             self.annotation_toggle_btn.setChecked(False)
             return
-        self.annotation_panel.load_index("tools/points_all/points.json")
+        self.annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
         self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
         self._position_annotation_panel()
         self.annotation_panel.show()
@@ -352,7 +353,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
             self.route_mgr._annotation_icon_cache.clear()
         except Exception:
             pass
-        self.annotation_panel.load_index("tools/points_all/points.json")
+        self.annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
         self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
         try:
             self.map_view._refresh_from_last_frame()
