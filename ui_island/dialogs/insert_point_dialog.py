@@ -36,6 +36,7 @@ class InsertPointDialog(StyledDialogBase):
         self.shell_layout.addWidget(routes_lbl)
 
         scroll = QScrollArea()
+        scroll.setObjectName("AnnotationPanelScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -43,6 +44,7 @@ class InsertPointDialog(StyledDialogBase):
         scroll.setMaximumHeight(260)
 
         list_host = QWidget()
+        list_host.setObjectName("AnnotationPanelInner")
         list_layout = QVBoxLayout(list_host)
         list_layout.setContentsMargins(2, 2, 2, 2)
         list_layout.setSpacing(6)
@@ -50,6 +52,7 @@ class InsertPointDialog(StyledDialogBase):
         single = len(self._candidates) == 1
         for cand in self._candidates:
             row_widget = QWidget()
+            row_widget.setObjectName("InsertPointRouteRow")
             row_layout = QHBoxLayout(row_widget)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(8)

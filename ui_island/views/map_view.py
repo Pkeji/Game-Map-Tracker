@@ -23,8 +23,14 @@ class MapView(QWidget):
     relocate_requested = Signal(int, int)
     manual_view_changed = Signal()
     add_point_requested = Signal(int, int)
+    add_annotation_requested = Signal(int, int)
     delete_point_requested = Signal(str, int)
     mark_point_visited_requested = Signal(str, int, bool)
+    change_point_annotation_requested = Signal(str, int)
+    delete_point_annotation_requested = Signal(str, int)
+    change_annotation_requested = Signal(str, int)
+    add_annotation_to_route_requested = Signal(str, int)
+    delete_annotation_requested = Signal(str, int)
     guide_hint_changed = Signal(object)
 
     _ABSOLUTE_MIN_ZOOM = 0.05
@@ -35,7 +41,7 @@ class MapView(QWidget):
         super().__init__(parent)
         self.route_mgr = route_mgr
         self._pixmap: QPixmap | None = None
-        self._display_map: np.ndarray | None = None
+        self._base_map: np.ndarray | None = None
         self._map_w = 0
         self._map_h = 0
         self._last_vx1 = 0
@@ -55,9 +61,9 @@ class MapView(QWidget):
         self.setAttribute(Qt.WA_OpaquePaintEvent, False)
         self.setMouseTracking(True)
 
-    def set_maps(self, display_map_bgr: np.ndarray) -> None:
-        self._display_map = display_map_bgr
-        self._map_h, self._map_w = display_map_bgr.shape[:2]
+    def set_map(self, base_map_bgr: np.ndarray) -> None:
+        self._base_map = base_map_bgr
+        self._map_h, self._map_w = base_map_bgr.shape[:2]
 
     def set_center_locked(self, locked: bool) -> None:
         self._center_locked = locked
@@ -85,7 +91,7 @@ class MapView(QWidget):
         cy: int | None,
         minimap_bgr: np.ndarray | None = None,
     ) -> None:
-        if self._display_map is None or cx is None or cy is None:
+        if self._base_map is None or cx is None or cy is None:
             return
 
         self._last_state = state
@@ -98,12 +104,12 @@ class MapView(QWidget):
         self._render_frame(state, cx, cy)
 
     def _render_frame(self, state: TrackState, cx: int, cy: int) -> None:
-        if self._display_map is None or self._view_center is None:
+        if self._base_map is None or self._view_center is None:
             return
 
         crop_w, crop_h = self._crop_dimensions()
         vx1, vy1, vx2, vy2 = self._crop_bounds(crop_w, crop_h)
-        crop = self._display_map[vy1:vy2, vx1:vx2].copy()
+        crop = self._base_map[vy1:vy2, vx1:vx2].copy()
 
         self._last_vx1, self._last_vy1 = vx1, vy1
         self._last_crop_size = (crop.shape[1], crop.shape[0])
@@ -331,6 +337,17 @@ class MapView(QWidget):
         map_threshold = max(6.0, _HIT_RADIUS_WIDGET_PX * ratio)
         return self.route_mgr.hit_test_point(mapped[0], mapped[1], map_threshold)
 
+    def _hit_test_annotation(self, widget_pos: QPointF) -> dict | None:
+        mapped = self._widget_to_map(widget_pos)
+        if mapped is None:
+            return None
+        draw_rect = self._last_draw_rect if not self._last_draw_rect.isNull() else self._draw_rect()
+        if draw_rect.width() <= 0 or self._last_crop_size[0] <= 0:
+            return None
+        ratio = self._last_crop_size[0] / draw_rect.width()
+        map_threshold = max(6.0, _HIT_RADIUS_WIDGET_PX * ratio)
+        return self.route_mgr.hit_test_annotation_point(mapped[0], mapped[1], map_threshold)
+
     def contextMenuEvent(self, event):
         pos = QPointF(event.pos())
         hit = self._hit_test_node(pos)
@@ -359,6 +376,24 @@ class MapView(QWidget):
                     self.mark_point_visited_requested.emit(rid, idx, True)
                 )
 
+            has_annotation = self.route_mgr.route_point_has_annotation(route_id, point_index)
+            annotation_label = (
+                strings.CHANGE_POINT_ANNOTATION_MENU_LABEL
+                if has_annotation
+                else strings.ADD_POINT_ANNOTATION_MENU_LABEL
+            )
+            annotation_action = menu.addAction(annotation_label)
+            annotation_action.triggered.connect(
+                lambda _checked=False, rid=route_id, idx=point_index:
+                self.change_point_annotation_requested.emit(rid, idx)
+            )
+            if has_annotation:
+                delete_annotation_action = menu.addAction(strings.DELETE_POINT_ANNOTATION_MENU_LABEL)
+                delete_annotation_action.triggered.connect(
+                    lambda _checked=False, rid=route_id, idx=point_index:
+                    self.delete_point_annotation_requested.emit(rid, idx)
+                )
+
             menu.addSeparator()
             delete_action = menu.addAction(strings.DELETE_POINT_MENU_LABEL)
             delete_action.triggered.connect(
@@ -369,9 +404,61 @@ class MapView(QWidget):
             event.accept()
             return
 
+        annotation_hit = self._hit_test_annotation(pos)
+        if annotation_hit is not None:
+            type_id = str(annotation_hit.get("typeId") or "")
+            point_index = int(annotation_hit.get("pointIndex"))
+            menu = QMenu(self)
+            menu.setObjectName("MapAnnotationContextMenu")
+            menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+            menu.setAttribute(Qt.WA_NoSystemBackground, True)
+            menu.setAttribute(Qt.WA_TranslucentBackground, True)
+            top = self.window()
+            if top is not None:
+                menu.setStyleSheet(top.styleSheet())
+
+            change_action = menu.addAction(strings.MAP_CHANGE_ANNOTATION_MENU_LABEL)
+            change_action.triggered.connect(
+                lambda _checked=False, tid=type_id, idx=point_index:
+                self.change_annotation_requested.emit(tid, idx)
+            )
+            add_to_route_action = menu.addAction(strings.MAP_ADD_ANNOTATION_TO_ROUTE_MENU_LABEL)
+            add_to_route_action.triggered.connect(
+                lambda _checked=False, tid=type_id, idx=point_index:
+                self.add_annotation_to_route_requested.emit(tid, idx)
+            )
+            menu.addSeparator()
+            delete_action = menu.addAction(strings.MAP_DELETE_ANNOTATION_MENU_LABEL)
+            delete_action.triggered.connect(
+                lambda _checked=False, tid=type_id, idx=point_index:
+                self.delete_annotation_requested.emit(tid, idx)
+            )
+            menu.exec(event.globalPos())
+            event.accept()
+            return
+
         mapped = self._widget_to_map(pos)
         if mapped is None:
             event.ignore()
             return
-        self.add_point_requested.emit(int(mapped[0]), int(mapped[1]))
+        map_x = int(mapped[0])
+        map_y = int(mapped[1])
+        menu = QMenu(self)
+        menu.setObjectName("MapBlankContextMenu")
+        menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        menu.setAttribute(Qt.WA_NoSystemBackground, True)
+        menu.setAttribute(Qt.WA_TranslucentBackground, True)
+        top = self.window()
+        if top is not None:
+            menu.setStyleSheet(top.styleSheet())
+
+        add_annotation_action = menu.addAction(strings.MAP_ADD_ANNOTATION_MENU_LABEL)
+        add_annotation_action.triggered.connect(
+            lambda _checked=False, x=map_x, y=map_y: self.add_annotation_requested.emit(x, y)
+        )
+        add_point_action = menu.addAction(strings.MAP_ADD_POINT_MENU_LABEL)
+        add_point_action.triggered.connect(
+            lambda _checked=False, x=map_x, y=map_y: self.add_point_requested.emit(x, y)
+        )
+        menu.exec(event.globalPos())
         event.accept()

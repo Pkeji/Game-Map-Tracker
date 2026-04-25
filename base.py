@@ -31,7 +31,6 @@ class BaseTracker:
     map_width: int
     map_height: int
     logic_map_bgr: np.ndarray
-    display_map_bgr: np.ndarray
 
     def step(self, minimap_bgr: np.ndarray) -> TrackResult:
         raise NotImplementedError

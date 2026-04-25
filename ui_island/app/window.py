@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import threading
+import traceback
 from collections import deque
 from enum import Enum
 
@@ -14,7 +15,9 @@ from PySide6.QtWidgets import QApplication, QWidget
 from base import BaseTracker, TrackResult, TrackState
 from route_manager import RouteManager
 
-from ..design import button_specs, qss, theme
+from ..design import button_specs, qss, strings, theme
+from ..dialogs import toast, toast_persistent
+from ..dialogs.settings_dialog import styled_confirm, styled_info
 from ..services import RecentRoutesStore, SettingsGateway, WindowPrefsStore
 from ..services.annotation_preferences import normalize_type_ids
 from ..state import HotkeyState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
@@ -39,6 +42,7 @@ _STABLE_FAMILY = {WindowMode.TRACKING_STABLE, WindowMode.TRACKING_INERTIAL}
 class IslandWindow(WindowStateBridgeMixin, QWidget):
     _frame_ready = Signal(object)
     _toggle_lock_requested = Signal()
+    _annotation_refresh_finished = Signal(int, str)
 
     _NATIVE_HOTKEY_ID_ALT_GRAVE = 1
     _HOTKEY_DEBOUNCE_SEC = 0.35
@@ -178,6 +182,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._sidebar_resize_start_width = self._sidebar_width
         self._header_buttons_icon_only = False
         self._mini_icon = None
+        self._annotation_refresh_running = False
+        self._annotation_refresh_toast = None
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -194,15 +200,23 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         QTimer.singleShot(0, self._paint_default_map)
 
         self._toggle_lock_requested.connect(self.toggle_lock, Qt.QueuedConnection)
+        self._annotation_refresh_finished.connect(self._on_annotation_refresh_finished, Qt.QueuedConnection)
         self._frame_ready.connect(self._on_frame)
         self.map_view.add_point_requested.connect(self.map_interaction_controller.on_add_point_requested)
+        self.map_view.add_annotation_requested.connect(self.map_interaction_controller.add_annotation_point)
         self.map_view.delete_point_requested.connect(self.map_interaction_controller.on_delete_point_requested)
         self.map_view.mark_point_visited_requested.connect(self.map_interaction_controller.mark_point_visited)
+        self.map_view.change_point_annotation_requested.connect(self.map_interaction_controller.change_point_annotation)
+        self.map_view.delete_point_annotation_requested.connect(self.map_interaction_controller.delete_point_annotation)
+        self.map_view.change_annotation_requested.connect(self.map_interaction_controller.change_map_annotation)
+        self.map_view.add_annotation_to_route_requested.connect(self.map_interaction_controller.add_annotation_to_route)
+        self.map_view.delete_annotation_requested.connect(self.map_interaction_controller.delete_map_annotation)
         self.map_view.guide_hint_changed.connect(self._on_route_guide_hint_changed)
         self.annotation_toggle_btn.clicked.connect(lambda _checked=False: self._toggle_annotation_panel())
         self.annotation_panel.load_index("tools/points_all/points.json")
         self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
         self.annotation_panel.selection_changed.connect(self._on_annotation_selection_changed)
+        self.annotation_panel.plan_route_requested.connect(self._on_annotation_plan_route_requested)
         self.annotation_panel.panel_hidden.connect(lambda: self.annotation_toggle_btn.setChecked(False))
 
         self._minimap_region = self.settings_gateway.get_minimap()
@@ -226,6 +240,20 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.annotation_toggle_btn.setChecked(True)
 
     def _position_annotation_panel(self) -> None:
+        if self.isMaximized():
+            self.annotation_panel.set_compact_hint(True)
+            sidebar_pos = self.sidebar_shell.mapToGlobal(QPoint(0, 0))
+            sidebar_width = max(0, self.sidebar_shell.width())
+            inset = 8 if sidebar_width >= 336 else 0
+            panel_width = max(320, sidebar_width - inset * 2)
+            if sidebar_width > 0:
+                panel_width = min(panel_width, sidebar_width - inset * 2 if inset else sidebar_width)
+            self.annotation_panel.setFixedWidth(panel_width)
+            self.annotation_panel.move(sidebar_pos.x() + inset, sidebar_pos.y() + 8)
+            self.annotation_panel.raise_()
+            return
+
+        self.annotation_panel.set_compact_hint(False)
         global_pos = self.mapToGlobal(QPoint(0, self.height()))
         panel_width = max(320, min(720, self.width()))
         self.annotation_panel.setFixedWidth(panel_width)
@@ -240,6 +268,97 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
             self.map_view._refresh_from_last_frame()
         except Exception:
             pass
+
+    def _on_annotation_plan_route_requested(self, type_id: str, type_name: str) -> None:
+        try:
+            result = self.route_mgr.create_optimized_annotation_route(type_id, type_name)
+        except ValueError as exc:
+            is_empty_points = "点位" in str(exc)
+            styled_info(
+                self,
+                strings.ANNOTATION_PLAN_ROUTE_EMPTY_TITLE if is_empty_points else strings.ANNOTATION_PLAN_ROUTE_FAILED_TITLE,
+                strings.ANNOTATION_PLAN_ROUTE_EMPTY_BODY.format(name=type_name or type_id)
+                if is_empty_points
+                else strings.ANNOTATION_PLAN_ROUTE_FAILED_BODY_FMT.format(name=type_name or type_id, error=exc),
+            )
+            return
+        except Exception as exc:
+            styled_info(
+                self,
+                strings.ANNOTATION_PLAN_ROUTE_FAILED_TITLE,
+                strings.ANNOTATION_PLAN_ROUTE_FAILED_BODY_FMT.format(name=type_name or type_id, error=exc),
+            )
+            return
+
+        self.route_panel_controller.reload_route_list()
+        toast(self, strings.ANNOTATION_PLAN_ROUTE_SUCCESS_FMT.format(name=result["name"]))
+
+    def _on_annotation_refresh_requested(self) -> None:
+        if self._annotation_refresh_running:
+            return
+        confirmed = styled_confirm(
+            self,
+            strings.ANNOTATION_REFRESH_CONFIRM_TITLE,
+            strings.ANNOTATION_REFRESH_CONFIRM_BODY,
+            confirm_text=strings.ANNOTATION_REFRESH_CONFIRM,
+            cancel_text=strings.DELETE_POINT_CANCEL,
+        )
+        if not confirmed:
+            return
+
+        self._annotation_refresh_running = True
+        self._annotation_refresh_toast = toast_persistent(self, strings.ANNOTATION_REFRESH_RUNNING)
+
+        def worker() -> None:
+            code = 1
+            error = ""
+            try:
+                from tools import fetch_17173_all_points, fetch_17173_icons
+
+                icon_code = int(fetch_17173_icons.main(["--refresh"]))
+                if icon_code != 0:
+                    code = icon_code
+                    error = "图标拉取失败"
+                else:
+                    code = int(fetch_17173_all_points.main(["--refresh"]))
+                    if code != 0:
+                        error = "点位拉取失败"
+            except Exception:
+                code = 1
+                error = traceback.format_exc(limit=3)
+            self._annotation_refresh_finished.emit(code, error)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_annotation_refresh_finished(self, code: int, error: str) -> None:
+        self._annotation_refresh_running = False
+        if self._annotation_refresh_toast is not None:
+            try:
+                self._annotation_refresh_toast.dismiss()
+            except RuntimeError:
+                pass
+            self._annotation_refresh_toast = None
+        if int(code) != 0:
+            styled_info(
+                self,
+                strings.ANNOTATION_REFRESH_FAILED_TITLE,
+                strings.ANNOTATION_REFRESH_FAILED_BODY_FMT.format(code=code, error=error or ""),
+            )
+            return
+
+        self.route_mgr._annotation_points_cache = None
+        try:
+            self.route_mgr._point_icon_cache.clear()
+            self.route_mgr._annotation_icon_cache.clear()
+        except Exception:
+            pass
+        self.annotation_panel.load_index("tools/points_all/points.json")
+        self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
+        try:
+            self.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
+        toast(self, strings.ANNOTATION_REFRESH_SUCCESS)
 
     def _reset_map_view(self) -> None:
         self.map_view.reset_view()
@@ -325,6 +444,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
             self,
             on_applied=self._on_settings_applied,
             on_closed=lambda: self.settings_btn.setChecked(False),
+            on_annotation_refresh_requested=self._on_annotation_refresh_requested,
         )
 
     def _on_settings_applied(self) -> None:
@@ -573,7 +693,11 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         super().moveEvent(event)
         if not self._applying_mode and not self.isMaximized():
             self._preferred_right_edge = self.x() + self.width()
-        if getattr(self, "annotation_panel", None) is not None and self.annotation_panel.isVisible():
+        if (
+            getattr(self, "annotation_panel", None) is not None
+            and self.annotation_panel.isVisible()
+            and not self.isMaximized()
+        ):
             self._position_annotation_panel()
 
     def showEvent(self, event):

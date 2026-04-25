@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 import config
-from tools.route_point_optimizer import best_insertion_index
+from tools.route_point_optimizer import best_insertion_index, optimize_route_points, total_route_length
 
 _CLOSE_THRESHOLD = 20
 _GUIDE_COLOR = (0, 0, 0)
@@ -34,6 +34,8 @@ _GUIDE_HINT_FONT_SIZE = 15
 _PROGRESS_FILE = "progress.json"
 _VISIBILITY_FILE = "selected_routes.json"
 _RECENT_FILE = "recent_routes.json"
+_ALGORITHM_CATEGORY = "算法生成"
+_ALGORITHM_ROUTE_SUFFIX = "_路线(算法生成)"
 _INVALID_FILE_NAME_CHARS = set('<>:"/\\|?*')
 _ROUTE_ID_SEQ_WIDTH = 2
 _POINT_ICON_SIZE = 24
@@ -92,6 +94,13 @@ def _point_xy(point: dict) -> tuple[float, float] | None:
         return float(point["x"]), float(point["y"])
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _safe_route_stem(value: object, fallback: str) -> str:
+    name = str(value or "").strip() or fallback
+    cleaned = "".join("_" if char in _INVALID_FILE_NAME_CHARS else char for char in name)
+    cleaned = cleaned.strip().rstrip(" .")
+    return cleaned or fallback
 
 
 def _load_teleport_points(folder: str | os.PathLike[str] | None = None) -> list[_TeleportPoint]:
@@ -160,6 +169,32 @@ def _load_annotation_points(path: str | os.PathLike[str] | None = None) -> dict[
     for type_id, points in points_by_type.items():
         if isinstance(points, list):
             result[str(type_id)] = [point for point in points if isinstance(point, dict) and _point_xy(point) is not None]
+    return result
+
+
+def _load_annotation_type_items(path: str | os.PathLike[str] | None = None) -> list[dict]:
+    file_path = os.fspath(path) if path is not None else _default_annotation_points_file()
+    if not os.path.exists(file_path):
+        return []
+    try:
+        with open(file_path, "r", encoding="utf-8-sig") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return []
+    types = payload.get("types") if isinstance(payload, dict) else None
+    if not isinstance(types, list):
+        return []
+    result: list[dict] = []
+    for item in types:
+        if not isinstance(item, dict):
+            continue
+        type_id = str(item.get("typeId") or "")
+        if not type_id:
+            continue
+        copied = dict(item)
+        copied["typeId"] = type_id
+        copied["type"] = str(copied.get("type") or type_id)
+        result.append(copied)
     return result
 
 
@@ -572,6 +607,288 @@ class RouteManager:
             self._annotation_points_cache = _load_annotation_points()
         return self._annotation_points_cache
 
+    def annotation_type_items(self) -> list[dict]:
+        return _load_annotation_type_items()
+
+    def _load_annotation_payload(self) -> tuple[str, dict] | None:
+        file_path = _default_annotation_points_file()
+        if not os.path.exists(file_path):
+            return None
+        try:
+            with open(file_path, "r", encoding="utf-8-sig") as handle:
+                payload = json.load(handle)
+        except Exception as exc:
+            print(f"Load annotation points failed {file_path}: {exc}")
+            return None
+        if not isinstance(payload, dict):
+            return None
+        if not isinstance(payload.get("types"), list) or not isinstance(payload.get("pointsByType"), dict):
+            return None
+        return file_path, payload
+
+    def _write_annotation_payload(self, file_path: str, payload: dict) -> bool:
+        tmp_path = f"{file_path}.tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, file_path)
+        except Exception as exc:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            print(f"Write annotation points failed {file_path}: {exc}")
+            return False
+        self._annotation_points_cache = None
+        return True
+
+    @staticmethod
+    def _annotation_type_meta(types: list, type_id: str) -> dict | None:
+        for item in types:
+            if isinstance(item, dict) and str(item.get("typeId") or "") == type_id:
+                return item
+        return None
+
+    @staticmethod
+    def _sync_annotation_count(types: list, points_by_type: dict, type_id: str) -> None:
+        meta = RouteManager._annotation_type_meta(types, type_id)
+        points = points_by_type.get(type_id)
+        if meta is not None and isinstance(points, list):
+            meta["count"] = len(points)
+
+    def annotation_point(self, type_id: str, point_index: int) -> dict | None:
+        type_id = str(type_id or "").strip()
+        if not type_id or not isinstance(point_index, int):
+            return None
+        loaded = self._load_annotation_payload()
+        if loaded is None:
+            return None
+        _file_path, payload = loaded
+        points = payload["pointsByType"].get(type_id)
+        if not isinstance(points, list) or not (0 <= point_index < len(points)):
+            return None
+        point = points[point_index]
+        if not isinstance(point, dict) or _point_xy(point) is None:
+            return None
+        copied = dict(point)
+        copied.setdefault("typeId", type_id)
+        return copied
+
+    def hit_test_annotation_point(self, map_x: float, map_y: float, threshold: float) -> dict | None:
+        if threshold <= 0 or not self._annotation_type_ids:
+            return None
+        loaded = self._load_annotation_payload()
+        if loaded is None:
+            return None
+        _file_path, payload = loaded
+        points_by_type = payload["pointsByType"]
+
+        best: tuple[float, str, int, dict] | None = None
+        for type_id in sorted(self._annotation_type_ids):
+            points = points_by_type.get(type_id)
+            if not isinstance(points, list):
+                continue
+            for index, point in enumerate(points):
+                if not isinstance(point, dict):
+                    continue
+                xy = _point_xy(point)
+                if xy is None:
+                    continue
+                dist = math.hypot(xy[0] - map_x, xy[1] - map_y)
+                if dist > threshold:
+                    continue
+                if best is None or dist < best[0]:
+                    best = (dist, type_id, index, point)
+
+        if best is None:
+            return None
+        dist, type_id, index, point = best
+        return {
+            "typeId": type_id,
+            "pointIndex": index,
+            "point": dict(point),
+            "distance": dist,
+        }
+
+    def add_annotation_point(self, x: int, y: int, type_id: str, type_name: str) -> bool:
+        type_id = str(type_id or "").strip()
+        if not type_id:
+            return False
+
+        loaded = self._load_annotation_payload()
+        if loaded is None:
+            return False
+        file_path, payload = loaded
+        types = payload["types"]
+        points_by_type = payload["pointsByType"]
+
+        type_meta = self._annotation_type_meta(types, type_id)
+        if type_meta is None:
+            return False
+
+        points = points_by_type.get(type_id)
+        if points is None:
+            points = []
+            points_by_type[type_id] = points
+        if not isinstance(points, list):
+            return False
+
+        name = str(type_name or type_meta.get("type") or type_id).strip() or type_id
+        try:
+            point = {
+                "x": int(round(float(x))),
+                "y": int(round(float(y))),
+                "label": name,
+                "type": name,
+                "typeId": type_id,
+                "manual": True,
+            }
+        except (TypeError, ValueError):
+            return False
+        points.append(point)
+        self._sync_annotation_count(types, points_by_type, type_id)
+        return self._write_annotation_payload(file_path, payload)
+
+    def change_annotation_point_type(
+        self,
+        type_id: str,
+        point_index: int,
+        new_type_id: str,
+        new_type_name: str,
+    ) -> bool:
+        type_id = str(type_id or "").strip()
+        new_type_id = str(new_type_id or "").strip()
+        if not type_id or not new_type_id or not isinstance(point_index, int):
+            return False
+
+        loaded = self._load_annotation_payload()
+        if loaded is None:
+            return False
+        file_path, payload = loaded
+        types = payload["types"]
+        points_by_type = payload["pointsByType"]
+        if self._annotation_type_meta(types, new_type_id) is None:
+            return False
+
+        old_points = points_by_type.get(type_id)
+        if not isinstance(old_points, list) or not (0 <= point_index < len(old_points)):
+            return False
+        point = old_points[point_index]
+        if not isinstance(point, dict) or _point_xy(point) is None:
+            return False
+
+        if new_type_id == type_id:
+            point["typeId"] = new_type_id
+            point["type"] = str(new_type_name or new_type_id).strip() or new_type_id
+            self._sync_annotation_count(types, points_by_type, type_id)
+            return self._write_annotation_payload(file_path, payload)
+
+        new_points = points_by_type.get(new_type_id)
+        if new_points is None:
+            new_points = []
+            points_by_type[new_type_id] = new_points
+        if not isinstance(new_points, list):
+            return False
+
+        moved = dict(point)
+        moved["typeId"] = new_type_id
+        moved["type"] = str(new_type_name or new_type_id).strip() or new_type_id
+        old_points.pop(point_index)
+        new_points.append(moved)
+        self._sync_annotation_count(types, points_by_type, type_id)
+        self._sync_annotation_count(types, points_by_type, new_type_id)
+        return self._write_annotation_payload(file_path, payload)
+
+    def delete_annotation_point(self, type_id: str, point_index: int) -> bool:
+        type_id = str(type_id or "").strip()
+        if not type_id or not isinstance(point_index, int):
+            return False
+        loaded = self._load_annotation_payload()
+        if loaded is None:
+            return False
+        file_path, payload = loaded
+        types = payload["types"]
+        points_by_type = payload["pointsByType"]
+        points = points_by_type.get(type_id)
+        if not isinstance(points, list) or not (0 <= point_index < len(points)):
+            return False
+        points.pop(point_index)
+        self._sync_annotation_count(types, points_by_type, type_id)
+        return self._write_annotation_payload(file_path, payload)
+
+    def create_optimized_annotation_route(self, type_id: str, type_name: str) -> dict:
+        type_id = str(type_id or "").strip()
+        if not type_id:
+            raise ValueError("标注类型无效")
+
+        source_name = str(type_name or type_id).strip() or type_id
+        points = []
+        for point in self.annotation_points().get(type_id, []):
+            if not isinstance(point, dict):
+                continue
+            xy = _point_xy(point)
+            if xy is None:
+                continue
+            copied = dict(point)
+            copied["x"] = int(round(xy[0]))
+            copied["y"] = int(round(xy[1]))
+            copied.setdefault("typeId", type_id)
+            points.append(copied)
+
+        if not points:
+            raise ValueError("没有可用采集点位")
+
+        before = total_route_length(points, loop=False)
+        optimized_points = optimize_route_points(points, start=None, loop=False, passes=50)
+        after = total_route_length(optimized_points, loop=False)
+        reduction = (1 - after / before) * 100 if before > 0 else 0.0
+
+        category = _ALGORITHM_CATEGORY
+        category_dir = self._category_path(category)
+        os.makedirs(category_dir, exist_ok=True)
+        if category not in self.categories:
+            self.categories.append(category)
+            self.route_groups[category] = []
+
+        base_name = _safe_route_stem(f"{source_name}{_ALGORITHM_ROUTE_SUFFIX}", f"{type_id}{_ALGORITHM_ROUTE_SUFFIX}")
+        route_name, path = self._unique_route_name_and_path(category, base_name)
+        route_id = self._next_route_id(datetime.now().strftime("%Y%m%d"))
+        payload = {
+            "id": route_id,
+            "name": route_name,
+            "notes": (
+                f"来源标注：{source_name}（{type_id}）；"
+                f"算法生成 {len(optimized_points)} 个点位；"
+                f"平面距离 {before:.0f} -> {after:.0f}（减少 {reduction:.1f}%）。"
+                "规划最优不代表实际最优，因为无法考虑高低差等绕路因素，可参考自行修改节点。"
+            ),
+            "loop": False,
+            "points": optimized_points,
+        }
+
+        self._write_json_file(path, payload)
+
+        route = dict(payload)
+        route["display_name"] = route_name
+        for point in route.get("points", []):
+            if isinstance(point, dict):
+                point["visited"] = False
+        self.route_groups.setdefault(category, []).append(route)
+        self._route_index_by_id[route_id] = route
+        self._category_by_route_id[route_id] = category
+        self.visibility[route_id] = False
+        return {
+            "category": category,
+            "name": route_name,
+            "path": path,
+            "id": route_id,
+            "points": len(optimized_points),
+            "before": before,
+            "after": after,
+            "reduction_percent": reduction,
+        }
+
     def guide_hint_for_view(
         self,
         player_x: int | float | None,
@@ -754,6 +1071,7 @@ class RouteManager:
         y: int,
         route_ids: list[str],
         overrides: dict[str, int] | None = None,
+        point_fields: dict | None = None,
     ) -> dict[str, int | None]:
         """为每个 route_id 在最佳位置插入 (x, y) 节点并写回 JSON。
         overrides: route_id -> 强制 index(0-based),超出范围会 clamp。
@@ -785,7 +1103,13 @@ class RouteManager:
             else:
                 index = _best_insertion_index(points, (x, y))
 
-            new_point = {"x": int(x), "y": int(y), "visited": False}
+            new_point = {}
+            for key in ("label", "type", "typeId", "radius", "sourceId", "manual"):
+                if isinstance(point_fields, dict) and key in point_fields:
+                    new_point[key] = point_fields[key]
+            new_point["x"] = int(x)
+            new_point["y"] = int(y)
+            new_point["visited"] = False
             points.insert(index, new_point)
 
             try:
@@ -860,6 +1184,92 @@ class RouteManager:
         if not isinstance(point_index, int) or not (0 <= point_index < len(points)):
             return None
         return bool(points[point_index].get("visited", False))
+
+    def route_point_annotation_type_id(self, route_ref: str, point_index: int) -> str:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return ""
+        route = self.route_for_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return ""
+        point = points[point_index]
+        return str(point.get("typeId") or "") if isinstance(point, dict) else ""
+
+    def route_point_has_annotation(self, route_ref: str, point_index: int) -> bool:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return False
+        route = self.route_for_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return False
+        point = points[point_index]
+        if not isinstance(point, dict):
+            return False
+        return bool(str(point.get("typeId") or "").strip() or str(point.get("type") or "").strip())
+
+    def set_point_annotation(self, route_ref: str, point_index: int, type_id: str, type_name: str) -> bool:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return False
+        type_id = str(type_id or "").strip()
+        if not type_id:
+            return False
+        type_name = str(type_name or type_id).strip() or type_id
+        route = self.route_for_id(route_id)
+        category = self.category_for_route_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if route is None or category is None or not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return False
+        point = points[point_index]
+        if not isinstance(point, dict):
+            return False
+
+        old_type_id = point.get("typeId", None)
+        old_type = point.get("type", None)
+        point["typeId"] = type_id
+        point["type"] = type_name
+        try:
+            self._write_route_file(category, route.get("display_name", ""), route)
+        except Exception as e:
+            if old_type_id is None:
+                point.pop("typeId", None)
+            else:
+                point["typeId"] = old_type_id
+            if old_type is None:
+                point.pop("type", None)
+            else:
+                point["type"] = old_type
+            print(f"Set point annotation failed route_id={route_id} index={point_index}: {e}")
+            return False
+        return True
+
+    def clear_point_annotation(self, route_ref: str, point_index: int) -> bool:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return False
+        route = self.route_for_id(route_id)
+        category = self.category_for_route_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if route is None or category is None or not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return False
+        point = points[point_index]
+        if not isinstance(point, dict):
+            return False
+
+        old_type_id = point.pop("typeId", None)
+        old_type = point.pop("type", None)
+        try:
+            self._write_route_file(category, route.get("display_name", ""), route)
+        except Exception as e:
+            if old_type_id is not None:
+                point["typeId"] = old_type_id
+            if old_type is not None:
+                point["type"] = old_type
+            print(f"Clear point annotation failed route_id={route_id} index={point_index}: {e}")
+            return False
+        return True
 
     def set_point_visited(self, route_ref: str, point_index: int, visited: bool) -> bool:
         route_id = self.resolve_route_id(route_ref)
@@ -1053,6 +1463,16 @@ class RouteManager:
 
     def category_path(self, category: str) -> str:
         return self._category_path(category)
+
+    def _unique_route_name_and_path(self, category: str, base_name: str) -> tuple[str, str]:
+        route_name = base_name
+        path = self._route_file_path(category, route_name)
+        index = 2
+        while os.path.exists(path):
+            route_name = f"{base_name} {index}"
+            path = self._route_file_path(category, route_name)
+            index += 1
+        return route_name, path
 
     def get_route_notes(self, category: str, name: str) -> str:
         route = self._find_route(category, name)

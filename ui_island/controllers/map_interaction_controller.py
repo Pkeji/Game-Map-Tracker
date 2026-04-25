@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING
 
 from ..design import strings
 from ..dialogs import toast
+from ..dialogs.annotation_type_picker import open_annotation_type_picker
 from ..dialogs.insert_point_dialog import open_insert_point_dialog
 from ..dialogs.settings_dialog import styled_confirm, styled_info
+from ..services.annotation_preferences import normalize_type_ids, touch_recent_type
 
 if TYPE_CHECKING:
     from ..app.window import IslandWindow
@@ -17,8 +19,131 @@ class MapInteractionController:
     def __init__(self, window: "IslandWindow") -> None:
         self.window = window
 
+    def _refresh_annotation_ui(self) -> None:
+        self.window.annotation_panel.load_index("tools/points_all/points.json")
+        self.window.annotation_panel.set_preferences(
+            self.window.annotation_type_ids,
+            self.window.annotation_recent_type_ids,
+        )
+        try:
+            self.window.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
+
     def on_add_point_requested(self, x: int, y: int) -> None:
         self.add_point_to_routes(x, y)
+
+    def add_annotation_point(self, x: int, y: int) -> None:
+        route_mgr = self.window.route_mgr
+        items = route_mgr.annotation_type_items()
+        if not items:
+            styled_info(
+                self.window,
+                strings.ANNOTATION_TYPE_PICKER_TITLE,
+                strings.ANNOTATION_TYPE_PICKER_EMPTY,
+            )
+            return
+
+        selected = open_annotation_type_picker(self.window, items, "")
+        if selected is None:
+            return
+
+        type_id = str(selected.get("typeId") or "")
+        type_name = str(selected.get("type") or type_id)
+        if not route_mgr.add_annotation_point(x, y, type_id, type_name):
+            styled_info(
+                self.window,
+                strings.MAP_ADD_ANNOTATION_FAIL_TITLE,
+                strings.MAP_ADD_ANNOTATION_FAIL_BODY,
+            )
+            return
+
+        selected_type_ids = normalize_type_ids([*self.window.annotation_type_ids, type_id])
+        recent_type_ids = touch_recent_type(self.window.annotation_recent_type_ids, type_id)
+        self.window.annotation_type_ids = selected_type_ids
+        self.window.annotation_recent_type_ids = recent_type_ids
+        route_mgr.set_annotation_type_ids(selected_type_ids)
+        self.window.window_prefs_store.save_annotation_preferences(selected_type_ids, recent_type_ids)
+        self._refresh_annotation_ui()
+
+        toast(self.window, strings.MAP_ADD_ANNOTATION_SUCCESS_FMT.format(name=type_name))
+
+    def change_map_annotation(self, type_id: str, point_index: int) -> None:
+        route_mgr = self.window.route_mgr
+        items = route_mgr.annotation_type_items()
+        if not items:
+            styled_info(
+                self.window,
+                strings.ANNOTATION_TYPE_PICKER_TITLE,
+                strings.ANNOTATION_TYPE_PICKER_EMPTY,
+            )
+            return
+
+        selected = open_annotation_type_picker(self.window, items, type_id)
+        if selected is None:
+            return
+
+        new_type_id = str(selected.get("typeId") or "")
+        new_type_name = str(selected.get("type") or new_type_id)
+        if not route_mgr.change_annotation_point_type(type_id, point_index, new_type_id, new_type_name):
+            styled_info(
+                self.window,
+                strings.MAP_ANNOTATION_FAIL_TITLE,
+                strings.MAP_ANNOTATION_CHANGE_FAIL_BODY,
+            )
+            return
+
+        selected_type_ids = normalize_type_ids([*self.window.annotation_type_ids, new_type_id])
+        recent_type_ids = touch_recent_type(self.window.annotation_recent_type_ids, new_type_id)
+        self.window.annotation_type_ids = selected_type_ids
+        self.window.annotation_recent_type_ids = recent_type_ids
+        route_mgr.set_annotation_type_ids(selected_type_ids)
+        self.window.window_prefs_store.save_annotation_preferences(selected_type_ids, recent_type_ids)
+        self._refresh_annotation_ui()
+        toast(self.window, strings.MAP_ANNOTATION_CHANGE_SUCCESS_FMT.format(name=new_type_name))
+
+    def add_annotation_to_route(self, type_id: str, point_index: int) -> None:
+        point = self.window.route_mgr.annotation_point(type_id, point_index)
+        if point is None:
+            styled_info(
+                self.window,
+                strings.MAP_ANNOTATION_FAIL_TITLE,
+                strings.MAP_ANNOTATION_ROUTE_FAIL_BODY,
+            )
+            return
+        try:
+            x = int(round(float(point["x"])))
+            y = int(round(float(point["y"])))
+        except (KeyError, TypeError, ValueError):
+            styled_info(
+                self.window,
+                strings.MAP_ANNOTATION_FAIL_TITLE,
+                strings.MAP_ANNOTATION_ROUTE_FAIL_BODY,
+            )
+            return
+        self.add_point_to_routes(x, y, point_fields=point)
+
+    def delete_map_annotation(self, type_id: str, point_index: int) -> None:
+        confirmed = styled_confirm(
+            self.window,
+            strings.MAP_ANNOTATION_DELETE_TITLE,
+            strings.MAP_ANNOTATION_DELETE_BODY,
+            confirm_text=strings.DELETE_POINT_CONFIRM,
+            cancel_text=strings.DELETE_POINT_CANCEL,
+        )
+        if not confirmed:
+            return
+
+        if not self.window.route_mgr.delete_annotation_point(type_id, point_index):
+            styled_info(
+                self.window,
+                strings.MAP_ANNOTATION_FAIL_TITLE,
+                strings.MAP_ANNOTATION_DELETE_FAIL_BODY,
+            )
+            return
+
+        self._refresh_annotation_ui()
+        toast(self.window, strings.MAP_ANNOTATION_DELETE_SUCCESS)
 
     def on_delete_point_requested(self, route_id: str, point_index: int) -> None:
         self.delete_points_from_routes({route_id: [point_index]})
@@ -27,6 +152,61 @@ class MapInteractionController:
         if not self.window.route_mgr.set_point_visited(route_id, point_index, visited):
             print(f"Mark point visited failed route_id={route_id} point_index={point_index}")
             return
+        try:
+            self.window.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
+        try:
+            self.window.route_panel_controller.refresh_tracked_routes()
+        except Exception:
+            pass
+
+    def change_point_annotation(self, route_id: str, point_index: int) -> None:
+        route_mgr = self.window.route_mgr
+        items = route_mgr.annotation_type_items()
+        if not items:
+            styled_info(
+                self.window,
+                strings.ANNOTATION_TYPE_PICKER_TITLE,
+                strings.ANNOTATION_TYPE_PICKER_EMPTY,
+            )
+            return
+
+        current_type_id = route_mgr.route_point_annotation_type_id(route_id, point_index)
+        selected = open_annotation_type_picker(self.window, items, current_type_id)
+        if selected is None:
+            return
+
+        type_id = str(selected.get("typeId") or "")
+        type_name = str(selected.get("type") or type_id)
+        if not route_mgr.set_point_annotation(route_id, point_index, type_id, type_name):
+            styled_info(
+                self.window,
+                strings.POINT_ANNOTATION_FAIL_TITLE,
+                strings.POINT_ANNOTATION_FAIL_BODY,
+            )
+            return
+
+        toast(self.window, strings.POINT_ANNOTATION_SUCCESS_FMT.format(name=type_name))
+        try:
+            self.window.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
+        try:
+            self.window.route_panel_controller.refresh_tracked_routes()
+        except Exception:
+            pass
+
+    def delete_point_annotation(self, route_id: str, point_index: int) -> None:
+        if not self.window.route_mgr.clear_point_annotation(route_id, point_index):
+            styled_info(
+                self.window,
+                strings.POINT_ANNOTATION_FAIL_TITLE,
+                strings.POINT_ANNOTATION_DELETE_FAIL_BODY,
+            )
+            return
+
+        toast(self.window, strings.POINT_ANNOTATION_DELETE_SUCCESS)
         try:
             self.window.map_view._refresh_from_last_frame()
         except Exception:
@@ -106,6 +286,7 @@ class MapInteractionController:
         y: int,
         route_ids: list[str] | None = None,
         show_dialog: bool = True,
+        point_fields: dict | None = None,
     ) -> None:
         """可复用入口:右键菜单与未来的"加入玩家定位"按钮都走这里。
         route_ids=None 时默认所有当前可见(追踪中)的路线。
@@ -169,7 +350,7 @@ class MapInteractionController:
             if not confirmed:
                 return
 
-        outcomes = route_mgr.insert_point_into_routes(x, y, selected_ids, overrides)
+        outcomes = route_mgr.insert_point_into_routes(x, y, selected_ids, overrides, point_fields=point_fields)
         ok_count = sum(1 for v in outcomes.values() if v is not None)
         fail_count = len(outcomes) - ok_count
 

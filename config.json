@@ -6,8 +6,8 @@
         "height": 225
     },
     "WINDOW_GEOMETRY": {
-        "x": 1049,
-        "y": 1,
+        "x": 1047,
+        "y": 6,
         "width": 783,
         "height": 510
     },
@@ -20,11 +20,10 @@
         "height": 510
     },
     "SIDEBAR_COLLAPSED": true,
-    "SIDEBAR_WIDTH": 200,
+    "SIDEBAR_WIDTH": 237,
     "PAUSED_SIDEBAR_WIDTH": 237,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
-    "DISPLAY_MAP_PATH": "big_map-1.png",
     "MAX_LOST_FRAMES": 30,
     "SIFT_REFRESH_RATE": 10,
     "SIFT_CLAHE_LIMIT": 3.0,
@@ -45,7 +44,8 @@
         "地区路线": true,
         "植物": true,
         "测试": false,
-        "矿物": true
+        "矿物": true,
+        "算法生成": true
     },
     "ROUTE_GUIDE_NODE_DISTANCE": 80,
     "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
@@ -132,17 +132,17 @@
         "17310030082"
     ],
     "ANNOTATION_RECENT_TYPE_IDS": [
+        "17310030005",
+        "17310030001",
+        "17310030031",
+        "17310030004",
+        "17310030072",
+        "17310030045",
         "17310030044",
         "17310030043",
-        "17310030045",
         "17310030046",
         "17310030028",
         "17310030027",
-        "17310030030",
-        "17310030029",
-        "17310030033",
-        "17310030034",
-        "17310030032",
-        "17310030031"
+        "17310030030"
     ]
 }

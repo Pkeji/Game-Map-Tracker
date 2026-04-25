@@ -35,7 +35,7 @@ def run_minimap_setup_or_exit() -> None:
 # 🌟 大地图手动选点窗口
 # ==========================================
 class MapSelectorWindow:
-    def __init__(self, root, display_map_bgr, logic_map_shape, callback, close_callback, route_mgr, shared_check_vars):
+    def __init__(self, root, base_map_bgr, logic_map_shape, callback, close_callback, route_mgr, shared_check_vars):
         self.top = tk.Toplevel(root)
         self.top.title("⚠️ 目标丢失 - 请在大地图上双击定位 (可勾选路线)")
         self.top.attributes("-topmost", True)
@@ -53,7 +53,7 @@ class MapSelectorWindow:
 
         self.logic_h, self.logic_w = logic_map_shape
         # 将原始 BGR 图像转换为 RGB 供 Tkinter 显示
-        self.full_img_rgb = cv2.cvtColor(display_map_bgr, cv2.COLOR_BGR2RGB)
+        self.full_img_rgb = cv2.cvtColor(base_map_bgr, cv2.COLOR_BGR2RGB)
         self.img_h, self.img_w = self.full_img_rgb.shape[:2]
 
         # 🌟 独立构建子窗口的顶部菜单和画布
@@ -203,7 +203,6 @@ class AIMapTrackerApp:
         # 加载地图数据
         self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="AI main logic map")
         self.map_height, self.map_width = self.logic_map_bgr.shape[:2]
-        self.display_map_bgr = load_map_image(config.DISPLAY_MAP_PATH, label="AI main display map")
 
         # 状态机与追踪变量
         self.state = "MANUAL_RELOCATE"
@@ -495,7 +494,7 @@ class AIMapTrackerApp:
                 vx2, vy2 = min(self.map_width, self.last_x + half_vw), min(self.map_height, self.last_y + half_vh)
 
                 # 裁剪展示用大地图
-                crop = self.display_map_bgr[vy1:vy2, vx1:vx2].copy()
+                crop = self.logic_map_bgr[vy1:vy2, vx1:vx2].copy()
 
                 # 8. 绘制路线 (传递动态窗口尺寸以适配绘制逻辑)
                 # 这里假设 RouteManager.draw_on 的最后一个参数改为最大边长或自适应
@@ -538,7 +537,7 @@ class AIMapTrackerApp:
                 torch.cuda.empty_cache()
                 MapSelectorWindow(
                     self.root,
-                    self.display_map_bgr,
+                    self.logic_map_bgr,
                     (self.map_height, self.map_width),
                     self.on_relocate_done,
                     self.reset_selector_flag,

@@ -12,7 +12,7 @@ class Toast(QWidget):
     _DISPLAY_MS = 1400
     _FADE_MS = 260
 
-    def __init__(self, parent: QWidget, message: str) -> None:
+    def __init__(self, parent: QWidget, message: str, *, persistent: bool = False) -> None:
         super().__init__(parent, Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         qss.ensure_tooltip_style()
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -20,6 +20,7 @@ class Toast(QWidget):
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setStyleSheet(qss.ISLAND_QSS)
         self.setFocusPolicy(Qt.NoFocus)
+        self._persistent = bool(persistent)
 
         shell = QFrame(self)
         shell.setObjectName("IslandRoot")
@@ -64,9 +65,21 @@ class Toast(QWidget):
         self.move(x, y)
         self.show()
         self._fade_in.start()
-        QTimer.singleShot(self._DISPLAY_MS, self._fade_out.start)
+        if not self._persistent:
+            QTimer.singleShot(self._DISPLAY_MS, self.dismiss)
+
+    def dismiss(self) -> None:
+        if self._fade_out.state() == QPropertyAnimation.Running:
+            return
+        self._fade_out.start()
 
 
 def toast(parent: QWidget, message: str) -> None:
     instance = Toast(parent, message)
     instance.pop(parent)
+
+
+def toast_persistent(parent: QWidget, message: str) -> Toast:
+    instance = Toast(parent, message, persistent=True)
+    instance.pop(parent)
+    return instance

@@ -5,16 +5,28 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-from ..design import theme
+from ..design import strings, theme
 from ..services.annotation_preferences import common_annotation_types, normalize_type_ids, touch_recent_type
 
 
 class AnnotationPanel(QFrame):
     selection_changed = Signal(list, list)
+    plan_route_requested = Signal(str, str)
     panel_hidden = Signal()
 
     def __init__(self, parent=None) -> None:
@@ -28,6 +40,9 @@ class AnnotationPanel(QFrame):
         self._selected_type_ids: list[str] = []
         self._recent_type_ids: list[str] = []
         self._show_all = False
+        self._dragging = False
+        self._drag_offset = None
+        self._drag_handles: list[QWidget] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -39,12 +54,19 @@ class AnnotationPanel(QFrame):
         root.setContentsMargins(10, 8, 10, 8)
         root.setSpacing(6)
 
-        header = QHBoxLayout()
+        self._header = QWidget()
+        self._header.setObjectName("AnnotationPanelHeader")
+        header = QHBoxLayout(self._header)
         header.setContentsMargins(0, 0, 0, 0)
         self._title = QLabel("常用标注")
         self._title.setObjectName("AnnotationPanelTitle")
         header.addWidget(self._title)
-        header.addStretch(1)
+        self._hint = QLabel(strings.ANNOTATION_ROUTE_HINT)
+        self._hint.setObjectName("AnnotationPanelHint")
+        self._hint.setToolTip(strings.ANNOTATION_ROUTE_HINT)
+        self._hint.setWordWrap(True)
+        self._hint.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        header.addWidget(self._hint, stretch=1)
         self._show_all_btn = QPushButton("全部显示")
         self._show_all_btn.setObjectName("AnnotationPanelBulkButton")
         self._show_all_btn.clicked.connect(self._select_all_types)
@@ -62,7 +84,10 @@ class AnnotationPanel(QFrame):
         self._close_btn.setToolTip("关闭")
         self._close_btn.clicked.connect(self.hide)
         header.addWidget(self._close_btn)
-        root.addLayout(header)
+        root.addWidget(self._header)
+        self._install_drag_handle(self._header)
+        self._install_drag_handle(self._title)
+        self._install_drag_handle(self._hint)
 
         self._message = QLabel("")
         self._message.setObjectName("AnnotationPanelMessage")
@@ -169,26 +194,50 @@ class AnnotationPanel(QFrame):
             self._list_layout.addWidget(grid_holder)
 
     def _build_row(self, item: dict, selected: set[str]) -> QPushButton | None:
-            type_id = str(item.get("typeId") or "")
-            if not type_id:
-                return None
-            row = QPushButton()
-            row.setObjectName("AnnotationTypeRow")
-            row.setProperty("selected", type_id in selected)
-            row.setCheckable(True)
-            row.setChecked(type_id in selected)
-            row.setText(f"{item.get('type') or type_id}  ·  {item.get('count') or 0}")
-            font = row.font()
-            font.setStrikeOut(type_id not in selected)
-            row.setFont(font)
-            icon_path = Path("tools") / "points_icon" / str(item.get("iconPath") or f"{type_id}.png")
-            if icon_path.exists():
-                pixmap = QPixmap(str(icon_path))
-                if type_id not in selected:
-                    pixmap = _faded_pixmap(pixmap, 0.35)
-                row.setIcon(QIcon(pixmap))
-            row.clicked.connect(lambda _checked=False, tid=type_id: self._toggle_type(tid))
-            return row
+        type_id = str(item.get("typeId") or "")
+        if not type_id:
+            return None
+        type_name = str(item.get("type") or type_id)
+        row = QPushButton()
+        row.setObjectName("AnnotationTypeRow")
+        row.setProperty("selected", type_id in selected)
+        row.setCheckable(True)
+        row.setChecked(type_id in selected)
+        row.setText(f"{type_name}  ·  {item.get('count') or 0}")
+        row.setToolTip(type_name)
+        font = row.font()
+        font.setStrikeOut(type_id not in selected)
+        row.setFont(font)
+        icon_path = Path("tools") / "points_icon" / str(item.get("iconPath") or f"{type_id}.png")
+        if icon_path.exists():
+            pixmap = QPixmap(str(icon_path))
+            if type_id not in selected:
+                pixmap = _faded_pixmap(pixmap, 0.35)
+            row.setIcon(QIcon(pixmap))
+        row.clicked.connect(lambda _checked=False, tid=type_id: self._toggle_type(tid))
+        row.setContextMenuPolicy(Qt.CustomContextMenu)
+        row.customContextMenuRequested.connect(
+            lambda pos, source=row, tid=type_id, name=type_name: self._show_type_context_menu(
+                tid,
+                name,
+                source.mapToGlobal(pos),
+            )
+        )
+        return row
+
+    def _show_type_context_menu(self, type_id: str, type_name: str, global_pos) -> None:
+        menu = QMenu(self)
+        menu.setObjectName("AnnotationContextMenu")
+        menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        menu.setAttribute(Qt.WA_NoSystemBackground, True)
+        menu.setAttribute(Qt.WA_TranslucentBackground, True)
+        menu.setAutoFillBackground(False)
+        menu.setStyleSheet(theme.ISLAND_QSS)
+        plan_action = menu.addAction(strings.ANNOTATION_PLAN_ROUTE)
+
+        selected = menu.exec(global_pos)
+        if selected is plan_action:
+            self.plan_route_requested.emit(type_id, type_name)
 
     def _toggle_type(self, type_id: str) -> None:
         selected = normalize_type_ids(self._selected_type_ids)
@@ -212,7 +261,35 @@ class AnnotationPanel(QFrame):
         self._render()
         self.selection_changed.emit(self._selected_type_ids, self._recent_type_ids)
 
+    def set_compact_hint(self, compact: bool) -> None:
+        self._hint.setText(strings.ANNOTATION_ROUTE_HINT_COMPACT if compact else strings.ANNOTATION_ROUTE_HINT)
+        self._hint.setToolTip(strings.ANNOTATION_ROUTE_HINT)
+
+    def _install_drag_handle(self, widget: QWidget) -> None:
+        self._drag_handles.append(widget)
+        widget.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched in self._drag_handles:
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self._dragging = True
+                self._drag_offset = event.globalPosition().toPoint() - self.pos()
+                event.accept()
+                return True
+            if event.type() == QEvent.MouseMove and self._dragging and self._drag_offset is not None:
+                self.move(event.globalPosition().toPoint() - self._drag_offset)
+                event.accept()
+                return True
+            if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                self._dragging = False
+                self._drag_offset = None
+                event.accept()
+                return True
+        return super().eventFilter(watched, event)
+
     def hideEvent(self, event) -> None:
+        self._dragging = False
+        self._drag_offset = None
         self.panel_hidden.emit()
         super().hideEvent(event)
 

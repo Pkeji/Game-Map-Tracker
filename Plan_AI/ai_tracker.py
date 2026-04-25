@@ -29,9 +29,6 @@ class AiTracker(BaseTracker):
         self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="AI logic map")
         if self.logic_map_bgr is None:
             raise FileNotFoundError(f"找不到逻辑地图：{config.LOGIC_MAP_PATH}")
-        self.display_map_bgr = load_map_image(config.DISPLAY_MAP_PATH, label="AI display map")
-        if self.display_map_bgr is None:
-            raise FileNotFoundError(f"找不到显示地图：{config.DISPLAY_MAP_PATH}")
         self.map_height, self.map_width = self.logic_map_bgr.shape[:2]
 
         self._last_x = self.map_width // 2

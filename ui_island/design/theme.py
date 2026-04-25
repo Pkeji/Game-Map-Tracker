@@ -459,19 +459,39 @@ QMenu::separator {{
     margin: 6px 10px;
     background: rgba(255, 255, 255, 0.08);
 }}
-QMenu#MapNodeContextMenu {{
+QMenu#MapNodeContextMenu,
+QMenu#MapBlankContextMenu,
+QMenu#MapAnnotationContextMenu {{
     background: rgb(28, 28, 30);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     padding: 3px 0px;
 }}
-QMenu#MapNodeContextMenu::item {{
+QMenu#MapNodeContextMenu::item,
+QMenu#MapBlankContextMenu::item,
+QMenu#MapAnnotationContextMenu::item {{
     padding: 4px 12px;
     margin: 1px 4px;
     border-radius: 5px;
 }}
-QMenu#MapNodeContextMenu::separator {{
+QMenu#MapNodeContextMenu::separator,
+QMenu#MapBlankContextMenu::separator,
+QMenu#MapAnnotationContextMenu::separator {{
     margin: 4px 8px;
+}}
+QMenu#AnnotationContextMenu {{
+    background: rgb(28, 28, 30);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 5px 0px;
+}}
+QMenu#AnnotationContextMenu::item {{
+    padding: 5px 14px;
+    margin: 2px 5px;
+    border-radius: 7px;
+}}
+QMenu#AnnotationContextMenu::separator {{
+    margin: 5px 9px;
 }}
 QPushButton#AnnotationToggleButton {{
     min-height: 22px;
@@ -508,6 +528,10 @@ QLabel#AnnotationPanelTitle {{
     color: {FG};
     font-weight: 700;
     font-size: 13px;
+}}
+QLabel#AnnotationPanelHint {{
+    color: {FG_DIM};
+    font-size: 10px;
 }}
 QLabel#AnnotationPanelMessage {{
     color: {FG_DIM};

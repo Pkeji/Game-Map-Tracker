@@ -25,8 +25,8 @@ from PySide6.QtWidgets import (
 import config
 
 from . import StyledConfirm, StyledMessage, center_dialog, place_left_of, toast
-from ..design import qss, tokens
-from ..services.settings_schema import AI_FIELDS, ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
+from ..design import qss, strings, tokens
+from ..services.settings_schema import ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
 
 
 def styled_info(parent, title: str, message: str) -> None:
@@ -50,6 +50,7 @@ def styled_confirm(
 class SettingsDialog(QDialog):
     applied = Signal()
     restart_requested = Signal()
+    annotation_refresh_requested = Signal()
 
     _FIXED_WIDTH = 660
     _FIXED_HEIGHT = 620
@@ -173,7 +174,7 @@ class SettingsDialog(QDialog):
             alignment=Qt.AlignTop,
         )
         columns.addWidget(
-            self._build_section("AI 方案", AI_FIELDS, max_height=top_section_max_height),
+            self._build_message_section("AI 方案", strings.SETTINGS_AI_DISABLED_MESSAGE),
             stretch=1,
             alignment=Qt.AlignTop,
         )
@@ -255,6 +256,28 @@ class SettingsDialog(QDialog):
                 return card
 
         card_layout.addWidget(body)
+        return card
+
+    def _build_message_section(self, title: str, message: str) -> QFrame:
+        card = QFrame()
+        card.setObjectName("PanelCard")
+        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(8)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("TitleLabel")
+        title_label.setStyleSheet("font-size: 13px;")
+        card_layout.addWidget(title_label)
+
+        body = QLabel(message)
+        body.setObjectName("StatLabel")
+        body.setWordWrap(True)
+        body.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        body.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        card_layout.addWidget(body)
+        card_layout.addStretch(1)
         return card
 
     def _compute_top_section_max_height(
@@ -379,9 +402,13 @@ class SettingsDialog(QDialog):
         for name in TOOL_BUTTONS:
             btn = QPushButton(name)
             btn.setMinimumHeight(30)
-            btn.clicked.connect(
-                lambda _=False, n=name: styled_info(self, n, f"“{n}”功能尚未实现。")
-            )
+            if name == strings.ANNOTATION_REFRESH_POINTS:
+                btn.setToolTip(strings.ANNOTATION_REFRESH_POINTS_TOOLTIP)
+                btn.clicked.connect(self.annotation_refresh_requested.emit)
+            else:
+                btn.clicked.connect(
+                    lambda _=False, n=name: styled_info(self, n, f"“{n}”功能尚未实现。")
+                )
             card_layout.addWidget(btn)
         card_layout.addStretch()
         return card
@@ -447,7 +474,10 @@ class SettingsDialog(QDialog):
     def _collect(self) -> dict | None:
         result: dict = {}
         for field in ALL_FIELDS:
-            raw = self._editors[field.key].text().strip()
+            editor = self._editors.get(field.key)
+            if editor is None:
+                continue
+            raw = editor.text().strip()
             if raw == "":
                 continue
             try:
@@ -528,8 +558,11 @@ class SettingsDialog(QDialog):
 
     def _on_reset_defaults(self) -> None:
         for field in ALL_FIELDS:
+            editor = self._editors.get(field.key)
+            if editor is None:
+                continue
             default_val = config.DEFAULT_CONFIG.get(field.key, "")
-            self._editors[field.key].setText(str(default_val))
+            editor.setText(str(default_val))
 
     def _is_on_title_bar(self, global_pos: QPoint) -> bool:
         local = self._title_bar.mapFromGlobal(global_pos)
@@ -573,6 +606,7 @@ def open_settings_dialog(
     parent,
     on_applied: Callable[[], None] | None = None,
     on_closed: Callable[[], None] | None = None,
+    on_annotation_refresh_requested: Callable[[], None] | None = None,
 ) -> None:
     global _active_dialog
     if _active_dialog is not None:
@@ -586,6 +620,8 @@ def open_settings_dialog(
     dialog = SettingsDialog(parent)
     if on_applied is not None:
         dialog.applied.connect(on_applied)
+    if on_annotation_refresh_requested is not None:
+        dialog.annotation_refresh_requested.connect(on_annotation_refresh_requested)
     dialog.restart_requested.connect(_restart_app)
 
     def _clear_ref():

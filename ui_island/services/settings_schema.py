@@ -42,7 +42,7 @@ COMMON_FIELDS: list[Field] = [
     Field("ROUTE_GUIDE_POINTER_SPACING", "导航指针间隔", int, "12~80 px"),
 ]
 
-TOOL_BUTTONS: list[str] = ["检查更新", "使用说明", "抓取点位", "路线编辑"]
+TOOL_BUTTONS: list[str] = ["检查更新", "使用说明", "拉取标注"]
 
 ALL_FIELDS: list[Field] = SIFT_FIELDS + AI_FIELDS + COMMON_FIELDS
 FIELD_INDEX: dict[str, Field] = {field.key: field for field in ALL_FIELDS}

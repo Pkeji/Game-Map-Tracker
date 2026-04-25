@@ -28,7 +28,6 @@ DEFAULT_CONFIG = {
     "PAUSED_SIDEBAR_WIDTH": 270,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
-    "DISPLAY_MAP_PATH": "big_map-1.png",
     "MAX_LOST_FRAMES": 30,
 
     "SIFT_REFRESH_RATE": 10,
@@ -146,7 +145,6 @@ def parse_window_geometry(raw) -> dict | None:
     return None
 VIEW_SIZE = settings.get("VIEW_SIZE")
 LOGIC_MAP_PATH = settings.get("LOGIC_MAP_PATH")
-DISPLAY_MAP_PATH = settings.get("DISPLAY_MAP_PATH")
 MAX_LOST_FRAMES = settings.get("MAX_LOST_FRAMES")
 
 # SIFT 专属

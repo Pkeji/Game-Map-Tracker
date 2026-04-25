@@ -30,17 +30,8 @@ class SiftTracker(BaseTracker):
         self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="SIFT logic map")
         if self.logic_map_bgr is None:
             raise FileNotFoundError(f"找不到逻辑地图：{config.LOGIC_MAP_PATH}")
-        self.display_map_bgr = load_map_image(config.DISPLAY_MAP_PATH, label="SIFT display map")
-        if self.display_map_bgr is None:
-            raise FileNotFoundError(f"找不到显示地图：{config.DISPLAY_MAP_PATH}")
 
         self.map_height, self.map_width = self.logic_map_bgr.shape[:2]
-        dh, dw = self.display_map_bgr.shape[:2]
-        if (dh, dw) != (self.map_height, self.map_width):
-            raise ValueError(
-                f"逻辑图({self.map_width}x{self.map_height}) 与 "
-                f"显示图({dw}x{dh}) 尺寸不一致"
-            )
 
         self.clahe = cv2.createCLAHE(clipLimit=config.SIFT_CLAHE_LIMIT, tileGridSize=(8, 8))
         logic_gray = cv2.cvtColor(self.logic_map_bgr, cv2.COLOR_BGR2GRAY)
