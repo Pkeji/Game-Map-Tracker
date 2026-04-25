@@ -7,8 +7,3 @@ pynput
 
 # 灵动岛 UI (main_island.py)
 PySide6
-
-# 仅 AI 引擎（main_ai.py / main_island.py --engine ai）需要
-# 安装时注意：直接 pip install torch 会下载 CPU 版，需要 GPU 请按 https://pytorch.org 选命令
-torch
-kornia

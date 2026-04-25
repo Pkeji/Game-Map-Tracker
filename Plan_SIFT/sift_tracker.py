@@ -11,7 +11,6 @@ import numpy as np
 
 import config
 from base import BaseTracker, TrackResult, TrackState
-from map_image_loader import load_map_image
 
 
 _EDGE_GUARD_PX = 24
@@ -27,7 +26,7 @@ _LARGE_JUMP_RADIUS_FACTOR = 1.8
 
 class SiftTracker(BaseTracker):
     def __init__(self) -> None:
-        self.logic_map_bgr = load_map_image(config.LOGIC_MAP_PATH, label="SIFT logic map")
+        self.logic_map_bgr = cv2.imread(config.LOGIC_MAP_PATH)
         if self.logic_map_bgr is None:
             raise FileNotFoundError(f"找不到逻辑地图：{config.LOGIC_MAP_PATH}")
 

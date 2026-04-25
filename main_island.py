@@ -1,8 +1,8 @@
 """灵动岛版跟点器主入口。
 
 用法：
-    python main_island.py            # 默认 SIFT 引擎
-    python main_island.py --engine ai  # LoFTR AI 引擎（需 torch / kornia）
+    python main_island.py            # SIFT 引擎
+    python main_island.py --engine sift  # 兼容旧启动命令
 """
 from __future__ import annotations
 
@@ -18,10 +18,7 @@ from ui_island import IslandWindow
 from ui_island.dialogs.minimap_selector import run_minimap_calibrator
 
 
-def build_tracker(engine: str):
-    if engine == "ai":
-        from Plan_AI import AiTracker  # 延迟导入，SIFT 用户不必装 torch
-        return AiTracker()
+def build_tracker():
     from Plan_SIFT import SiftTracker
     return SiftTracker()
 
@@ -40,7 +37,12 @@ def _minimap_is_configured() -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--engine", choices=["sift", "ai"], default="sift")
+    parser.add_argument(
+        "--engine",
+        choices=["sift"],
+        default="sift",
+        help="定位引擎；当前发行版仅保留 SIFT，AI UI 占位待未来接入",
+    )
     parser.add_argument(
         "--no-selector",
         action="store_true",
@@ -64,7 +66,7 @@ def main() -> int:
             return 0
         print("<<< 选择器关闭，坐标已更新！")
 
-    tracker = build_tracker(args.engine)
+    tracker = build_tracker()
     route_mgr = RouteManager("routes")
 
     window = IslandWindow(tracker, route_mgr)
@@ -73,7 +75,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # 用 os._exit 兜底：某些场景下 torch/kornia 等 C 扩展会留下非 daemon 线程，
-    # 导致 sys.exit 阻塞终端不能立即返回提示符。
     code = main()
     os._exit(code if code is not None else 0)

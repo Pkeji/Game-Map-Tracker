@@ -51,4 +51,4 @@ class SettingsGateway:
         return normalize_type_ids(getattr(config, "ANNOTATION_RECENT_TYPE_IDS", []))
 
     def get_tracker_refresh_rate(self, tracker) -> int:
-        return int(config.AI_REFRESH_RATE if hasattr(tracker, "engine") else config.SIFT_REFRESH_RATE)
+        return int(config.SIFT_REFRESH_RATE)

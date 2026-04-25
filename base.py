@@ -1,4 +1,4 @@
-"""Tracker interfaces shared by SIFT and AI plans."""
+"""Tracker interfaces consumed by the island UI."""
 
 from __future__ import annotations
 
