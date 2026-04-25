@@ -14,31 +14,74 @@ else:
 
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
+
+def app_path(*parts: str) -> str:
+    """Return a path under the editable application directory."""
+    return os.path.join(BASE_DIR, *parts)
+
+
+def resolve_app_path(path: str | os.PathLike[str] | None) -> str | None:
+    """Resolve relative config paths against the application directory."""
+    if path is None:
+        return None
+    raw_path = os.fspath(path)
+    if os.path.isabs(raw_path):
+        return raw_path
+    return app_path(raw_path)
+
 # ==========================================
 # 默认配置字典 (如果 JSON 文件丢失，用来兜底并重新生成)
 # ==========================================
 DEFAULT_CONFIG = {
-    "MINIMAP": {"top": 292, "left": 1853, "width": 150, "height": 150},
-    "WINDOW_GEOMETRY": "400x400+1500+100",
+    # 首次启动时保持为空，强制弹出小地图校准器；保存后再写入真实坐标
+    "MINIMAP": {},
+    "WINDOW_GEOMETRY": {"x": 1418, "y": 0, "width": 420, "height": 360},
+    "LOCKED_VIEW_SIZE": {"width": 420, "height": 360},
+    "PAUSED_VIEW_SIZE": {"width": 820, "height": 500},
+    "SIDEBAR_COLLAPSED": True,
+    "SIDEBAR_WIDTH": 270,
+    "PAUSED_SIDEBAR_WIDTH": 270,
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
-    "DISPLAY_MAP_PATH": "big_map-1.png",
-    "MAX_LOST_FRAMES": 50,
+    "MAX_LOST_FRAMES": 30,
 
-    "SIFT_REFRESH_RATE": 50,
+    "SIFT_REFRESH_RATE": 10,
     "SIFT_CLAHE_LIMIT": 3.0,
     "SIFT_MATCH_RATIO": 0.9,
     "SIFT_MIN_MATCH_COUNT": 5,
     "SIFT_RANSAC_THRESHOLD": 8.0,
+    "SIFT_LOCAL_SEARCH_RADIUS": 400,
 
-    "AI_REFRESH_RATE": 200,
-    "AI_CONFIDENCE_THRESHOLD": 0.6,
-    "AI_MIN_MATCH_COUNT": 6,
-    "AI_RANSAC_THRESHOLD": 8.0,
-    "AI_SCAN_SIZE": 1600,
-    "AI_SCAN_STEP": 1400,
-    "AI_TRACK_RADIUS": 500
+    "ROUTE_RECENT_LIMIT": 5,
+    "ROUTE_GUIDE_NODE_DISTANCE": 80,
+    "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
+    "ROUTE_GUIDE_POINTER_SPACING": 28,
+    "ROUTE_GUIDE_POINTER_SIZE": 10,
+    "ROUTE_SECTION_EXPANDED": {},
+    "ANNOTATION_TYPE_IDS": [],
+    "ANNOTATION_RECENT_TYPE_IDS": [],
+    "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
 }
+
+
+def save_config(new_values: dict) -> None:
+    """把部分字段写回 config.json 并刷新本模块导出的常量。"""
+    current = {}
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                current = json.load(f)
+        except Exception:
+            current = {}
+    current.update(new_values)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(current, f, indent=4, ensure_ascii=False)
+
+    # 同步更新模块级常量，避免进程内各处读到旧值
+    globals().update(new_values)
+    if "LOGIC_MAP_PATH" in new_values:
+        globals()["LOGIC_MAP_PATH"] = resolve_app_path(new_values["LOGIC_MAP_PATH"])
+    settings.update(new_values)
 
 
 def load_config():
@@ -73,9 +116,47 @@ settings = load_config()
 # 通用设置
 MINIMAP = settings.get("MINIMAP")
 WINDOW_GEOMETRY = settings.get("WINDOW_GEOMETRY")
+SIDEBAR_COLLAPSED = settings.get("SIDEBAR_COLLAPSED")
+SIDEBAR_WIDTH = settings.get("SIDEBAR_WIDTH")
+PAUSED_SIDEBAR_WIDTH = settings.get("PAUSED_SIDEBAR_WIDTH")
+LOCKED_VIEW_SIZE = settings.get("LOCKED_VIEW_SIZE")
+PAUSED_VIEW_SIZE = settings.get("PAUSED_VIEW_SIZE")
+ROUTE_SECTION_EXPANDED = settings.get("ROUTE_SECTION_EXPANDED") or {}
+ANNOTATION_TYPE_IDS = settings.get("ANNOTATION_TYPE_IDS") or []
+ANNOTATION_RECENT_TYPE_IDS = settings.get("ANNOTATION_RECENT_TYPE_IDS") or []
+QUARK_DOWNLOAD_URL = settings.get("QUARK_DOWNLOAD_URL") or ""
+
+
+def parse_window_geometry(raw) -> dict | None:
+    """把旧的 Tk 字符串或新字典格式规整成 {x, y, width, height}。
+
+    支持：
+      - 字典 {x, y, width, height}
+      - Tk 格式 "WxH+X+Y"
+    无效输入返回 None。
+    """
+    if isinstance(raw, dict):
+        try:
+            return {
+                "x": int(raw["x"]),
+                "y": int(raw["y"]),
+                "width": int(raw["width"]),
+                "height": int(raw["height"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
+    if isinstance(raw, str):
+        import re
+        m = re.match(r"(\d+)x(\d+)([+-]\d+)([+-]\d+)", raw.strip())
+        if m:
+            w, h, x, y = m.groups()
+            try:
+                return {"x": int(x), "y": int(y), "width": int(w), "height": int(h)}
+            except ValueError:
+                return None
+    return None
 VIEW_SIZE = settings.get("VIEW_SIZE")
-LOGIC_MAP_PATH = settings.get("LOGIC_MAP_PATH")
-DISPLAY_MAP_PATH = settings.get("DISPLAY_MAP_PATH")
+LOGIC_MAP_PATH = resolve_app_path(settings.get("LOGIC_MAP_PATH"))
 MAX_LOST_FRAMES = settings.get("MAX_LOST_FRAMES")
 
 # SIFT 专属
@@ -84,12 +165,10 @@ SIFT_CLAHE_LIMIT = settings.get("SIFT_CLAHE_LIMIT")
 SIFT_MATCH_RATIO = settings.get("SIFT_MATCH_RATIO")
 SIFT_MIN_MATCH_COUNT = settings.get("SIFT_MIN_MATCH_COUNT")
 SIFT_RANSAC_THRESHOLD = settings.get("SIFT_RANSAC_THRESHOLD")
+SIFT_LOCAL_SEARCH_RADIUS = settings.get("SIFT_LOCAL_SEARCH_RADIUS")
 
-# AI 专属
-AI_REFRESH_RATE = settings.get("AI_REFRESH_RATE")
-AI_CONFIDENCE_THRESHOLD = settings.get("AI_CONFIDENCE_THRESHOLD")
-AI_MIN_MATCH_COUNT = settings.get("AI_MIN_MATCH_COUNT")
-AI_RANSAC_THRESHOLD = settings.get("AI_RANSAC_THRESHOLD")
-AI_SCAN_SIZE = settings.get("AI_SCAN_SIZE")
-AI_SCAN_STEP = settings.get("AI_SCAN_STEP")
-AI_TRACK_RADIUS = settings.get("AI_TRACK_RADIUS")
+ROUTE_RECENT_LIMIT = settings.get("ROUTE_RECENT_LIMIT")
+ROUTE_GUIDE_NODE_DISTANCE = settings.get("ROUTE_GUIDE_NODE_DISTANCE")
+ROUTE_GUIDE_SEGMENT_DISTANCE = settings.get("ROUTE_GUIDE_SEGMENT_DISTANCE")
+ROUTE_GUIDE_POINTER_SPACING = settings.get("ROUTE_GUIDE_POINTER_SPACING")
+ROUTE_GUIDE_POINTER_SIZE = settings.get("ROUTE_GUIDE_POINTER_SIZE")
