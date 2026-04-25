@@ -225,13 +225,16 @@ def build_update_plan(
     conflicts: list[str] = []
     download_size = 0
     requires_restart = manifest.requires_launcher_update
+    manifest_version_newer = compare_versions(manifest.version, current) > 0
 
     for file in manifest.files:
         path = file.path
         local_path = _app_path(path)
         installed_hash = installed_hashes.get(path)
         if file.install == CONFIG_INSTALL_MODE:
-            if installed_hash != file.sha256:
+            if installed_hash == file.sha256:
+                continue
+            if installed_hash or manifest_version_newer:
                 changed.append(FileChange(file=file, reason="config-defaults"))
                 download_size += file.size
             continue
@@ -276,7 +279,7 @@ def build_update_plan(
         safe_delete.append(path)
         requires_restart = requires_restart or _is_restart_file(path, manifest)
 
-    has_update = bool(changed or safe_delete or compare_versions(manifest.version, current) > 0)
+    has_update = bool(changed or safe_delete or manifest_version_newer)
     return AppUpdateCheckResult(
         ok=True,
         current_version=current,

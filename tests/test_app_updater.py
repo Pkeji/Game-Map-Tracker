@@ -150,6 +150,112 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertEqual(merged["VIEW_SIZE"], 500)
         self.assertEqual(merged["WINDOW_GEOMETRY"], {"x": 9, "y": 8, "width": 420, "height": 360})
 
+    def test_config_local_change_does_not_trigger_update_when_defaults_installed(self) -> None:
+        defaults = {"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 270}
+        defaults_bytes = json.dumps(defaults, ensure_ascii=False).encode("utf-8")
+        manifest = app_updater.parse_app_manifest(
+            {
+                "version": "0.2.0",
+                "files": [
+                    {
+                        "path": "config.json",
+                        "url": "https://example.test/config.json",
+                        "sha256": _sha256_bytes(defaults_bytes),
+                        "size": len(defaults_bytes),
+                        "install": "merge_config",
+                    }
+                ],
+            }
+        )
+        installed = {"files": {"config.json": {"sha256": _sha256_bytes(defaults_bytes)}}}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config.BASE_DIR = tmp
+            Path(tmp, "config.json").write_text(
+                json.dumps({"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 333}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            result = app_updater.build_update_plan(
+                manifest,
+                current_version="0.2.0",
+                installed_manifest=installed,
+            )
+
+        self.assertTrue(result.ok)
+        self.assertFalse(result.has_update)
+        self.assertEqual(result.changed_files, ())
+
+    def test_config_local_change_is_ignored_without_installed_manifest_on_same_version(self) -> None:
+        defaults = {"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 270}
+        defaults_bytes = json.dumps(defaults, ensure_ascii=False).encode("utf-8")
+        manifest = app_updater.parse_app_manifest(
+            {
+                "version": "0.2.0",
+                "files": [
+                    {
+                        "path": "config.json",
+                        "url": "https://example.test/config.json",
+                        "sha256": _sha256_bytes(defaults_bytes),
+                        "size": len(defaults_bytes),
+                        "install": "merge_config",
+                    }
+                ],
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config.BASE_DIR = tmp
+            Path(tmp, "config.json").write_text(
+                json.dumps({"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 333}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            result = app_updater.build_update_plan(
+                manifest,
+                current_version="0.2.0",
+                installed_manifest={},
+            )
+
+        self.assertTrue(result.ok)
+        self.assertFalse(result.has_update)
+        self.assertEqual(result.changed_files, ())
+
+    def test_config_defaults_update_runs_without_installed_manifest_when_version_is_newer(self) -> None:
+        defaults = {"CONFIG_VERSION": 3, "SIDEBAR_WIDTH": 270, "VIEW_SIZE": 600}
+        defaults_bytes = json.dumps(defaults, ensure_ascii=False).encode("utf-8")
+        manifest = app_updater.parse_app_manifest(
+            {
+                "version": "0.3.0",
+                "files": [
+                    {
+                        "path": "config.json",
+                        "url": "https://example.test/config.json",
+                        "sha256": _sha256_bytes(defaults_bytes),
+                        "size": len(defaults_bytes),
+                        "install": "merge_config",
+                    }
+                ],
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config.BASE_DIR = tmp
+            Path(tmp, "config.json").write_text(
+                json.dumps({"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 333}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            result = app_updater.build_update_plan(
+                manifest,
+                current_version="0.2.0",
+                installed_manifest={},
+            )
+
+        self.assertTrue(result.ok)
+        self.assertTrue(result.has_update)
+        self.assertEqual(result.changed_files[0].file.path, "config.json")
+
     def test_write_restart_update_job_contains_changed_files_and_manifest(self) -> None:
         payload = b"new exe"
         manifest = app_updater.parse_app_manifest(

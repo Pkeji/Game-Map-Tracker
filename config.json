@@ -1,11 +1,6 @@
 {
-    "CONFIG_VERSION": 2,
-    "MINIMAP": {
-        "top": 60,
-        "left": 2294,
-        "width": 225,
-        "height": 225
-    },
+    "CONFIG_VERSION": 1,
+    "MINIMAP": {},
     "WINDOW_GEOMETRY": {
         "x": 1047,
         "y": 6,
@@ -26,25 +21,26 @@
     "VIEW_SIZE": 400,
     "LOGIC_MAP_PATH": "big_map.png",
     "MAX_LOST_FRAMES": 30,
-    "SIFT_REFRESH_RATE": 10,
+    "SIFT_REFRESH_RATE": 30,
     "SIFT_CLAHE_LIMIT": 3.0,
     "SIFT_MATCH_RATIO": 0.9,
     "SIFT_MIN_MATCH_COUNT": 5,
     "SIFT_RANSAC_THRESHOLD": 8.0,
     "SIFT_LOCAL_SEARCH_RADIUS": 400,
     "ROUTE_RECENT_LIMIT": 3,
-    "ROUTE_SECTION_EXPANDED": {
-        "其他": true,
-        "地区路线": true,
-        "植物": true,
-        "测试": false,
-        "矿物": true,
-        "算法生成": true
-    },
     "ROUTE_GUIDE_NODE_DISTANCE": 80,
     "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
     "ROUTE_GUIDE_POINTER_SPACING": 28,
     "ROUTE_GUIDE_POINTER_SIZE": 10,
+    "ROUTE_SECTION_EXPANDED": {
+        "其他": false,
+        "地区路线": false,
+        "植物": false,
+        "测试": false,
+        "矿物": false,
+        "算法生成": false,
+        "特定精灵球": false
+    },
     "ANNOTATION_TYPE_IDS": [
         "17310030001",
         "17310030002",

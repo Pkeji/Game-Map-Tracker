@@ -20,6 +20,8 @@ PROTECTED_USER_FILES = {
 }
 DEFAULT_EXCLUDES = {
     "installed-manifest.json",
+    "update-job.json",
+    "config.json.bak",
 }
 
 
