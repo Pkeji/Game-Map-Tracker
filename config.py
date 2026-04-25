@@ -60,6 +60,7 @@ DEFAULT_CONFIG = {
     "ROUTE_SECTION_EXPANDED": {},
     "ANNOTATION_TYPE_IDS": [],
     "ANNOTATION_RECENT_TYPE_IDS": [],
+    "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
 }
 
 
@@ -123,6 +124,7 @@ PAUSED_VIEW_SIZE = settings.get("PAUSED_VIEW_SIZE")
 ROUTE_SECTION_EXPANDED = settings.get("ROUTE_SECTION_EXPANDED") or {}
 ANNOTATION_TYPE_IDS = settings.get("ANNOTATION_TYPE_IDS") or []
 ANNOTATION_RECENT_TYPE_IDS = settings.get("ANNOTATION_RECENT_TYPE_IDS") or []
+QUARK_DOWNLOAD_URL = settings.get("QUARK_DOWNLOAD_URL") or ""
 
 
 def parse_window_geometry(raw) -> dict | None:

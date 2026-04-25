@@ -10,6 +10,16 @@ from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton,
 
 from ..design import qss
 
+_LINK_STYLE = """
+<style>
+a {
+  color: #8fd3ff;
+  text-decoration: underline;
+  font-weight: 600;
+}
+</style>
+"""
+
 
 class StyledDialogBase(QDialog):
     def __init__(self, parent, title: str, *, modal: bool = True, min_width: int = 340, max_width: int = 460) -> None:
@@ -105,12 +115,19 @@ class StyledDialogBase(QDialog):
 
 
 class StyledMessage(StyledDialogBase):
-    def __init__(self, parent, title: str, message: str) -> None:
+    def __init__(self, parent, title: str, message: str, *, allow_links: bool = False) -> None:
         super().__init__(parent, title)
-        body = QLabel(message)
+        body = QLabel((_LINK_STYLE + message) if allow_links else message)
         body.setObjectName("BodyLabel")
         body.setWordWrap(True)
-        body.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        if allow_links:
+            body.setTextFormat(Qt.RichText)
+            body.setOpenExternalLinks(True)
+            body.setTextInteractionFlags(
+                Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard
+            )
+        else:
+            body.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.shell_layout.addWidget(body, stretch=1)
 
         self.add_action_row(confirm_text="确定")

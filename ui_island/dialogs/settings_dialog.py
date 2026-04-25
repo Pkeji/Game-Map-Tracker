@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+from html import escape
 from typing import Callable
 
 from PySide6.QtCore import QPoint, Qt, Signal
@@ -24,13 +26,15 @@ from PySide6.QtWidgets import (
 import config
 
 from . import StyledConfirm, StyledMessage, center_dialog, place_left_of, toast
+from ..app.app_info import UPDATE_REPO
 from ..design import qss, strings, tokens
 from ..services.settings_schema import ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
+from ..services.update_checker import UpdateCheckResult, check_for_updates
 from ..widgets.factory import make_scroll_area
 
 
-def styled_info(parent, title: str, message: str) -> None:
-    dialog = StyledMessage(parent, title, message)
+def styled_info(parent, title: str, message: str, *, allow_links: bool = False) -> None:
+    dialog = StyledMessage(parent, title, message, allow_links=allow_links)
     center_dialog(dialog, parent)
     dialog.exec()
 
@@ -47,10 +51,18 @@ def styled_confirm(
     return dialog.exec() == QDialog.Accepted
 
 
+def _summarize_release_notes(body: str, *, limit: int = 800) -> str:
+    text = "\n".join(line.rstrip() for line in str(body or "").strip().splitlines())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n..."
+
+
 class SettingsDialog(QDialog):
     applied = Signal()
     restart_requested = Signal()
     annotation_refresh_requested = Signal()
+    update_check_finished = Signal(object)
 
     _FIXED_WIDTH = 660
     _FIXED_HEIGHT = 620
@@ -75,7 +87,10 @@ class SettingsDialog(QDialog):
         self._editors: dict[str, QLineEdit] = {}
         self._initial_values: dict[str, str] = {}
         self._minimap_editors: dict[str, QLineEdit] = {}
+        self._update_check_button: QPushButton | None = None
+        self._update_check_running = False
         self._build_ui()
+        self.update_check_finished.connect(self._on_update_check_finished, Qt.QueuedConnection)
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -400,7 +415,13 @@ class SettingsDialog(QDialog):
         for name in TOOL_BUTTONS:
             btn = QPushButton(name)
             btn.setMinimumHeight(30)
-            if name == strings.ANNOTATION_REFRESH_POINTS:
+            if name == "检查更新":
+                self._update_check_button = btn
+                btn.clicked.connect(self._on_check_update_clicked)
+            elif name == "夸克网盘":
+                btn.setToolTip("提供夸克网盘最新链接下载")
+                btn.clicked.connect(self._on_quark_download_clicked)
+            elif name == strings.ANNOTATION_REFRESH_POINTS:
                 btn.setToolTip(strings.ANNOTATION_REFRESH_POINTS_TOOLTIP)
                 btn.clicked.connect(self.annotation_refresh_requested.emit)
             else:
@@ -410,6 +431,101 @@ class SettingsDialog(QDialog):
             card_layout.addWidget(btn)
         card_layout.addStretch()
         return card
+
+    def _on_quark_download_clicked(self) -> None:
+        url = str(getattr(config, "QUARK_DOWNLOAD_URL", "") or "").strip()
+        if not url:
+            styled_info(
+                self,
+                "夸克网盘",
+                "暂未配置夸克网盘链接。\n\n"
+                "你可以稍后在 config.json 中写入：\n"
+                '"QUARK_DOWNLOAD_URL": "https://..."',
+            )
+            return
+        styled_info(
+            self,
+            "夸克网盘",
+            "最新版本夸克网盘下载链接：<br><br>"
+            f'<a href="{escape(url, quote=True)}">{escape(url)}</a>',
+            allow_links=True,
+        )
+
+    def _on_check_update_clicked(self) -> None:
+        if self._update_check_running:
+            return
+        self._update_check_running = True
+        if self._update_check_button is not None:
+            self._update_check_button.setEnabled(False)
+            self._update_check_button.setText("正在检查更新...")
+
+        def worker() -> None:
+            result = check_for_updates()
+            try:
+                self.update_check_finished.emit(result)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_check_finished(self, result: object) -> None:
+        self._update_check_running = False
+        if self._update_check_button is not None:
+            self._update_check_button.setEnabled(True)
+            self._update_check_button.setText("检查更新")
+
+        if not isinstance(result, UpdateCheckResult):
+            styled_info(
+                self,
+                "检查更新失败",
+                self._update_failure_message("更新检查返回了未知结果。"),
+                allow_links=True,
+            )
+            return
+        if not result.ok:
+            styled_info(self, "检查更新失败", self._update_failure_message(result.error or "未知错误。"), allow_links=True)
+            return
+        release = result.release
+        if release is None:
+            styled_info(self, "检查更新失败", self._update_failure_message("GitHub Release 信息为空。"), allow_links=True)
+            return
+        if not result.has_update:
+            styled_info(self, "检查更新", f"当前已是最新版本：{result.current_version}")
+            return
+
+        styled_info(self, "发现新版本", self._format_update_message(result), allow_links=True)
+
+    @staticmethod
+    def _update_failure_message(error: str) -> str:
+        releases_url = f"https://github.com/{UPDATE_REPO}/releases"
+        return (
+            f"{escape(error)}<br><br>"
+            "请稍后重试，或手动访问 GitHub Release 页面：<br>"
+            f'<a href="{escape(releases_url, quote=True)}">{escape(releases_url)}</a>'
+        )
+
+    @staticmethod
+    def _format_update_message(result: UpdateCheckResult) -> str:
+        release = result.release
+        if release is None:
+            return ""
+        published_at = release.published_at or "未知"
+        release_url = release.html_url or f"https://github.com/{UPDATE_REPO}/releases"
+        notes = _summarize_release_notes(release.body)
+        assets = "<br>".join(f"&nbsp;&nbsp;{escape(asset.name or asset.browser_download_url)}" for asset in release.assets[:5])
+        parts = [
+            f"当前版本：{escape(result.current_version)}",
+            f"最新版本：{escape(release.version)}",
+            f"发布时间：{escape(published_at)}",
+            "",
+            "Release 页面：",
+            f'<a href="{escape(release_url, quote=True)}">{escape(release_url)}</a>',
+        ]
+        if assets:
+            parts.extend(["", "发布附件：", assets])
+        if notes:
+            parts.extend(["", "更新说明：", escape(notes).replace("\n", "<br>")])
+        return "<br>".join(parts)
 
     def _build_field(self, field: Field, *, narrow_editor: bool = False) -> QHBoxLayout:
         row = QHBoxLayout()
