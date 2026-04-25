@@ -1,4 +1,4 @@
-"""Settings dialog and styled prompt helpers for island UI."""
+"""岛状界面的设置对话框和统一提示辅助函数。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import threading
 from html import escape
 from typing import Callable
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QDoubleValidator, QIntValidator, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -26,10 +26,17 @@ from PySide6.QtWidgets import (
 import config
 
 from . import StyledConfirm, StyledMessage, center_dialog, place_left_of, toast
-from ..app.app_info import UPDATE_REPO
 from ..design import qss, strings, tokens
+from ..services.app_updater import (
+    AppUpdateCheckResult,
+    AppUpdateInstallResult,
+    check_app_update,
+    cleanup_staging,
+    download_changed_files,
+    install_non_restart_update,
+    start_restart_update,
+)
 from ..services.settings_schema import ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
-from ..services.update_checker import UpdateCheckResult, check_for_updates
 from ..widgets.factory import make_scroll_area
 
 
@@ -63,6 +70,7 @@ class SettingsDialog(QDialog):
     restart_requested = Signal()
     annotation_refresh_requested = Signal()
     update_check_finished = Signal(object)
+    update_install_finished = Signal(object)
 
     _FIXED_WIDTH = 660
     _FIXED_HEIGHT = 620
@@ -91,6 +99,7 @@ class SettingsDialog(QDialog):
         self._update_check_running = False
         self._build_ui()
         self.update_check_finished.connect(self._on_update_check_finished, Qt.QueuedConnection)
+        self.update_install_finished.connect(self._on_update_install_finished, Qt.QueuedConnection)
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -460,7 +469,7 @@ class SettingsDialog(QDialog):
             self._update_check_button.setText("正在检查更新...")
 
         def worker() -> None:
-            result = check_for_updates()
+            result = check_app_update()
             try:
                 self.update_check_finished.emit(result)
             except RuntimeError:
@@ -474,58 +483,174 @@ class SettingsDialog(QDialog):
             self._update_check_button.setEnabled(True)
             self._update_check_button.setText("检查更新")
 
-        if not isinstance(result, UpdateCheckResult):
-            styled_info(
-                self,
-                "检查更新失败",
-                self._update_failure_message("更新检查返回了未知结果。"),
-                allow_links=True,
-            )
+        if not isinstance(result, AppUpdateCheckResult):
+            styled_info(self, "检查更新失败", "更新检查返回了未知结果。")
             return
         if not result.ok:
-            styled_info(self, "检查更新失败", self._update_failure_message(result.error or "未知错误。"), allow_links=True)
-            return
-        release = result.release
-        if release is None:
-            styled_info(self, "检查更新失败", self._update_failure_message("GitHub Release 信息为空。"), allow_links=True)
+            styled_info(self, "检查更新失败", result.error or "未知错误。")
             return
         if not result.has_update:
             styled_info(self, "检查更新", f"当前已是最新版本：{result.current_version}")
             return
 
-        styled_info(self, "发现新版本", self._format_update_message(result), allow_links=True)
+        if result.requires_restart:
+            confirmed = styled_confirm(
+                self,
+                "发现程序更新",
+                self._format_app_update_message(result).replace("<br>", "\n")
+                + "\n\n此更新将下载变化文件，然后自动关闭并重启程序完成安装。",
+                confirm_text="下载并重启更新",
+                cancel_text="稍后",
+            )
+            if confirmed:
+                self._start_restart_update(result)
+            return
 
-    @staticmethod
-    def _update_failure_message(error: str) -> str:
-        releases_url = f"https://github.com/{UPDATE_REPO}/releases"
-        return (
-            f"{escape(error)}<br><br>"
-            "请稍后重试，或手动访问 GitHub Release 页面：<br>"
-            f'<a href="{escape(releases_url, quote=True)}">{escape(releases_url)}</a>'
+        confirmed = styled_confirm(
+            self,
+            "发现资源更新",
+            self._format_app_update_message(result).replace("<br>", "\n"),
+            confirm_text="下载并更新",
+            cancel_text="稍后",
+        )
+        if confirmed:
+            self._start_non_restart_update(result)
+
+    def _start_non_restart_update(self, result: AppUpdateCheckResult) -> None:
+        self._update_check_running = True
+        if self._update_check_button is not None:
+            self._update_check_button.setEnabled(False)
+            self._update_check_button.setText("正在下载更新...")
+
+        def worker() -> None:
+            staging = None
+            try:
+                staging = download_changed_files(result)
+                install_result = install_non_restart_update(result, staging)
+            except Exception as exc:
+                install_result = AppUpdateInstallResult(ok=False, version=result.latest_version, error=str(exc))
+            finally:
+                if staging is not None:
+                    cleanup_staging(staging)
+            try:
+                self.update_install_finished.emit(install_result)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _start_restart_update(self, result: AppUpdateCheckResult) -> None:
+        self._update_check_running = True
+        if self._update_check_button is not None:
+            self._update_check_button.setEnabled(False)
+            self._update_check_button.setText("正在准备重启更新...")
+
+        def worker() -> None:
+            staging = None
+            try:
+                staging = download_changed_files(result)
+                install_result = start_restart_update(result, staging)
+            except Exception as exc:
+                if staging is not None:
+                    cleanup_staging(staging)
+                install_result = AppUpdateInstallResult(
+                    ok=False,
+                    version=result.latest_version,
+                    requires_restart=True,
+                    error=str(exc),
+                )
+            try:
+                self.update_install_finished.emit(install_result)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_install_finished(self, result: object) -> None:
+        self._update_check_running = False
+        if self._update_check_button is not None:
+            self._update_check_button.setEnabled(True)
+            self._update_check_button.setText("检查更新")
+
+        if not isinstance(result, AppUpdateInstallResult):
+            styled_info(self, "更新失败", "更新安装返回了未知结果。")
+            return
+        if not result.ok:
+            styled_info(self, "更新失败", result.error or "未知错误。")
+            return
+
+        if result.requires_restart:
+            styled_info(self, "正在重启更新", "更新器已启动，程序即将关闭并完成安装。")
+            QTimer.singleShot(300, QApplication.quit)
+            return
+
+        self._refresh_updated_resources()
+        conflict_msg = ""
+        if result.skipped_conflicts:
+            conflict_msg = f"\n\n已跳过 {len(result.skipped_conflicts)} 个用户修改过的文件。"
+        styled_info(
+            self,
+            "更新完成",
+            f"资源已更新到 {result.version}，并已保留你的个人配置。{conflict_msg}",
         )
 
     @staticmethod
-    def _format_update_message(result: UpdateCheckResult) -> str:
-        release = result.release
-        if release is None:
-            return ""
-        published_at = release.published_at or "未知"
-        release_url = release.html_url or f"https://github.com/{UPDATE_REPO}/releases"
-        notes = _summarize_release_notes(release.body)
-        assets = "<br>".join(f"&nbsp;&nbsp;{escape(asset.name or asset.browser_download_url)}" for asset in release.assets[:5])
+    def _format_app_update_message(result: AppUpdateCheckResult) -> str:
+        notes = _summarize_release_notes(result.notes)
         parts = [
             f"当前版本：{escape(result.current_version)}",
-            f"最新版本：{escape(release.version)}",
-            f"发布时间：{escape(published_at)}",
-            "",
-            "Release 页面：",
-            f'<a href="{escape(release_url, quote=True)}">{escape(release_url)}</a>',
+            f"最新版本：{escape(result.latest_version)}",
+            f"更新文件：{len(result.changed_files)} 个",
+            f"删除文件：{len(result.delete_files)} 个",
+            f"下载大小：{SettingsDialog._format_bytes(result.download_size)}",
         ]
-        if assets:
-            parts.extend(["", "发布附件：", assets])
+        if result.skipped_conflicts:
+            parts.append(f"本地改动冲突：{len(result.skipped_conflicts)} 个文件将跳过")
+        parts.append("安装方式：需要重启" if result.requires_restart else "安装方式：不重启热更新")
         if notes:
             parts.extend(["", "更新说明：", escape(notes).replace("\n", "<br>")])
         return "<br>".join(parts)
+
+    @staticmethod
+    def _format_bytes(size: int) -> str:
+        value = float(max(0, int(size or 0)))
+        for unit in ("B", "KB", "MB", "GB"):
+            if value < 1024 or unit == "GB":
+                return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
+            value /= 1024
+        return f"{int(size)} B"
+
+    def _refresh_updated_resources(self) -> None:
+        parent = self.parent()
+        if parent is None:
+            return
+        try:
+            route_mgr = getattr(parent, "route_mgr", None)
+            if route_mgr is not None:
+                route_mgr._annotation_points_cache = None
+                route_mgr._point_icon_cache.clear()
+                route_mgr._annotation_icon_cache.clear()
+        except Exception:
+            pass
+        controller = getattr(parent, "route_panel_controller", None)
+        if controller is not None:
+            try:
+                controller.reload_route_list()
+            except Exception:
+                pass
+        annotation_panel = getattr(parent, "annotation_panel", None)
+        if annotation_panel is not None:
+            try:
+                annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
+                annotation_panel.set_preferences(parent.annotation_type_ids, parent.annotation_recent_type_ids)
+            except Exception:
+                pass
+        map_view = getattr(parent, "map_view", None)
+        if map_view is not None:
+            try:
+                map_view._refresh_from_last_frame()
+            except Exception:
+                pass
 
     def _build_field(self, field: Field, *, narrow_editor: bool = False) -> QHBoxLayout:
         row = QHBoxLayout()

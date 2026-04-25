@@ -1,4 +1,5 @@
 {
+    "CONFIG_VERSION": 2,
     "MINIMAP": {
         "top": 60,
         "left": 2294,
@@ -137,5 +138,7 @@
         "17310030028",
         "17310030027",
         "17310030030"
-    ]
+    ],
+    "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
+    "APP_UPDATE_MANIFEST_URL": "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json"
 }

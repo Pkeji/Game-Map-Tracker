@@ -1,4 +1,4 @@
-"""GitHub Releases based update checker."""
+"""基于 GitHub Releases 的旧版更新检查器。"""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class UpdateCheckResult:
 
 
 class UpdateCheckError(RuntimeError):
-    """Raised when a release response cannot be used for update checks."""
+    """Release 响应不能用于更新检查时抛出。"""
 
 
 def parse_version(value: str) -> ParsedVersion:

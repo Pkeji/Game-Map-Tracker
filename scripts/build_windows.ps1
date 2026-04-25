@@ -29,6 +29,7 @@ function Copy-DirectoryFresh($Source, $Destination) {
 if ($Clean) {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "build"
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "dist\GMT-N"
+    Remove-Item -Force -ErrorAction SilentlyContinue "dist\updater.exe"
 }
 
 if (-not $SkipInstall) {
@@ -36,11 +37,18 @@ if (-not $SkipInstall) {
 }
 
 Invoke-Python -m PyInstaller --noconfirm GMT-N.spec
+Invoke-Python -m PyInstaller --noconfirm GMT-N-Updater.spec
 
 $Dist = Join-Path $Root "dist\GMT-N"
 if (-not (Test-Path $Dist)) {
     throw "PyInstaller did not create $Dist"
 }
+
+$UpdaterExe = Join-Path $Root "dist\updater.exe"
+if (-not (Test-Path $UpdaterExe)) {
+    throw "PyInstaller did not create $UpdaterExe"
+}
+Copy-Item $UpdaterExe -Destination (Join-Path $Dist "updater.exe") -Force
 
 foreach ($file in @("big_map.png", "config.json", "README.md")) {
     if (Test-Path $file) {
@@ -64,5 +72,6 @@ foreach ($folder in @("points_all", "points_get", "points_icon")) {
 Write-Host ""
 Write-Host "Build complete:"
 Write-Host "  $Dist\GMT-N.exe"
+Write-Host "  $Dist\updater.exe"
 Write-Host ""
 Write-Host "Ship the whole dist\GMT-N folder, not the exe by itself."
