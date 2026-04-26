@@ -49,14 +49,14 @@ DEFAULT_CONFIG = {
     "LOGIC_MAP_PATH": "big_map.png",
     "MAX_LOST_FRAMES": 30,
 
-    "SIFT_REFRESH_RATE": 10,
+    "SIFT_REFRESH_RATE": 30,
     "SIFT_CLAHE_LIMIT": 3.0,
     "SIFT_MATCH_RATIO": 0.9,
     "SIFT_MIN_MATCH_COUNT": 5,
     "SIFT_RANSAC_THRESHOLD": 8.0,
     "SIFT_LOCAL_SEARCH_RADIUS": 400,
 
-    "ROUTE_RECENT_LIMIT": 5,
+    "ROUTE_RECENT_LIMIT": 3,
     "ROUTE_GUIDE_NODE_DISTANCE": 80,
     "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
     "ROUTE_GUIDE_POINTER_SPACING": 28,
@@ -65,7 +65,7 @@ DEFAULT_CONFIG = {
     "ANNOTATION_TYPE_IDS": [],
     "ANNOTATION_RECENT_TYPE_IDS": [],
     "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
-    "APP_UPDATE_MANIFEST_URL": "",
+    "APP_UPDATE_MANIFEST_URL": "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
 }
 
 
