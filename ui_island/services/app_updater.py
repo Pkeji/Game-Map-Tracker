@@ -11,7 +11,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import requests
 
@@ -336,17 +336,35 @@ def check_app_update(
     return build_update_plan(manifest, current_version=current_version)
 
 
-def _download_file(url: str, target: Path, *, timeout: float, session: Any | None) -> None:
+ProgressCallback = Callable[[int, int, str], None]
+
+
+def _download_file(
+    url: str,
+    target: Path,
+    *,
+    timeout: float,
+    session: Any | None,
+    progress_callback: ProgressCallback | None = None,
+    downloaded_before: int = 0,
+    total_size: int = 0,
+    display_path: str = "",
+) -> int:
     client = session or requests
     response = client.get(url, timeout=timeout, stream=True, headers={"User-Agent": "GMT-N app updater"})
     status_code = int(getattr(response, "status_code", 0) or 0)
     if status_code != 200:
         raise RuntimeError(f"下载失败 HTTP {status_code}: {url}")
     target.parent.mkdir(parents=True, exist_ok=True)
+    downloaded = int(downloaded_before)
     with target.open("wb") as handle:
         for chunk in response.iter_content(chunk_size=1024 * 256):
             if chunk:
                 handle.write(chunk)
+                downloaded += len(chunk)
+                if progress_callback is not None:
+                    progress_callback(downloaded, total_size, display_path)
+    return downloaded
 
 
 def download_changed_files(
@@ -354,16 +372,32 @@ def download_changed_files(
     *,
     timeout: float = 30.0,
     session: Any | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> Path:
     if not plan.ok or plan.manifest is None:
         raise RuntimeError(plan.error or "更新计划无效。")
     staging = Path(tempfile.mkdtemp(prefix="gmt-n-update-"))
+    total_size = sum(max(0, change.file.size) for change in plan.changed_files)
+    downloaded = 0
     for change in plan.changed_files:
         target = staging / change.file.path
-        _download_file(change.file.url, target, timeout=timeout, session=session)
+        if progress_callback is not None:
+            progress_callback(downloaded, total_size, change.file.path)
+        downloaded = _download_file(
+            change.file.url,
+            target,
+            timeout=timeout,
+            session=session,
+            progress_callback=progress_callback,
+            downloaded_before=downloaded,
+            total_size=total_size,
+            display_path=change.file.path,
+        )
         actual = _sha256_file(target)
         if actual != change.file.sha256:
             raise RuntimeError(f"文件校验失败：{change.file.path}")
+    if progress_callback is not None:
+        progress_callback(total_size, total_size, "")
     return staging
 
 

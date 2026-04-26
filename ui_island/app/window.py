@@ -18,7 +18,12 @@ from route_manager import RouteManager
 
 from ..design import button_specs, qss, strings, theme
 from ..dialogs import toast, toast_persistent
-from ..dialogs.settings_dialog import format_app_update_message, styled_confirm, styled_info
+from ..dialogs.settings_dialog import (
+    format_app_update_message,
+    format_update_progress_message,
+    styled_confirm,
+    styled_info,
+)
 from ..services import RecentRoutesStore, SettingsGateway, WindowPrefsStore
 from ..services.app_updater import (
     AppUpdateCheckResult,
@@ -55,6 +60,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
     _annotation_refresh_finished = Signal(int, str)
     _startup_update_check_finished = Signal(object)
     _startup_update_install_finished = Signal(object)
+    _startup_update_progress_changed = Signal(str)
 
     _NATIVE_HOTKEY_ID_ALT_GRAVE = 1
     _HOTKEY_DEBOUNCE_SEC = 0.35
@@ -198,6 +204,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._annotation_refresh_toast = None
         self._startup_update_check_running = False
         self._startup_update_install_running = False
+        self._startup_update_progress_toast = None
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -217,6 +224,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._annotation_refresh_finished.connect(self._on_annotation_refresh_finished, Qt.QueuedConnection)
         self._startup_update_check_finished.connect(self._on_startup_update_check_finished, Qt.QueuedConnection)
         self._startup_update_install_finished.connect(self._on_startup_update_install_finished, Qt.QueuedConnection)
+        self._startup_update_progress_changed.connect(self._on_startup_update_progress_changed, Qt.QueuedConnection)
         self._frame_ready.connect(self._on_frame)
         self.map_view.add_point_requested.connect(self.map_interaction_controller.on_add_point_requested)
         self.map_view.add_annotation_requested.connect(self.map_interaction_controller.add_annotation_point)
@@ -307,11 +315,14 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         if self._startup_update_install_running:
             return
         self._startup_update_install_running = True
+        self._show_startup_update_progress("正在准备更新...")
 
         def worker() -> None:
             staging = None
             try:
-                staging = download_changed_files(result)
+                progress = self._make_startup_update_progress_callback()
+                staging = download_changed_files(result, progress_callback=progress)
+                self._startup_update_progress_changed.emit("正在安装更新...")
                 install_result = install_non_restart_update(result, staging)
             except Exception as exc:
                 install_result = AppUpdateInstallResult(ok=False, version=result.latest_version, error=str(exc))
@@ -329,11 +340,14 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         if self._startup_update_install_running:
             return
         self._startup_update_install_running = True
+        self._show_startup_update_progress("正在准备更新...")
 
         def worker() -> None:
             staging = None
             try:
-                staging = download_changed_files(result)
+                progress = self._make_startup_update_progress_callback()
+                staging = download_changed_files(result, progress_callback=progress)
+                self._startup_update_progress_changed.emit("正在启动更新器...")
                 install_result = start_restart_update(result, staging)
             except Exception as exc:
                 if staging is not None:
@@ -351,8 +365,43 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _show_startup_update_progress(self, message: str) -> None:
+        if self._startup_update_progress_toast is None:
+            self._startup_update_progress_toast = toast_persistent(self, message)
+            return
+        try:
+            self._startup_update_progress_toast.update_message(message)
+        except RuntimeError:
+            self._startup_update_progress_toast = toast_persistent(self, message)
+
+    def _on_startup_update_progress_changed(self, message: str) -> None:
+        self._show_startup_update_progress(str(message or "正在更新..."))
+
+    def _clear_startup_update_progress(self) -> None:
+        if self._startup_update_progress_toast is None:
+            return
+        try:
+            self._startup_update_progress_toast.dismiss()
+        except RuntimeError:
+            pass
+        self._startup_update_progress_toast = None
+
+    def _make_startup_update_progress_callback(self):
+        last_percent = {"value": -1}
+
+        def callback(downloaded: int, total: int, path: str) -> None:
+            if total > 0:
+                percent = min(100, int(max(0, downloaded) * 100 / total))
+                if percent == last_percent["value"]:
+                    return
+                last_percent["value"] = percent
+            self._startup_update_progress_changed.emit(format_update_progress_message(downloaded, total, path))
+
+        return callback
+
     def _on_startup_update_install_finished(self, result: object) -> None:
         self._startup_update_install_running = False
+        self._clear_startup_update_progress()
         if not isinstance(result, AppUpdateInstallResult):
             styled_info(self, "更新失败", "更新安装返回了未知结果。")
             return

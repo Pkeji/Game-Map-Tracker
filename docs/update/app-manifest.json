@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "notes": "更改更新源后测试本地更新检测",
+  "notes": "测试一下更新进度条功能",
   "requires_launcher_update": false,
   "prompt_update": true,
   "files": [
@@ -103,7 +103,7 @@
     {
       "path": "_internal/base_library.zip",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/_internal/base_library.zip",
-      "sha256": "604b3b46a5aabd470af28813b22fe6252e9986846b2508488baf0397bbce613c",
+      "sha256": "bc6c4aec53b0ea32040a1bc0a712cebcba8a1e6fe8697574d3bdb4012683e86c",
       "size": 1388164
     },
     {
@@ -1604,8 +1604,8 @@
     {
       "path": "GMT-N.exe",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/GMT-N.exe",
-      "sha256": "b994df1616fa8b90ea42f2763a8f18dadf4e1d9096c36029d1de915df4e507a8",
-      "size": 8466318
+      "sha256": "744749961f6978c7f71982ba47f950c19d1b1e9d91cc7f1b03c78b46c29788e0",
+      "size": 8470036
     },
     {
       "path": "README.md",
@@ -2540,8 +2540,8 @@
     {
       "path": "updater.exe",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/updater.exe",
-      "sha256": "830c7f6b584443a0fb38639846b7a93a332664b07041281a6ac7568601bed1ff",
-      "size": 8520654
+      "sha256": "d6f81b1249f37e14706bfc3c92657d0d7586d3a94784c2ac73d00c7424f5e8bd",
+      "size": 8520791
     }
   ],
   "delete": []

@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 import config
 
-from . import StyledConfirm, StyledMessage, center_dialog, place_left_of, toast
+from . import StyledConfirm, StyledMessage, Toast, center_dialog, place_left_of, toast, toast_persistent
 from ..design import qss, strings, tokens
 from ..services.app_updater import (
     AppUpdateCheckResult,
@@ -91,12 +91,24 @@ def format_app_update_message(result: AppUpdateCheckResult) -> str:
     return "<br>".join(parts)
 
 
+def format_update_progress_message(downloaded: int, total: int, path: str = "") -> str:
+    total = max(0, int(total or 0))
+    downloaded = max(0, int(downloaded or 0))
+    if total > 0:
+        percent = min(100, int(downloaded * 100 / total))
+        return f"正在下载更新... {percent}% ({format_update_bytes(downloaded)} / {format_update_bytes(total)})"
+    if path:
+        return f"正在下载更新... {path}"
+    return "正在下载更新..."
+
+
 class SettingsDialog(QDialog):
     applied = Signal()
     restart_requested = Signal()
     annotation_refresh_requested = Signal()
     update_check_finished = Signal(object)
     update_install_finished = Signal(object)
+    update_progress_changed = Signal(str)
 
     _FIXED_WIDTH = 660
     _FIXED_HEIGHT = 620
@@ -123,9 +135,11 @@ class SettingsDialog(QDialog):
         self._minimap_editors: dict[str, QLineEdit] = {}
         self._update_check_button: QPushButton | None = None
         self._update_check_running = False
+        self._update_progress_toast: Toast | None = None
         self._build_ui()
         self.update_check_finished.connect(self._on_update_check_finished, Qt.QueuedConnection)
         self.update_install_finished.connect(self._on_update_install_finished, Qt.QueuedConnection)
+        self.update_progress_changed.connect(self._on_update_progress_changed, Qt.QueuedConnection)
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -547,11 +561,14 @@ class SettingsDialog(QDialog):
         if self._update_check_button is not None:
             self._update_check_button.setEnabled(False)
             self._update_check_button.setText("正在下载更新...")
+        self._show_update_progress("正在准备更新...")
 
         def worker() -> None:
             staging = None
             try:
-                staging = download_changed_files(result)
+                progress = self._make_update_progress_callback()
+                staging = download_changed_files(result, progress_callback=progress)
+                self.update_progress_changed.emit("正在安装更新...")
                 install_result = install_non_restart_update(result, staging)
             except Exception as exc:
                 install_result = AppUpdateInstallResult(ok=False, version=result.latest_version, error=str(exc))
@@ -570,11 +587,14 @@ class SettingsDialog(QDialog):
         if self._update_check_button is not None:
             self._update_check_button.setEnabled(False)
             self._update_check_button.setText("正在准备重启更新...")
+        self._show_update_progress("正在准备更新...")
 
         def worker() -> None:
             staging = None
             try:
-                staging = download_changed_files(result)
+                progress = self._make_update_progress_callback()
+                staging = download_changed_files(result, progress_callback=progress)
+                self.update_progress_changed.emit("正在启动更新器...")
                 install_result = start_restart_update(result, staging)
             except Exception as exc:
                 if staging is not None:
@@ -592,8 +612,43 @@ class SettingsDialog(QDialog):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _show_update_progress(self, message: str) -> None:
+        if self._update_progress_toast is None:
+            self._update_progress_toast = toast_persistent(self, message)
+            return
+        try:
+            self._update_progress_toast.update_message(message)
+        except RuntimeError:
+            self._update_progress_toast = toast_persistent(self, message)
+
+    def _on_update_progress_changed(self, message: str) -> None:
+        self._show_update_progress(str(message or "正在更新..."))
+
+    def _clear_update_progress(self) -> None:
+        if self._update_progress_toast is None:
+            return
+        try:
+            self._update_progress_toast.dismiss()
+        except RuntimeError:
+            pass
+        self._update_progress_toast = None
+
+    def _make_update_progress_callback(self):
+        last_percent = {"value": -1}
+
+        def callback(downloaded: int, total: int, path: str) -> None:
+            if total > 0:
+                percent = min(100, int(max(0, downloaded) * 100 / total))
+                if percent == last_percent["value"]:
+                    return
+                last_percent["value"] = percent
+            self.update_progress_changed.emit(format_update_progress_message(downloaded, total, path))
+
+        return callback
+
     def _on_update_install_finished(self, result: object) -> None:
         self._update_check_running = False
+        self._clear_update_progress()
         if self._update_check_button is not None:
             self._update_check_button.setEnabled(True)
             self._update_check_button.setText("检查更新")

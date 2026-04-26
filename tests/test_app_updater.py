@@ -96,6 +96,51 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertFalse(quiet["prompt_update"])
         self.assertTrue(prompted["prompt_update"])
 
+    def test_download_changed_files_reports_progress(self) -> None:
+        payload = b"abcdef"
+        manifest = app_updater.parse_app_manifest(
+            {
+                "version": "0.2.0",
+                "files": [
+                    {
+                        "path": "demo.bin",
+                        "url": "https://example.test/demo.bin",
+                        "sha256": _sha256_bytes(payload),
+                        "size": len(payload),
+                    }
+                ],
+            }
+        )
+
+        class FakeResponse:
+            status_code = 200
+
+            def iter_content(self, chunk_size: int):
+                yield b"abc"
+                yield b"def"
+
+        class FakeSession:
+            def get(self, *args, **kwargs):
+                return FakeResponse()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config.BASE_DIR = tmp
+            staging = Path(tmp, "staging")
+            plan = app_updater.build_update_plan(manifest, current_version="0.1.0")
+            events: list[tuple[int, int, str]] = []
+
+            with patch("ui_island.services.app_updater.tempfile.mkdtemp", return_value=str(staging)):
+                result_path = app_updater.download_changed_files(
+                    plan,
+                    session=FakeSession(),
+                    progress_callback=lambda downloaded, total, path: events.append((downloaded, total, path)),
+                )
+
+            self.assertEqual(Path(result_path, "demo.bin").read_bytes(), payload)
+            self.assertEqual(events[0], (0, len(payload), "demo.bin"))
+            self.assertIn((len(payload), len(payload), "demo.bin"), events)
+            self.assertEqual(events[-1], (len(payload), len(payload), ""))
+
     def test_build_update_plan_detects_restart_file(self) -> None:
         exe_payload = b"new exe"
         manifest = app_updater.parse_app_manifest(

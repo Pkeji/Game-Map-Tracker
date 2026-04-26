@@ -21,6 +21,7 @@ class Toast(QWidget):
         self.setStyleSheet(qss.ISLAND_QSS)
         self.setFocusPolicy(Qt.NoFocus)
         self._persistent = bool(persistent)
+        self._anchor: QWidget | None = None
 
         shell = QFrame(self)
         shell.setObjectName("IslandRoot")
@@ -32,9 +33,9 @@ class Toast(QWidget):
         icon.setObjectName("ToastIcon")
         row.addWidget(icon)
 
-        body = QLabel(message)
-        body.setObjectName("BodyLabel")
-        row.addWidget(body)
+        self._body = QLabel(message)
+        self._body.setObjectName("BodyLabel")
+        row.addWidget(self._body)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -58,20 +59,30 @@ class Toast(QWidget):
         self._fade_out.finished.connect(self.close)
 
     def pop(self, anchor: QWidget) -> None:
+        self._anchor = anchor
         self.adjustSize()
-        anchor_geo = anchor.frameGeometry()
-        x = anchor_geo.center().x() - self.width() // 2
-        y = anchor_geo.top() + 60
-        self.move(x, y)
+        self._place(anchor)
         self.show()
         self._fade_in.start()
         if not self._persistent:
             QTimer.singleShot(self._DISPLAY_MS, self.dismiss)
 
+    def _place(self, anchor: QWidget) -> None:
+        anchor_geo = anchor.frameGeometry()
+        x = anchor_geo.center().x() - self.width() // 2
+        y = anchor_geo.top() + 60
+        self.move(x, y)
+
     def dismiss(self) -> None:
         if self._fade_out.state() == QPropertyAnimation.Running:
             return
         self._fade_out.start()
+
+    def update_message(self, message: str) -> None:
+        self._body.setText(message)
+        self.adjustSize()
+        if self._anchor is not None:
+            self._place(self._anchor)
 
 
 def toast(parent: QWidget, message: str) -> None:
