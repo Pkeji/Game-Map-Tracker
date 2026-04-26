@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "notes": "优化SIFT方案在复杂地形的匹配策略",
+  "notes": "优化SIFT方案在复杂地形的匹配策略,强烈建议更新,已修复本地用户配置被纳入更新检测的校验失败问题，由于之前github发布的换行符问题导致大量json、txt、md文件哈希计算错误，因此本次更新文件可能会较多以覆盖之前哈希计算错误的文件",
   "requires_launcher_update": false,
   "prompt_update": true,
   "force_update_prompt": true,
@@ -104,7 +104,7 @@
     {
       "path": "_internal/base_library.zip",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/_internal/base_library.zip",
-      "sha256": "c61be7a732177480a4a504454bd09e7111101913ee7bc8e0b3d59e57b62c05b4",
+      "sha256": "847de4bbbca70c7727fc9b591855a75630b10aaf667c80f0252445ed857c2453",
       "size": 1388164
     },
     {
@@ -1605,7 +1605,7 @@
     {
       "path": "GMT-N.exe",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/GMT-N.exe",
-      "sha256": "c862814de77bd2a4982353df0410e60551c84766f99e6164315a8ac89688db6f",
+      "sha256": "6992db2a210b43c4ff40b0aea5ba7c31ae8fa3a2c4f15fa813f75b42f049e90e",
       "size": 8473090
     },
     {
@@ -1617,8 +1617,8 @@
     {
       "path": "updater.exe",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/updater.exe",
-      "sha256": "0d6ebfb5e4284f5b671c8dcbbf8e6bd33ee77c047b88b25c2aab1d8fb48adeec",
-      "size": 8520832
+      "sha256": "dba1a9fbca35053631850123f8ecb9a946a7cf28a2db2627ca58c35af00c3d79",
+      "size": 8521598
     }
   ],
   "delete": []
