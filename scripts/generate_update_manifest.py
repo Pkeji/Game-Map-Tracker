@@ -21,7 +21,7 @@ PROTECTED_USER_FILES = {
 }
 PROTECTED_USER_PREFIXES = (
     "routes/",
-    "tools/points_all/",
+    "tools/",
 )
 DEFAULT_EXCLUDES = {
     "app-manifest.json",
@@ -69,6 +69,7 @@ def build_manifest(
     notes: str,
     requires_launcher_update: bool,
     prompt_update: bool,
+    force_update_prompt: bool,
 ) -> dict:
     files = []
     normalized_base_url = normalize_base_url(base_url)
@@ -88,6 +89,7 @@ def build_manifest(
         "notes": notes,
         "requires_launcher_update": bool(requires_launcher_update),
         "prompt_update": bool(prompt_update),
+        "force_update_prompt": bool(force_update_prompt),
         "files": files,
         "delete": [],
     }
@@ -111,6 +113,11 @@ def main(argv: list[str] | None = None) -> int:
         help="启动后检测到此更新时主动弹窗提示用户安装",
     )
     parser.add_argument(
+        "--force-update-prompt",
+        action="store_true",
+        help="启动后检测到此更新时强制弹窗提示，绕过同版本已提示记录",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         default="app-manifest.json",
@@ -129,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
         notes=args.notes,
         requires_launcher_update=args.requires_launcher_update,
         prompt_update=args.prompt_update,
+        force_update_prompt=args.force_update_prompt,
     )
     output = Path(args.output)
     output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

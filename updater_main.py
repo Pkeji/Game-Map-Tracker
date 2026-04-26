@@ -29,7 +29,7 @@ PROTECTED_USER_FILES = {
 }
 PROTECTED_USER_PREFIXES = (
     "routes/",
-    "tools/points_all/",
+    "tools/",
 )
 
 

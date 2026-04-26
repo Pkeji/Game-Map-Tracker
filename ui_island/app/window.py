@@ -32,6 +32,7 @@ from ..services.app_updater import (
     cleanup_staging,
     download_changed_files,
     install_non_restart_update,
+    should_show_startup_update_prompt,
     start_restart_update,
 )
 from ..services.annotation_preferences import normalize_type_ids
@@ -268,11 +269,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._startup_update_check_running = False
         if not isinstance(result, AppUpdateCheckResult):
             return
-        if not result.ok or not result.has_update or not result.prompt_update:
-            return
-
         last_prompted = str(getattr(config, "APP_UPDATE_LAST_PROMPTED_VERSION", "") or "")
-        if result.latest_version and result.latest_version == last_prompted:
+        if not should_show_startup_update_prompt(result, last_prompted):
             return
 
         if result.requires_restart:

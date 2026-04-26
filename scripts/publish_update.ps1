@@ -2,6 +2,7 @@
     [string]$Version = "",
     [string]$Notes = "",
     [switch]$PromptUpdate,
+    [switch]$ForceUpdatePrompt,
     [string]$BaseUrl = "https://greenjiao.github.io/Game-Map-Tracker/update/",
     [string]$CommitMessage = "",
     [switch]$SkipBuild,
@@ -96,6 +97,16 @@ if ($PSBoundParameters.ContainsKey("PromptUpdate")) {
     $UsePromptUpdate = Read-YesNo "是否启动后弹窗提示更新？" $false
 }
 
+$UseForceUpdatePrompt = $false
+if ($PSBoundParameters.ContainsKey("ForceUpdatePrompt")) {
+    $UseForceUpdatePrompt = [bool]$ForceUpdatePrompt
+} else {
+    $UseForceUpdatePrompt = Read-YesNo "是否强制启动弹窗提示？" $false
+}
+if ($UseForceUpdatePrompt) {
+    $UsePromptUpdate = $true
+}
+
 $ShouldBuild = $true
 if ($PSBoundParameters.ContainsKey("SkipBuild")) {
     $ShouldBuild = -not [bool]$SkipBuild
@@ -127,6 +138,7 @@ Write-Host "发布参数："
 Write-Host "  版本号：$Version"
 Write-Host "  更新说明：$Notes"
 Write-Host "  启动弹窗：$UsePromptUpdate"
+Write-Host "  强制弹窗：$UseForceUpdatePrompt"
 Write-Host "  重新打包：$ShouldBuild"
 Write-Host "  提交推送：$ShouldCommitAndPush"
 Write-Host "  更新源：$BaseUrl"
@@ -165,6 +177,9 @@ $manifestArgs = @(
 )
 if ($UsePromptUpdate) {
     $manifestArgs += "--prompt-update"
+}
+if ($UseForceUpdatePrompt) {
+    $manifestArgs += "--force-update-prompt"
 }
 Invoke-Python @manifestArgs
 

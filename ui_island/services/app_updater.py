@@ -32,7 +32,7 @@ PROTECTED_USER_FILES = {
 }
 PROTECTED_USER_PREFIXES = (
     "routes/",
-    "tools/points_all/",
+    "tools/",
 )
 RESTART_PATHS = (
     "GMT-N.exe",
@@ -59,6 +59,7 @@ class AppUpdateManifest:
     delete: tuple[str, ...]
     requires_launcher_update: bool = False
     prompt_update: bool = False
+    force_update_prompt: bool = False
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,7 @@ class AppUpdateCheckResult:
     latest_version: str = ""
     has_update: bool = False
     prompt_update: bool = False
+    force_update_prompt: bool = False
     notes: str = ""
     changed_files: tuple[FileChange, ...] = ()
     delete_files: tuple[str, ...] = ()
@@ -185,6 +187,7 @@ def parse_app_manifest(payload: dict[str, Any]) -> AppUpdateManifest:
         delete=tuple(delete),
         requires_launcher_update=bool(payload.get("requires_launcher_update", False)),
         prompt_update=bool(payload.get("prompt_update", False)),
+        force_update_prompt=bool(payload.get("force_update_prompt", False)),
     )
 
 
@@ -303,6 +306,7 @@ def build_update_plan(
         latest_version=manifest.version,
         has_update=has_update,
         prompt_update=manifest.prompt_update,
+        force_update_prompt=manifest.force_update_prompt,
         notes=manifest.notes,
         changed_files=tuple(changed),
         delete_files=tuple(safe_delete),
@@ -311,6 +315,17 @@ def build_update_plan(
         requires_restart=requires_restart,
         manifest=manifest,
     )
+
+
+def should_show_startup_update_prompt(result: AppUpdateCheckResult, last_prompted_version: str = "") -> bool:
+    if not result.ok or not result.has_update:
+        return False
+    if result.force_update_prompt:
+        return True
+    if not result.prompt_update:
+        return False
+    last_prompted = str(last_prompted_version or "")
+    return not (result.latest_version and result.latest_version == last_prompted)
 
 
 def check_app_update(

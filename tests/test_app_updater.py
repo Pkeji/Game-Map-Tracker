@@ -57,11 +57,14 @@ class AppUpdaterTests(unittest.TestCase):
 
         self.assertFalse(manifest.prompt_update)
         self.assertFalse(result.prompt_update)
+        self.assertFalse(manifest.force_update_prompt)
+        self.assertFalse(result.force_update_prompt)
 
     def test_parse_manifest_prompt_update_flows_to_check_result(self) -> None:
         payload = {
             "version": "0.2.0",
             "prompt_update": True,
+            "force_update_prompt": True,
             "files": [],
         }
 
@@ -70,6 +73,35 @@ class AppUpdaterTests(unittest.TestCase):
 
         self.assertTrue(manifest.prompt_update)
         self.assertTrue(result.prompt_update)
+        self.assertTrue(manifest.force_update_prompt)
+        self.assertTrue(result.force_update_prompt)
+
+    def test_should_show_startup_update_prompt_respects_force_prompt(self) -> None:
+        normal = app_updater.AppUpdateCheckResult(
+            ok=True,
+            current_version="0.1.0",
+            latest_version="0.1.0",
+            has_update=True,
+            prompt_update=True,
+        )
+        forced = app_updater.AppUpdateCheckResult(
+            ok=True,
+            current_version="0.1.0",
+            latest_version="0.1.0",
+            has_update=True,
+            force_update_prompt=True,
+        )
+        no_update = app_updater.AppUpdateCheckResult(
+            ok=True,
+            current_version="0.1.0",
+            latest_version="0.1.0",
+            has_update=False,
+            force_update_prompt=True,
+        )
+
+        self.assertFalse(app_updater.should_show_startup_update_prompt(normal, "0.1.0"))
+        self.assertTrue(app_updater.should_show_startup_update_prompt(forced, "0.1.0"))
+        self.assertFalse(app_updater.should_show_startup_update_prompt(no_update, "0.1.0"))
 
     def test_generate_manifest_writes_prompt_update_flag(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -83,6 +115,7 @@ class AppUpdaterTests(unittest.TestCase):
                 notes="",
                 requires_launcher_update=False,
                 prompt_update=False,
+                force_update_prompt=False,
             )
             prompted = generate_update_manifest.build_manifest(
                 root,
@@ -91,10 +124,13 @@ class AppUpdaterTests(unittest.TestCase):
                 notes="",
                 requires_launcher_update=False,
                 prompt_update=True,
+                force_update_prompt=True,
             )
 
         self.assertFalse(quiet["prompt_update"])
+        self.assertFalse(quiet["force_update_prompt"])
         self.assertTrue(prompted["prompt_update"])
+        self.assertTrue(prompted["force_update_prompt"])
 
     def test_generate_manifest_excludes_user_routes_and_points(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -109,6 +145,9 @@ class AppUpdaterTests(unittest.TestCase):
             cache = Path(root, "tools", "points_get", ".cache_17173_locations.json")
             cache.parent.mkdir(parents=True)
             cache.write_text("{}", encoding="utf-8")
+            icon = Path(root, "tools", "points_icon", "icons.json")
+            icon.parent.mkdir(parents=True)
+            icon.write_text("{}", encoding="utf-8")
 
             manifest = generate_update_manifest.build_manifest(
                 root,
@@ -117,6 +156,7 @@ class AppUpdaterTests(unittest.TestCase):
                 notes="",
                 requires_launcher_update=False,
                 prompt_update=False,
+                force_update_prompt=False,
             )
 
         paths = {item["path"] for item in manifest["files"]}
@@ -124,6 +164,7 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertNotIn("routes/地区路线/雪山__来自用户道临沂.json", paths)
         self.assertNotIn("tools/points_all/points.json", paths)
         self.assertNotIn("tools/points_get/.cache_17173_locations.json", paths)
+        self.assertNotIn("tools/points_icon/icons.json", paths)
 
     def test_parse_manifest_ignores_user_routes_and_points_from_old_manifest(self) -> None:
         payload = {
@@ -148,6 +189,12 @@ class AppUpdaterTests(unittest.TestCase):
                     "size": 1,
                 },
                 {
+                    "path": "tools/points_icon/icons.json",
+                    "url": "https://example.test/icons.json",
+                    "sha256": "4" * 64,
+                    "size": 1,
+                },
+                {
                     "path": "demo.txt",
                     "url": "https://example.test/demo.txt",
                     "sha256": "2" * 64,
@@ -158,6 +205,7 @@ class AppUpdaterTests(unittest.TestCase):
                 "routes/demo.json",
                 "tools/points_all/points.json",
                 "tools/points_get/.cache_17173_locations.json",
+                "tools/points_icon/icons.json",
                 "demo-old.txt",
             ],
         }
