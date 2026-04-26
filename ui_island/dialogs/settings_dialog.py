@@ -65,6 +65,32 @@ def _summarize_release_notes(body: str, *, limit: int = 800) -> str:
     return text[:limit].rstrip() + "\n..."
 
 
+def format_update_bytes(size: int) -> str:
+    value = float(max(0, int(size or 0)))
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{int(size)} B"
+
+
+def format_app_update_message(result: AppUpdateCheckResult) -> str:
+    notes = _summarize_release_notes(result.notes)
+    parts = [
+        f"当前版本：{escape(result.current_version)}",
+        f"最新版本：{escape(result.latest_version)}",
+        f"更新文件：{len(result.changed_files)} 个",
+        f"删除文件：{len(result.delete_files)} 个",
+        f"下载大小：{format_update_bytes(result.download_size)}",
+    ]
+    if result.skipped_conflicts:
+        parts.append(f"本地改动冲突：{len(result.skipped_conflicts)} 个文件将跳过")
+    parts.append("安装方式：需要重启" if result.requires_restart else "安装方式：不重启热更新")
+    if notes:
+        parts.extend(["", "更新说明：", escape(notes).replace("\n", "<br>")])
+    return "<br>".join(parts)
+
+
 class SettingsDialog(QDialog):
     applied = Signal()
     restart_requested = Signal()
@@ -497,7 +523,7 @@ class SettingsDialog(QDialog):
             confirmed = styled_confirm(
                 self,
                 "发现程序更新",
-                self._format_app_update_message(result).replace("<br>", "\n")
+                format_app_update_message(result).replace("<br>", "\n")
                 + "\n\n此更新将下载变化文件，然后自动关闭并重启程序完成安装。",
                 confirm_text="下载并重启更新",
                 cancel_text="稍后",
@@ -509,7 +535,7 @@ class SettingsDialog(QDialog):
         confirmed = styled_confirm(
             self,
             "发现资源更新",
-            self._format_app_update_message(result).replace("<br>", "\n"),
+            format_app_update_message(result).replace("<br>", "\n"),
             confirm_text="下载并更新",
             cancel_text="稍后",
         )
@@ -596,29 +622,11 @@ class SettingsDialog(QDialog):
 
     @staticmethod
     def _format_app_update_message(result: AppUpdateCheckResult) -> str:
-        notes = _summarize_release_notes(result.notes)
-        parts = [
-            f"当前版本：{escape(result.current_version)}",
-            f"最新版本：{escape(result.latest_version)}",
-            f"更新文件：{len(result.changed_files)} 个",
-            f"删除文件：{len(result.delete_files)} 个",
-            f"下载大小：{SettingsDialog._format_bytes(result.download_size)}",
-        ]
-        if result.skipped_conflicts:
-            parts.append(f"本地改动冲突：{len(result.skipped_conflicts)} 个文件将跳过")
-        parts.append("安装方式：需要重启" if result.requires_restart else "安装方式：不重启热更新")
-        if notes:
-            parts.extend(["", "更新说明：", escape(notes).replace("\n", "<br>")])
-        return "<br>".join(parts)
+        return format_app_update_message(result)
 
     @staticmethod
     def _format_bytes(size: int) -> str:
-        value = float(max(0, int(size or 0)))
-        for unit in ("B", "KB", "MB", "GB"):
-            if value < 1024 or unit == "GB":
-                return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
-            value /= 1024
-        return f"{int(size)} B"
+        return format_update_bytes(size)
 
     def _refresh_updated_resources(self) -> None:
         parent = self.parent()

@@ -18,8 +18,17 @@ from route_manager import RouteManager
 
 from ..design import button_specs, qss, strings, theme
 from ..dialogs import toast, toast_persistent
-from ..dialogs.settings_dialog import styled_confirm, styled_info
+from ..dialogs.settings_dialog import format_app_update_message, styled_confirm, styled_info
 from ..services import RecentRoutesStore, SettingsGateway, WindowPrefsStore
+from ..services.app_updater import (
+    AppUpdateCheckResult,
+    AppUpdateInstallResult,
+    check_app_update,
+    cleanup_staging,
+    download_changed_files,
+    install_non_restart_update,
+    start_restart_update,
+)
 from ..services.annotation_preferences import normalize_type_ids
 from ..state import HotkeyState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
 from ..widgets import RestoreIcon
@@ -44,6 +53,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
     _frame_ready = Signal(object)
     _toggle_lock_requested = Signal()
     _annotation_refresh_finished = Signal(int, str)
+    _startup_update_check_finished = Signal(object)
+    _startup_update_install_finished = Signal(object)
 
     _NATIVE_HOTKEY_ID_ALT_GRAVE = 1
     _HOTKEY_DEBOUNCE_SEC = 0.35
@@ -185,6 +196,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._mini_icon = None
         self._annotation_refresh_running = False
         self._annotation_refresh_toast = None
+        self._startup_update_check_running = False
+        self._startup_update_install_running = False
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -202,6 +215,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
         self._toggle_lock_requested.connect(self.toggle_lock, Qt.QueuedConnection)
         self._annotation_refresh_finished.connect(self._on_annotation_refresh_finished, Qt.QueuedConnection)
+        self._startup_update_check_finished.connect(self._on_startup_update_check_finished, Qt.QueuedConnection)
+        self._startup_update_install_finished.connect(self._on_startup_update_install_finished, Qt.QueuedConnection)
         self._frame_ready.connect(self._on_frame)
         self.map_view.add_point_requested.connect(self.map_interaction_controller.on_add_point_requested)
         self.map_view.add_annotation_requested.connect(self.map_interaction_controller.add_annotation_point)
@@ -225,6 +240,161 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
         self._thread = threading.Thread(target=self.tracking_controller.tracker_loop, daemon=True)
         self._thread.start()
+        QTimer.singleShot(2000, self._start_startup_update_check)
+
+    def _start_startup_update_check(self) -> None:
+        if self._startup_update_check_running:
+            return
+        self._startup_update_check_running = True
+
+        def worker() -> None:
+            result = check_app_update()
+            try:
+                self._startup_update_check_finished.emit(result)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_startup_update_check_finished(self, result: object) -> None:
+        self._startup_update_check_running = False
+        if not isinstance(result, AppUpdateCheckResult):
+            return
+        if not result.ok or not result.has_update or not result.prompt_update:
+            return
+
+        last_prompted = str(getattr(config, "APP_UPDATE_LAST_PROMPTED_VERSION", "") or "")
+        if result.latest_version and result.latest_version == last_prompted:
+            return
+
+        if result.requires_restart:
+            confirmed = styled_confirm(
+                self,
+                "发现程序更新",
+                format_app_update_message(result).replace("<br>", "\n")
+                + "\n\n此更新将下载变化文件，然后自动关闭并重启程序完成安装。",
+                confirm_text="下载并重启更新",
+                cancel_text="稍后",
+            )
+            if confirmed:
+                self._start_startup_restart_update(result)
+                return
+            self._remember_startup_update_prompt(result.latest_version)
+            return
+
+        confirmed = styled_confirm(
+            self,
+            "发现资源更新",
+            format_app_update_message(result).replace("<br>", "\n"),
+            confirm_text="下载并更新",
+            cancel_text="稍后",
+        )
+        if confirmed:
+            self._start_startup_non_restart_update(result)
+            return
+        self._remember_startup_update_prompt(result.latest_version)
+
+    @staticmethod
+    def _remember_startup_update_prompt(version: str) -> None:
+        if not version:
+            return
+        try:
+            config.save_config({"APP_UPDATE_LAST_PROMPTED_VERSION": version})
+        except Exception:
+            pass
+
+    def _start_startup_non_restart_update(self, result: AppUpdateCheckResult) -> None:
+        if self._startup_update_install_running:
+            return
+        self._startup_update_install_running = True
+
+        def worker() -> None:
+            staging = None
+            try:
+                staging = download_changed_files(result)
+                install_result = install_non_restart_update(result, staging)
+            except Exception as exc:
+                install_result = AppUpdateInstallResult(ok=False, version=result.latest_version, error=str(exc))
+            finally:
+                if staging is not None:
+                    cleanup_staging(staging)
+            try:
+                self._startup_update_install_finished.emit(install_result)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _start_startup_restart_update(self, result: AppUpdateCheckResult) -> None:
+        if self._startup_update_install_running:
+            return
+        self._startup_update_install_running = True
+
+        def worker() -> None:
+            staging = None
+            try:
+                staging = download_changed_files(result)
+                install_result = start_restart_update(result, staging)
+            except Exception as exc:
+                if staging is not None:
+                    cleanup_staging(staging)
+                install_result = AppUpdateInstallResult(
+                    ok=False,
+                    version=result.latest_version,
+                    requires_restart=True,
+                    error=str(exc),
+                )
+            try:
+                self._startup_update_install_finished.emit(install_result)
+            except RuntimeError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_startup_update_install_finished(self, result: object) -> None:
+        self._startup_update_install_running = False
+        if not isinstance(result, AppUpdateInstallResult):
+            styled_info(self, "更新失败", "更新安装返回了未知结果。")
+            return
+        if not result.ok:
+            styled_info(self, "更新失败", result.error or "未知错误。")
+            return
+
+        if result.requires_restart:
+            styled_info(self, "正在重启更新", "更新器已启动，程序即将关闭并完成安装。")
+            QTimer.singleShot(300, QApplication.quit)
+            return
+
+        self._refresh_updated_resources()
+        conflict_msg = ""
+        if result.skipped_conflicts:
+            conflict_msg = f"\n\n已跳过 {len(result.skipped_conflicts)} 个用户修改过的文件。"
+        styled_info(
+            self,
+            "更新完成",
+            f"资源已更新到 {result.version}，并已保留你的个人配置。{conflict_msg}",
+        )
+
+    def _refresh_updated_resources(self) -> None:
+        try:
+            self.route_mgr._annotation_points_cache = None
+            self.route_mgr._point_icon_cache.clear()
+            self.route_mgr._annotation_icon_cache.clear()
+        except Exception:
+            pass
+        try:
+            self.route_panel_controller.reload_route_list()
+        except Exception:
+            pass
+        try:
+            self.annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
+            self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
+        except Exception:
+            pass
+        try:
+            self.map_view._refresh_from_last_frame()
+        except Exception:
+            pass
 
     def _handle_manual_map_navigation(self) -> None:
         self.map_view.set_center_locked(False)

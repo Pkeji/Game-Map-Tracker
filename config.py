@@ -66,6 +66,7 @@ DEFAULT_CONFIG = {
     "ANNOTATION_RECENT_TYPE_IDS": [],
     "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
     "APP_UPDATE_MANIFEST_URL": "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
+    "APP_UPDATE_LAST_PROMPTED_VERSION": "",
 }
 
 
@@ -261,6 +262,7 @@ ANNOTATION_TYPE_IDS = settings.get("ANNOTATION_TYPE_IDS") or []
 ANNOTATION_RECENT_TYPE_IDS = settings.get("ANNOTATION_RECENT_TYPE_IDS") or []
 QUARK_DOWNLOAD_URL = settings.get("QUARK_DOWNLOAD_URL") or ""
 APP_UPDATE_MANIFEST_URL = settings.get("APP_UPDATE_MANIFEST_URL") or ""
+APP_UPDATE_LAST_PROMPTED_VERSION = settings.get("APP_UPDATE_LAST_PROMPTED_VERSION") or ""
 
 
 def parse_window_geometry(raw) -> dict | None:

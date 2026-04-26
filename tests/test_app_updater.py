@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import config
 import updater_main
+from scripts import generate_update_manifest
 from ui_island.services import app_updater
 
 
@@ -44,6 +45,56 @@ class AppUpdaterTests(unittest.TestCase):
 
         with self.assertRaises(app_updater.ManifestError):
             app_updater.parse_app_manifest(payload)
+
+    def test_parse_manifest_prompt_update_defaults_to_false(self) -> None:
+        payload = {
+            "version": "0.2.0",
+            "files": [],
+        }
+
+        manifest = app_updater.parse_app_manifest(payload)
+        result = app_updater.build_update_plan(manifest, current_version="0.1.0")
+
+        self.assertFalse(manifest.prompt_update)
+        self.assertFalse(result.prompt_update)
+
+    def test_parse_manifest_prompt_update_flows_to_check_result(self) -> None:
+        payload = {
+            "version": "0.2.0",
+            "prompt_update": True,
+            "files": [],
+        }
+
+        manifest = app_updater.parse_app_manifest(payload)
+        result = app_updater.build_update_plan(manifest, current_version="0.1.0")
+
+        self.assertTrue(manifest.prompt_update)
+        self.assertTrue(result.prompt_update)
+
+    def test_generate_manifest_writes_prompt_update_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            Path(root, "demo.txt").write_bytes(b"demo")
+
+            quiet = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=False,
+            )
+            prompted = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=True,
+            )
+
+        self.assertFalse(quiet["prompt_update"])
+        self.assertTrue(prompted["prompt_update"])
 
     def test_build_update_plan_detects_restart_file(self) -> None:
         exe_payload = b"new exe"

@@ -53,6 +53,7 @@ class AppUpdateManifest:
     files: tuple[ManifestFile, ...]
     delete: tuple[str, ...]
     requires_launcher_update: bool = False
+    prompt_update: bool = False
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ class AppUpdateCheckResult:
     current_version: str
     latest_version: str = ""
     has_update: bool = False
+    prompt_update: bool = False
     notes: str = ""
     changed_files: tuple[FileChange, ...] = ()
     delete_files: tuple[str, ...] = ()
@@ -172,6 +174,7 @@ def parse_app_manifest(payload: dict[str, Any]) -> AppUpdateManifest:
         files=tuple(files),
         delete=tuple(delete),
         requires_launcher_update=bool(payload.get("requires_launcher_update", False)),
+        prompt_update=bool(payload.get("prompt_update", False)),
     )
 
 
@@ -285,6 +288,7 @@ def build_update_plan(
         current_version=current,
         latest_version=manifest.version,
         has_update=has_update,
+        prompt_update=manifest.prompt_update,
         notes=manifest.notes,
         changed_files=tuple(changed),
         delete_files=tuple(safe_delete),

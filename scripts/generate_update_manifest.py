@@ -50,7 +50,15 @@ def iter_release_files(root: Path):
         yield path, rel
 
 
-def build_manifest(root: Path, *, version: str, base_url: str, notes: str, requires_launcher_update: bool) -> dict:
+def build_manifest(
+    root: Path,
+    *,
+    version: str,
+    base_url: str,
+    notes: str,
+    requires_launcher_update: bool,
+    prompt_update: bool,
+) -> dict:
     files = []
     normalized_base_url = normalize_base_url(base_url)
     for path, rel in iter_release_files(root):
@@ -68,6 +76,7 @@ def build_manifest(root: Path, *, version: str, base_url: str, notes: str, requi
         "version": version,
         "notes": notes,
         "requires_launcher_update": bool(requires_launcher_update),
+        "prompt_update": bool(prompt_update),
         "files": files,
         "delete": [],
     }
@@ -84,6 +93,11 @@ def main(argv: list[str] | None = None) -> int:
         "--requires-launcher-update",
         action="store_true",
         help="标记此清单需要重启或 updater 接管安装",
+    )
+    parser.add_argument(
+        "--prompt-update",
+        action="store_true",
+        help="启动后检测到此更新时主动弹窗提示用户安装",
     )
     parser.add_argument(
         "-o",
@@ -103,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
         base_url=args.base_url,
         notes=args.notes,
         requires_launcher_update=args.requires_launcher_update,
+        prompt_update=args.prompt_update,
     )
     output = Path(args.output)
     output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
