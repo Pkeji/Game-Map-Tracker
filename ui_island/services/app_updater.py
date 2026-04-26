@@ -28,7 +28,12 @@ PROTECTED_USER_FILES = {
     "routes/progress.json",
     "routes/selected_routes.json",
     "routes/recent_routes.json",
+    "tools/points_get/.cache_17173_locations.json",
 }
+PROTECTED_USER_PREFIXES = (
+    "routes/",
+    "tools/points_all/",
+)
 RESTART_PATHS = (
     "GMT-N.exe",
     "updater.exe",
@@ -105,6 +110,11 @@ def _normalize_relative_path(value: str) -> str:
     return normalized
 
 
+def _is_user_data_path(value: str) -> bool:
+    path = str(value or "").replace("\\", "/")
+    return path in PROTECTED_USER_FILES or any(path.startswith(prefix) for prefix in PROTECTED_USER_PREFIXES)
+
+
 def _app_path(relative_path: str) -> Path:
     return Path(config.app_path(*relative_path.split("/")))
 
@@ -140,8 +150,8 @@ def parse_app_manifest(payload: dict[str, Any]) -> AppUpdateManifest:
         if not isinstance(item, dict):
             continue
         path = _normalize_relative_path(str(item.get("path") or ""))
-        if path in PROTECTED_USER_FILES:
-            raise ManifestError(f"更新清单不能覆盖用户数据文件：{path}")
+        if _is_user_data_path(path):
+            continue
         url = str(item.get("url") or "").strip()
         sha256 = str(item.get("sha256") or "").strip().lower()
         try:
@@ -164,8 +174,8 @@ def parse_app_manifest(payload: dict[str, Any]) -> AppUpdateManifest:
     delete: list[str] = []
     for item in payload.get("delete") or []:
         path = _normalize_relative_path(str(item or ""))
-        if path in PROTECTED_USER_FILES or path == "config.json":
-            raise ManifestError(f"更新清单不能删除用户数据文件：{path}")
+        if _is_user_data_path(path) or path == "config.json":
+            continue
         delete.append(path)
 
     return AppUpdateManifest(
@@ -232,6 +242,8 @@ def build_update_plan(
 
     for file in manifest.files:
         path = file.path
+        if _is_user_data_path(path):
+            continue
         local_path = _app_path(path)
         installed_hash = installed_hashes.get(path)
         if file.install == CONFIG_INSTALL_MODE:
@@ -267,6 +279,8 @@ def build_update_plan(
 
     safe_delete: list[str] = []
     for path in manifest.delete:
+        if _is_user_data_path(path):
+            continue
         local_path = _app_path(path)
         if not local_path.exists():
             continue
@@ -460,6 +474,7 @@ def _write_installed_manifest(manifest: AppUpdateManifest) -> None:
                 "install": file.install,
             }
             for file in manifest.files
+            if not _is_user_data_path(file.path)
         },
     }
     _write_json_file(str(_app_path(INSTALLED_MANIFEST)), payload)
@@ -474,6 +489,7 @@ def _manifest_files_payload(manifest: AppUpdateManifest) -> list[dict]:
             "install": file.install,
         }
         for file in manifest.files
+        if not _is_user_data_path(file.path)
     ]
 
 

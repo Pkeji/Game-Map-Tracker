@@ -96,6 +96,77 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertFalse(quiet["prompt_update"])
         self.assertTrue(prompted["prompt_update"])
 
+    def test_generate_manifest_excludes_user_routes_and_points(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            Path(root, "demo.txt").write_bytes(b"demo")
+            route = Path(root, "routes", "地区路线", "雪山__来自用户道临沂.json")
+            route.parent.mkdir(parents=True)
+            route.write_text("{}", encoding="utf-8")
+            points = Path(root, "tools", "points_all", "points.json")
+            points.parent.mkdir(parents=True)
+            points.write_text("{}", encoding="utf-8")
+            cache = Path(root, "tools", "points_get", ".cache_17173_locations.json")
+            cache.parent.mkdir(parents=True)
+            cache.write_text("{}", encoding="utf-8")
+
+            manifest = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=False,
+            )
+
+        paths = {item["path"] for item in manifest["files"]}
+        self.assertIn("demo.txt", paths)
+        self.assertNotIn("routes/地区路线/雪山__来自用户道临沂.json", paths)
+        self.assertNotIn("tools/points_all/points.json", paths)
+        self.assertNotIn("tools/points_get/.cache_17173_locations.json", paths)
+
+    def test_parse_manifest_ignores_user_routes_and_points_from_old_manifest(self) -> None:
+        payload = {
+            "version": "0.2.0",
+            "files": [
+                {
+                    "path": "routes/地区路线/雪山__来自用户道临沂.json",
+                    "url": "https://example.test/route.json",
+                    "sha256": "0" * 64,
+                    "size": 1,
+                },
+                {
+                    "path": "tools/points_all/points.json",
+                    "url": "https://example.test/points.json",
+                    "sha256": "1" * 64,
+                    "size": 1,
+                },
+                {
+                    "path": "tools/points_get/.cache_17173_locations.json",
+                    "url": "https://example.test/cache.json",
+                    "sha256": "3" * 64,
+                    "size": 1,
+                },
+                {
+                    "path": "demo.txt",
+                    "url": "https://example.test/demo.txt",
+                    "sha256": "2" * 64,
+                    "size": 1,
+                },
+            ],
+            "delete": [
+                "routes/demo.json",
+                "tools/points_all/points.json",
+                "tools/points_get/.cache_17173_locations.json",
+                "demo-old.txt",
+            ],
+        }
+
+        manifest = app_updater.parse_app_manifest(payload)
+
+        self.assertEqual([file.path for file in manifest.files], ["demo.txt"])
+        self.assertEqual(manifest.delete, ("demo-old.txt",))
+
     def test_download_changed_files_reports_progress(self) -> None:
         payload = b"abcdef"
         manifest = app_updater.parse_app_manifest(
@@ -168,21 +239,21 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertTrue(result.requires_restart)
         self.assertEqual(result.changed_files[0].file.path, "GMT-N.exe")
 
-    def test_build_update_plan_protects_user_modified_file_with_known_hash(self) -> None:
+    def test_build_update_plan_ignores_user_route_files(self) -> None:
         old_payload = b"old route"
         new_payload = b"new route"
-        manifest = app_updater.parse_app_manifest(
-            {
-                "version": "0.2.0",
-                "files": [
-                    {
-                        "path": "routes/demo.json",
-                        "url": "https://example.test/routes/demo.json",
-                        "sha256": _sha256_bytes(new_payload),
-                        "size": len(new_payload),
-                    }
-                ],
-            }
+        manifest = app_updater.AppUpdateManifest(
+            version="0.2.0",
+            notes="",
+            files=(
+                app_updater.ManifestFile(
+                    path="routes/demo.json",
+                    url="https://example.test/routes/demo.json",
+                    sha256=_sha256_bytes(new_payload),
+                    size=len(new_payload),
+                ),
+            ),
+            delete=("routes/old.json",),
         )
         installed = {"files": {"routes/demo.json": {"sha256": _sha256_bytes(old_payload)}}}
 
@@ -200,7 +271,8 @@ class AppUpdaterTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(result.changed_files, ())
-        self.assertEqual(result.skipped_conflicts, ("routes/demo.json",))
+        self.assertEqual(result.delete_files, ())
+        self.assertEqual(result.skipped_conflicts, ())
 
     def test_install_config_update_merges_without_overwriting_user_values(self) -> None:
         defaults = {

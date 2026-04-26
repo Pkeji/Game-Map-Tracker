@@ -17,8 +17,14 @@ PROTECTED_USER_FILES = {
     "routes/progress.json",
     "routes/selected_routes.json",
     "routes/recent_routes.json",
+    "tools/points_get/.cache_17173_locations.json",
 }
+PROTECTED_USER_PREFIXES = (
+    "routes/",
+    "tools/points_all/",
+)
 DEFAULT_EXCLUDES = {
+    "app-manifest.json",
     "installed-manifest.json",
     "update-job.json",
     "config.json.bak",
@@ -40,12 +46,17 @@ def normalize_base_url(value: str) -> str:
     return value if value.endswith("/") else value + "/"
 
 
+def is_user_data_path(value: str) -> bool:
+    rel = str(value or "").replace("\\", "/")
+    return rel in PROTECTED_USER_FILES or any(rel.startswith(prefix) for prefix in PROTECTED_USER_PREFIXES)
+
+
 def iter_release_files(root: Path):
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
         rel = path.relative_to(root).as_posix()
-        if rel in DEFAULT_EXCLUDES or rel in PROTECTED_USER_FILES:
+        if rel in DEFAULT_EXCLUDES or is_user_data_path(rel):
             continue
         yield path, rel
 

@@ -25,7 +25,12 @@ PROTECTED_USER_FILES = {
     "routes/progress.json",
     "routes/selected_routes.json",
     "routes/recent_routes.json",
+    "tools/points_get/.cache_17173_locations.json",
 }
+PROTECTED_USER_PREFIXES = (
+    "routes/",
+    "tools/points_all/",
+)
 
 
 class UpdaterError(RuntimeError):
@@ -64,6 +69,11 @@ def normalize_relative_path(value: str) -> str:
     if normalized.startswith("../") or normalized == ".." or os.path.isabs(normalized):
         raise UpdaterError(f"更新任务包含非法路径：{raw}")
     return normalized
+
+
+def is_user_data_path(value: str) -> bool:
+    path = str(value or "").replace("\\", "/")
+    return path in PROTECTED_USER_FILES or any(path.startswith(prefix) for prefix in PROTECTED_USER_PREFIXES)
 
 
 def read_json(path: Path) -> dict:
@@ -207,7 +217,7 @@ def installed_manifest_payload(job: dict) -> dict:
                 "install": str(item.get("install") or COPY_INSTALL_MODE),
             }
             for item in files
-            if isinstance(item, dict)
+            if isinstance(item, dict) and not is_user_data_path(normalize_relative_path(str(item.get("path") or "")))
         },
     }
 
@@ -225,8 +235,8 @@ def validate_job(job: dict) -> tuple[Path, Path, list[dict], list[str]]:
         if not isinstance(item, dict):
             continue
         path = normalize_relative_path(str(item.get("path") or ""))
-        if path in PROTECTED_USER_FILES:
-            raise UpdaterError(f"不能覆盖用户数据文件：{path}")
+        if is_user_data_path(path):
+            continue
         install = str(item.get("install") or COPY_INSTALL_MODE)
         if install not in {COPY_INSTALL_MODE, CONFIG_INSTALL_MODE}:
             raise UpdaterError(f"未知安装方式：{install}")
@@ -243,8 +253,8 @@ def validate_job(job: dict) -> tuple[Path, Path, list[dict], list[str]]:
     delete: list[str] = []
     for item in job.get("delete") or []:
         path = normalize_relative_path(str(item or ""))
-        if path in PROTECTED_USER_FILES or path == "config.json":
-            raise UpdaterError(f"不能删除用户数据文件：{path}")
+        if is_user_data_path(path) or path == "config.json":
+            continue
         delete.append(path)
 
     return app_dir, staging_dir, files, delete
