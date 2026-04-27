@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "notes": "测试一下更新源变更后的更新功能情况，正常用户请忽略",
+  "notes": "刚才的测试发行推送遗漏routes和tools，重新推送一下",
   "requires_launcher_update": false,
   "prompt_update": false,
   "force_update_prompt": false,
@@ -110,7 +110,7 @@
     {
       "path": "_internal/base_library.zip",
       "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/base_library.zip",
-      "sha256": "0c8083a382e88b16d0ba4061e15a3c7179620fd986e74f5a0a183840e6dc18ec",
+      "sha256": "2db2797c703c5ccfc18ccb2024d6c90ae7dfbb66fff7539323b58baf19ecf648",
       "size": 1388164
     },
     {
@@ -1611,7 +1611,7 @@
     {
       "path": "GMT-N.exe",
       "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/GMT-N.exe",
-      "sha256": "69e99bf4201ea3f0061c89bbe7436a0eed7ba7878556f228b237ede69b2fac7b",
+      "sha256": "4fcc0c0d147dbca6958de7c8c5b9aab37ca719ea0fd88c71890932463ed17a0a",
       "size": 8537272
     },
     {
@@ -1623,8 +1623,8 @@
     {
       "path": "updater.exe",
       "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/updater.exe",
-      "sha256": "340f6258c15a77ecbeab43a55c78a285c3c1e94642751c996c01341b71117b56",
-      "size": 8520876
+      "sha256": "a9ef4edbffd1d5b350c508e5427c6c3d38a7ca6c50d16e41d1eb032417fc47d5",
+      "size": 8518302
     }
   ],
   "delete": [],
