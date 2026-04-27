@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "notes": "优化SIFT方案在复杂地形的匹配策略,强烈建议更新,已修复本地用户配置被纳入更新检测的校验失败问题，由于之前github发布的换行符问题导致大量json、txt、md文件哈希计算错误，因此本次更新文件可能会较多以覆盖之前哈希计算错误的文件",
+  "notes": "大量更新强烈推荐更新,包括纯净绘制路线的模式,开始前定位到起始点的功能,兼容偏差的路线格式显示传送线和引路线,更新源从github更改到gitee后续都优先从gitee的镜像源做更新",
   "requires_launcher_update": false,
   "prompt_update": true,
   "force_update_prompt": true,
@@ -90,6 +90,12 @@
       "size": 184664
     },
     {
+      "path": "_internal/_uuid.pyd",
+      "url": "https://greenjiao.github.io/Game-Map-Tracker/update/_internal/_uuid.pyd",
+      "sha256": "fc7406772b43caa3b6f41c690753792188b1c14c36a723d49e9276b7457696ce",
+      "size": 28504
+    },
+    {
       "path": "_internal/_wmi.pyd",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/_internal/_wmi.pyd",
       "sha256": "5a7f3444f1c2f85fb5573bc330c1aea2c583912bb6f948ff81f8fd89a30e67be",
@@ -104,7 +110,7 @@
     {
       "path": "_internal/base_library.zip",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/_internal/base_library.zip",
-      "sha256": "847de4bbbca70c7727fc9b591855a75630b10aaf667c80f0252445ed857c2453",
+      "sha256": "931d9b9d06f47a9cabdac9b9e4facdb3896edab664255467fdfed0d8c8ae8c80",
       "size": 1388164
     },
     {
@@ -1598,15 +1604,15 @@
     {
       "path": "config.json",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/config.json",
-      "sha256": "47076c632515af8d605a0b4335457ee1f78eccc48ffe1aa407acff8082af156e",
-      "size": 3602,
+      "sha256": "d32024493beca4e76670d66a80a2e47ac3547fefe76139fd922b8a80c836d897",
+      "size": 3599,
       "install": "merge_config"
     },
     {
       "path": "GMT-N.exe",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/GMT-N.exe",
-      "sha256": "6992db2a210b43c4ff40b0aea5ba7c31ae8fa3a2c4f15fa813f75b42f049e90e",
-      "size": 8473090
+      "sha256": "f4de0390f8d9286ded54e0a25006639bfcecc1ea8269346c33d27de33a2e7d87",
+      "size": 8537272
     },
     {
       "path": "README.md",
@@ -1617,9 +1623,21 @@
     {
       "path": "updater.exe",
       "url": "https://greenjiao.github.io/Game-Map-Tracker/update/updater.exe",
-      "sha256": "dba1a9fbca35053631850123f8ecb9a946a7cf28a2db2627ca58c35af00c3d79",
-      "size": 8521598
+      "sha256": "c84c3d0a2d1cc54b0148ebccb9caf043a01fb703c9463612a7ee30dbd4fcf390",
+      "size": 8520864
     }
   ],
-  "delete": []
+  "delete": [],
+  "runtime_config": {
+    "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/cf8e31fecd58?pwd=48wL",
+    "ROUTE_RESOURCE_URL": "https://www.kdocs.cn/wo/sl/v11cdiqU",
+    "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/11695114",
+    "FEEDBACK_QQ_GROUP": "311609019",
+    "APP_UPDATE_MANIFEST_URLS": [
+      "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
+      "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
+      "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/app-manifest.json",
+      "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/app-manifest.json"
+    ]
+  }
 }

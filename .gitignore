@@ -1,7 +1,8 @@
 ```text
 # 忽略 Python 缓存
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
 
 # 忽略虚拟环境
 venv/
@@ -24,3 +25,8 @@ debug_minimap.png
 # Build outputs
 build/
 dist/
+
+# 对部分打包产物放行
+!docs/test/**/*.pyd
+!docs/update/**/*.pyd
+
