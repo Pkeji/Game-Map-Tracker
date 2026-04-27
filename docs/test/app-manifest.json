@@ -1,1630 +1,1630 @@
 {
   "version": "0.1.0",
-  "notes": "大量更新强烈推荐更新,包括纯净绘制路线的模式,开始前定位到起始点的功能,兼容偏差的路线格式显示传送线和引路线,更新源从github更改到gitee后续都优先从gitee的镜像源做更新",
+  "notes": "测试一下更新源变更后的更新功能情况，正常用户请忽略",
   "requires_launcher_update": false,
-  "prompt_update": true,
+  "prompt_update": false,
   "force_update_prompt": false,
   "files": [
     {
       "path": "_internal/81d243bd2c585b0f4821__mypyc.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/81d243bd2c585b0f4821__mypyc.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/81d243bd2c585b0f4821__mypyc.cp314-win_amd64.pyd",
       "sha256": "ab64835b63093c31975df2692756c8008e7ec190e4aa86f15a713bcc62e1d432",
       "size": 216576
     },
     {
       "path": "_internal/_asyncio.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_asyncio.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_asyncio.pyd",
       "sha256": "48fdd95938c43b8b3e1f6312de651a53d459e8e2c754fbbdf48e99f5caa1f55b",
       "size": 78168
     },
     {
       "path": "_internal/_bz2.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_bz2.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_bz2.pyd",
       "sha256": "a4be36fffeefa8b24c1234d548da8f05558aba53c2ea7d1d2614776eaad8fbf4",
       "size": 87384
     },
     {
       "path": "_internal/_cffi_backend.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_cffi_backend.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_cffi_backend.cp314-win_amd64.pyd",
       "sha256": "58bbe1eb15f9ab8e9ea45715a8311e2366b360d910a4685448bdd728d5177a01",
       "size": 181248
     },
     {
       "path": "_internal/_ctypes.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_ctypes.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_ctypes.pyd",
       "sha256": "f8a9f7831e81b2bfba12456e589f8198114f24986bd527ac231a844565afcddb",
       "size": 142680
     },
     {
       "path": "_internal/_decimal.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_decimal.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_decimal.pyd",
       "sha256": "04738ee6b96bcc6351446b011b523d831aa88ec3f11d4b64c33414c965b56b80",
       "size": 290648
     },
     {
       "path": "_internal/_elementtree.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_elementtree.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_elementtree.pyd",
       "sha256": "fbb615c3373825d4ffd61fef4698aa5b2bce474bc2c3f75dea4b9a06fff23800",
       "size": 138584
     },
     {
       "path": "_internal/_hashlib.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_hashlib.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_hashlib.pyd",
       "sha256": "d4524b261f09806a828c62fc97e8517328b23d65ab87d20706a4bafd86bbf345",
       "size": 69464
     },
     {
       "path": "_internal/_lzma.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_lzma.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_lzma.pyd",
       "sha256": "f7ad11fbbb7aeaf7b6566a532a3243e3ae5f92bac480dbe5c2ef300fe2c1dabe",
       "size": 161112
     },
     {
       "path": "_internal/_multiprocessing.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_multiprocessing.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_multiprocessing.pyd",
       "sha256": "84a2e86428dde756e6f3e56369daf558180a30f1f7d4781cce295304e19b6fb8",
       "size": 38744
     },
     {
       "path": "_internal/_overlapped.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_overlapped.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_overlapped.pyd",
       "sha256": "80a2f8feda9255ef611af0a28fd4df311e3cd59c3dc4eaba9a2e97bd42ddbf54",
       "size": 58200
     },
     {
       "path": "_internal/_queue.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_queue.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_queue.pyd",
       "sha256": "cb529f77bc4665dfa3b66fae3d00ab84de1e9618d0cb94900efbf28527623c0f",
       "size": 36696
     },
     {
       "path": "_internal/_socket.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_socket.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_socket.pyd",
       "sha256": "ff3e97cd11bdc68798e5b3dcd5295d1efba179b7344142d50d066bbf1c2d79cd",
       "size": 87384
     },
     {
       "path": "_internal/_ssl.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_ssl.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_ssl.pyd",
       "sha256": "43e60bbdff2fe41701f39fa25ea6a8251a2b7623ff18f980a209a451eb5e648f",
       "size": 184664
     },
     {
       "path": "_internal/_uuid.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_uuid.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_uuid.pyd",
       "sha256": "fc7406772b43caa3b6f41c690753792188b1c14c36a723d49e9276b7457696ce",
       "size": 28504
     },
     {
       "path": "_internal/_wmi.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_wmi.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_wmi.pyd",
       "sha256": "5a7f3444f1c2f85fb5573bc330c1aea2c583912bb6f948ff81f8fd89a30e67be",
       "size": 40280
     },
     {
       "path": "_internal/_zstd.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/_zstd.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/_zstd.pyd",
       "sha256": "536a3b521a3c42d2827ece0ccfbe40b83a2fd96a0f5496cd60b943b10e1266d4",
       "size": 503640
     },
     {
       "path": "_internal/base_library.zip",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/base_library.zip",
-      "sha256": "931d9b9d06f47a9cabdac9b9e4facdb3896edab664255467fdfed0d8c8ae8c80",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/base_library.zip",
+      "sha256": "0c8083a382e88b16d0ba4061e15a3c7179620fd986e74f5a0a183840e6dc18ec",
       "size": 1388164
     },
     {
       "path": "_internal/certifi/cacert.pem",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/certifi/cacert.pem",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/certifi/cacert.pem",
       "sha256": "fc9165a12403263e7ebfbdad7be7a3eac0fa5d325d3c70465f28d3690072ca28",
       "size": 272441
     },
     {
       "path": "_internal/certifi/py.typed",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/certifi/py.typed",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/certifi/py.typed",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "size": 0
     },
     {
       "path": "_internal/charset_normalizer/cd.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/charset_normalizer/cd.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/charset_normalizer/cd.cp314-win_amd64.pyd",
       "sha256": "da3ce780d6d58ae8c6920b99f806f64d58a1b33f4a01382861b01b50549199f8",
       "size": 10752
     },
     {
       "path": "_internal/charset_normalizer/md.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/charset_normalizer/md.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/charset_normalizer/md.cp314-win_amd64.pyd",
       "sha256": "8e3e0a719a4ec835fbd9b3128636a09692fe173f4e01c527653bfdb7bd723808",
       "size": 10752
     },
     {
       "path": "_internal/cryptography/hazmat/bindings/_rust.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography/hazmat/bindings/_rust.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography/hazmat/bindings/_rust.pyd",
       "sha256": "9e2b1e2d2ad6718311e834a0356f91576148b776668b2f9232f802d10610705a",
       "size": 9107968
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/INSTALLER",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/INSTALLER",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/INSTALLER",
       "sha256": "ceebae7b8927a3227e5303cf5e0f1f7b34bb542ad7250ac03fbcde36ec2f1508",
       "size": 4
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/licenses/LICENSE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/licenses/LICENSE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/licenses/LICENSE",
       "sha256": "3e0c7c091a948b82533ba98fd7cbb40432d6f1a9acbf85f5922d2f99a93ae6bb",
       "size": 197
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/licenses/LICENSE.APACHE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/licenses/LICENSE.APACHE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/licenses/LICENSE.APACHE",
       "sha256": "aac73b3148f6d1d7111dbca32099f68d26c644c6813ae1e4f05f6579aa2663fe",
       "size": 11360
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/licenses/LICENSE.BSD",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/licenses/LICENSE.BSD",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/licenses/LICENSE.BSD",
       "sha256": "602c4c7482de6479dd2e9793cda275e5e63d773dacd1eca689232ab7008fb4fb",
       "size": 1532
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/METADATA",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/METADATA",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/METADATA",
       "sha256": "8fe1543e8bda7b4a494d3a6edcfa015871aade7714e259a550a94e6d0a19654f",
       "size": 5748
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/RECORD",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/RECORD",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/RECORD",
       "sha256": "93aeda75273819f4a1aeb00300541b5f5c51002aaf76c5328e0749db10fa1a1b",
       "size": 16067
     },
     {
       "path": "_internal/cryptography-46.0.6.dist-info/WHEEL",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cryptography-46.0.6.dist-info/WHEEL",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cryptography-46.0.6.dist-info/WHEEL",
       "sha256": "f2111ff0dcccd459e633bec08d5b7987c9c3b9890ddd4a99efd2e82001d77911",
       "size": 95
     },
     {
       "path": "_internal/cv2/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/__init__.py",
       "sha256": "957a91bfd98ffb07a10cd789b7c5c46806568476b61e34c7ad56a00092b981a5",
       "size": 6793
     },
     {
       "path": "_internal/cv2/config-3.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/config-3.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/config-3.py",
       "sha256": "de28c7b5213cca148f09469916584611b3d66c1c8c432880259d6a3a92380213",
       "size": 748
     },
     {
       "path": "_internal/cv2/config.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/config.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/config.py",
       "sha256": "6c6367abce55995ae4a8d3c199420ec53afab287cb17dfc2f430378af75dd301",
       "size": 123
     },
     {
       "path": "_internal/cv2/cv2.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/cv2.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/cv2.pyd",
       "sha256": "78db0c836b952d9d5510140677463687c357a7166fddfa6ac7e31abb2d7d9bbd",
       "size": 74819072
     },
     {
       "path": "_internal/cv2/data/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/data/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/data/__init__.py",
       "sha256": "f4ce16721ed7f623a4dcc443ba600d1856db610cb2c3d53c13a8ca028cc68f6d",
       "size": 73
     },
     {
       "path": "_internal/cv2/gapi/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/gapi/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/gapi/__init__.py",
       "sha256": "74f5fd2a142a31b0a4707b70c0be3637f0fbf8a940eec4372e7ba87e5a5cedb8",
       "size": 10621
     },
     {
       "path": "_internal/cv2/load_config_py3.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/load_config_py3.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/load_config_py3.py",
       "sha256": "074dfaf20ac94f2ca3815393de3a394944470334c51a85b9521f452e0e17bb85",
       "size": 253
     },
     {
       "path": "_internal/cv2/mat_wrapper/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/mat_wrapper/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/mat_wrapper/__init__.py",
       "sha256": "c44707ea1c76f35518ae572b6c1989d76c2ada7e850432e41805dfe112d4e306",
       "size": 1164
     },
     {
       "path": "_internal/cv2/misc/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/misc/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/misc/__init__.py",
       "sha256": "495bd79594cce174673e372c85c4dd8f4ffdf2b3a73fd4623955b0d55de0d462",
       "size": 38
     },
     {
       "path": "_internal/cv2/misc/version.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/misc/version.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/misc/version.py",
       "sha256": "c93a418793fcb15b9b4316c0741b8336740e490e94f3b7d1ebe8cd5f6f23815c",
       "size": 95
     },
     {
       "path": "_internal/cv2/opencv_videoio_ffmpeg4130_64.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/opencv_videoio_ffmpeg4130_64.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/opencv_videoio_ffmpeg4130_64.dll",
       "sha256": "fcc614672159094a35815b7ea2819a648cbf86c30d90c57e8c6ba1432f594548",
       "size": 28578304
     },
     {
       "path": "_internal/cv2/typing/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/typing/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/typing/__init__.py",
       "sha256": "ea34b321bd7ec0c970170056923cfa24c7100f94c7fb80bcf07e923c43db2036",
       "size": 5545
     },
     {
       "path": "_internal/cv2/utils/__init__.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/utils/__init__.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/utils/__init__.py",
       "sha256": "2b16990b35b569af1ca7239dc10f7b24ec62f27a46626b1e2f1271d2e1aa3554",
       "size": 344
     },
     {
       "path": "_internal/cv2/version.py",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/cv2/version.py",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/cv2/version.py",
       "sha256": "a0f4881984ab057437cf5692d2d5ec35049698f4acc2b43c755f2d276df45a7a",
       "size": 97
     },
     {
       "path": "_internal/h2-4.3.0.dist-info/INSTALLER",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/h2-4.3.0.dist-info/INSTALLER",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/h2-4.3.0.dist-info/INSTALLER",
       "sha256": "ceebae7b8927a3227e5303cf5e0f1f7b34bb542ad7250ac03fbcde36ec2f1508",
       "size": 4
     },
     {
       "path": "_internal/h2-4.3.0.dist-info/licenses/LICENSE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/h2-4.3.0.dist-info/licenses/LICENSE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/h2-4.3.0.dist-info/licenses/LICENSE",
       "sha256": "7a65a5af0cbabf1c16251c7c6b2b7cb46d16a7222e79975b9b61fcd66a2e3f28",
       "size": 1102
     },
     {
       "path": "_internal/h2-4.3.0.dist-info/METADATA",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/h2-4.3.0.dist-info/METADATA",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/h2-4.3.0.dist-info/METADATA",
       "sha256": "b2f47f8201491420642c229e5fcbcbd5576c7afd023264dcb59b5eb22dcbb265",
       "size": 5139
     },
     {
       "path": "_internal/h2-4.3.0.dist-info/RECORD",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/h2-4.3.0.dist-info/RECORD",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/h2-4.3.0.dist-info/RECORD",
       "sha256": "8a82da5c311a938bca0dfa15345c31b68ffd5157c71f2aebaa5aa94b4aee1cf2",
       "size": 1792
     },
     {
       "path": "_internal/h2-4.3.0.dist-info/top_level.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/h2-4.3.0.dist-info/top_level.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/h2-4.3.0.dist-info/top_level.txt",
       "sha256": "1e2ba5c7c2b12368c550cd5d1bbf8265e4643b78f9d0c07008b1b7e95aeafa42",
       "size": 3
     },
     {
       "path": "_internal/h2-4.3.0.dist-info/WHEEL",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/h2-4.3.0.dist-info/WHEEL",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/h2-4.3.0.dist-info/WHEEL",
       "sha256": "ff309ddcdd65ebd02bc724dbf2bcc4a0ff53a5b61792a44548d383e4ebb19d3b",
       "size": 91
     },
     {
       "path": "_internal/importlib_metadata-8.5.0.dist-info/INSTALLER",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/importlib_metadata-8.5.0.dist-info/INSTALLER",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/importlib_metadata-8.5.0.dist-info/INSTALLER",
       "sha256": "ceebae7b8927a3227e5303cf5e0f1f7b34bb542ad7250ac03fbcde36ec2f1508",
       "size": 4
     },
     {
       "path": "_internal/importlib_metadata-8.5.0.dist-info/LICENSE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/importlib_metadata-8.5.0.dist-info/LICENSE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/importlib_metadata-8.5.0.dist-info/LICENSE",
       "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
       "size": 11358
     },
     {
       "path": "_internal/importlib_metadata-8.5.0.dist-info/METADATA",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/importlib_metadata-8.5.0.dist-info/METADATA",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/importlib_metadata-8.5.0.dist-info/METADATA",
       "sha256": "1d78a40e966eb78ad8d83e19ba10315e72d40dbf9ffd73ff0b2a7d898985e06d",
       "size": 4775
     },
     {
       "path": "_internal/importlib_metadata-8.5.0.dist-info/RECORD",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/importlib_metadata-8.5.0.dist-info/RECORD",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/importlib_metadata-8.5.0.dist-info/RECORD",
       "sha256": "9bc6b92a2984cdf9e3149bfb13fa5277cd3ba7ac82ebd55269d54925779014ae",
       "size": 2419
     },
     {
       "path": "_internal/importlib_metadata-8.5.0.dist-info/top_level.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/importlib_metadata-8.5.0.dist-info/top_level.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/importlib_metadata-8.5.0.dist-info/top_level.txt",
       "sha256": "08eddf0fdcb29403625e4acca38a872d5fe6a972f6b02e4914a82dd725804fe0",
       "size": 19
     },
     {
       "path": "_internal/importlib_metadata-8.5.0.dist-info/WHEEL",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/importlib_metadata-8.5.0.dist-info/WHEEL",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/importlib_metadata-8.5.0.dist-info/WHEEL",
       "sha256": "715c5c07d026b93717aa6c2bb4f84d2bcf1dafb211fdbeaa6a04e3d14bc811b6",
       "size": 91
     },
     {
       "path": "_internal/libcrypto-3-x64.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/libcrypto-3-x64.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/libcrypto-3-x64.dll",
       "sha256": "5237bad82e663dac8ecefc0498b667715f3a64f42a37eab3124321b60f2de31d",
       "size": 5171800
     },
     {
       "path": "_internal/libcrypto-3.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/libcrypto-3.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/libcrypto-3.dll",
       "sha256": "e03dd02fdcfb791981c9962827cfcf495f2a47a514c1526efb57f847a9df514a",
       "size": 5229424
     },
     {
       "path": "_internal/libffi-8.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/libffi-8.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/libffi-8.dll",
       "sha256": "eff52743773eb550fcc6ce3efc37c85724502233b6b002a35496d828bd7b280a",
       "size": 39696
     },
     {
       "path": "_internal/libssl-3-x64.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/libssl-3-x64.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/libssl-3-x64.dll",
       "sha256": "ead1160aa43163fc855e202f0407ab3463f288dbf5f7c7bec18edfb0ac7c3d7a",
       "size": 787024
     },
     {
       "path": "_internal/libssl-3.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/libssl-3.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/libssl-3.dll",
       "sha256": "1e4bc0638682bfcbb36f4465d6a2e9944d917a60f05ecc8ddf9e96847e05e13f",
       "size": 794992
     },
     {
       "path": "_internal/numpy/_core/_multiarray_tests.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/_core/_multiarray_tests.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/_core/_multiarray_tests.cp314-win_amd64.pyd",
       "sha256": "88d929a0c77e6105f926cc5387789f96c2928ecbcc49beae0e3c9753003d28e7",
       "size": 65536
     },
     {
       "path": "_internal/numpy/_core/_multiarray_umath.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/_core/_multiarray_umath.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/_core/_multiarray_umath.cp314-win_amd64.pyd",
       "sha256": "c4d8aa9b07deebc0f6e437098c1c3055145f7d810af770453f9cd74452b9d96a",
       "size": 3724800
     },
     {
       "path": "_internal/numpy/fft/_pocketfft_umath.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/fft/_pocketfft_umath.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/fft/_pocketfft_umath.cp314-win_amd64.pyd",
       "sha256": "04a90c83dd7b44d26c870ad668b5c12d2e7dbd111979dc8b2b6492db256559c9",
       "size": 276480
     },
     {
       "path": "_internal/numpy/linalg/_umath_linalg.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/linalg/_umath_linalg.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/linalg/_umath_linalg.cp314-win_amd64.pyd",
       "sha256": "ec000e9fdc121f44449a123080819ec28ee696b093c5c71f1ca802e9f88392e4",
       "size": 112128
     },
     {
       "path": "_internal/numpy/random/_bounded_integers.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_bounded_integers.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_bounded_integers.cp314-win_amd64.pyd",
       "sha256": "09171cc84e8d34f97f37c987335a2dd9acc19a7537eae07900610aa9d908ed03",
       "size": 215040
     },
     {
       "path": "_internal/numpy/random/_common.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_common.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_common.cp314-win_amd64.pyd",
       "sha256": "7abcaa5ab72596f90955720f0f787ae8b56553a6a7dc9d5ea82063e227e24d3b",
       "size": 173056
     },
     {
       "path": "_internal/numpy/random/_generator.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_generator.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_generator.cp314-win_amd64.pyd",
       "sha256": "7015d16fbaf6623dc80a6e43b6ed9ffa4c12707cf13e8ef505d10f23efbd7e49",
       "size": 596480
     },
     {
       "path": "_internal/numpy/random/_mt19937.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_mt19937.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_mt19937.cp314-win_amd64.pyd",
       "sha256": "74a014886eb47b1bfc26b8a2e2eac4cea3721f8ca1db66bf228c1f29c049577c",
       "size": 84992
     },
     {
       "path": "_internal/numpy/random/_pcg64.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_pcg64.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_pcg64.cp314-win_amd64.pyd",
       "sha256": "4867871b9eaea0d34f8a8f9eddd6fa03bbba5deed52ce32444dc8448f1b28e1e",
       "size": 94720
     },
     {
       "path": "_internal/numpy/random/_philox.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_philox.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_philox.cp314-win_amd64.pyd",
       "sha256": "7d39bb40bce2a12583ad7592782f96d09b3817331d698e38bd2f466172925cfc",
       "size": 79872
     },
     {
       "path": "_internal/numpy/random/_sfc64.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/_sfc64.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/_sfc64.cp314-win_amd64.pyd",
       "sha256": "2f0f7c3de71972e40ed86bd0a90367824870ce51e0c4eceb52a6ad13c79f299f",
       "size": 58880
     },
     {
       "path": "_internal/numpy/random/bit_generator.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/bit_generator.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/bit_generator.cp314-win_amd64.pyd",
       "sha256": "448d6d4b62668299b37e0cbb63bad9b1d4fd67acc4118e5f53bf92226a996a23",
       "size": 160768
     },
     {
       "path": "_internal/numpy/random/mtrand.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy/random/mtrand.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy/random/mtrand.cp314-win_amd64.pyd",
       "sha256": "d2db156c0640043a5b3265e589f9a34a721321dbfa4dde04a12794ecaf4fa17b",
       "size": 496128
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/DELVEWHEEL",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/DELVEWHEEL",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/DELVEWHEEL",
       "sha256": "43c1e05f13dbeee1ade9fec4052b571ba5c89dddce83893f5e2db296a8fe6485",
       "size": 462
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/entry_points.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/entry_points.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/entry_points.txt",
       "sha256": "ec26fade0c8bdac211a6c1dd003a65eb16885b925395423e93fcaa115af4052c",
       "size": 220
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/INSTALLER",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/INSTALLER",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/INSTALLER",
       "sha256": "ceebae7b8927a3227e5303cf5e0f1f7b34bb542ad7250ac03fbcde36ec2f1508",
       "size": 4
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/LICENSE.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/LICENSE.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/LICENSE.txt",
       "sha256": "a804dff0ead9fadc5293456410bcbfc32bf024be9c4513459663fb7b442d2341",
       "size": 45831
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
       "sha256": "d544761558b510866c21f7e8a2d5716fca76e0b98117e3b6b86314db7244d150",
       "size": 1039
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
       "sha256": "aea41976c720f91bd19725c16916a1ace40eb1ea42620d340e587a5de4bbcea0",
       "size": 704
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/highway/LICENSE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/highway/LICENSE",
       "sha256": "d208152e2777ffd0126eacc1bd21c0320d69e4e6b622d21a2a12a47e8ef73763",
       "size": 21155
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
       "sha256": "b0fd592d4ead563148e3977e7b589169d46a5ef2ff133c755a81af880a3fc919",
       "size": 1441
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
       "sha256": "a732977853530066790c42817087f4829b518dd98d340c916acbfd227e39d3cb",
       "size": 1542
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
       "sha256": "585483905b13d4b42f800c55ba99e89d6e2e33ccd5f503e201c07531d148ff41",
       "size": 1573
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
       "sha256": "8db000e158c162e7249787852d8c69764706502ccee725c06641b31c1e95c8af",
       "size": 1523
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
       "sha256": "19060ef465e1797d682ee0fc3081bd25ab1395e995e43d25c9d13c95d9a3cd6b",
       "size": 2314
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/ma/LICENSE",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/ma/LICENSE",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/ma/LICENSE",
       "sha256": "d78dbb208b80d92b4d333e41a4baae50d12444f46e53199fa7726a91de6e2da7",
       "size": 1616
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/LICENSE.md",
       "sha256": "b4bc2f4fa1c95778f1ed3dd8f14706bece399475b978f9f34b5d3cd72521b48a",
       "size": 3582
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
       "sha256": "cf5619f25b112d5ce7c896efffc8e610bcb345dfadcc19f2c1460aa48fff2c9e",
       "size": 2805
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
       "sha256": "92c10699884321f1c2947fe2a70ab23b0fbf1507f756d89dd08f38c61fc3d4fa",
       "size": 2986
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
       "sha256": "41190663b77bee5302386495a07b7eabfbfa571aa0ae2f11da6764162062fc4f",
       "size": 1176
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
       "sha256": "322ac46d870c8aeead6c53adcccc839296fb3c8e456eae155081297daf7f8013",
       "size": 1540
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
       "sha256": "28cad82ce1379dc529df30da78ec012d7d0d1d576b03ddcb93388aee53659f59",
       "size": 1253
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
       "sha256": "454ec7350e478e037061850b67395753b425b1cb0a34bbc26290b020bf89d763",
       "size": 340
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/METADATA",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/METADATA",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/METADATA",
       "sha256": "8f9e04338ffa930868a2d157ce44f6e4cb7ac524b968fb13d04187a6ac575282",
       "size": 6608
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/RECORD",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/RECORD",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/RECORD",
       "sha256": "4f5c2bdecf27d4a582a942f7748c80f3ab3f34c08d6d77f5a86bc49a6ea78cdf",
       "size": 112122
     },
     {
       "path": "_internal/numpy-2.4.4.dist-info/WHEEL",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy-2.4.4.dist-info/WHEEL",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy-2.4.4.dist-info/WHEEL",
       "sha256": "cc5470f047694c6baa5786778b2e707f26827a8311aa1dea261a6c914aed193e",
       "size": 85
     },
     {
       "path": "_internal/numpy.libs/libscipy_openblas64_-63c857e738469261263c764a36be9436.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy.libs/libscipy_openblas64_-63c857e738469261263c764a36be9436.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy.libs/libscipy_openblas64_-63c857e738469261263c764a36be9436.dll",
       "sha256": "63c857e738469261263c764a36be9436ebdeaa272e340a828f42047a97131080",
       "size": 20415488
     },
     {
       "path": "_internal/numpy.libs/msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/numpy.libs/msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/numpy.libs/msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll",
       "sha256": "a4c2229bdc2a2a630acdc095b4d86008e5c3e3bc7773174354f3da4f5beb9cde",
       "size": 575056
     },
     {
       "path": "_internal/PIL/_avif.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_avif.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_avif.cp314-win_amd64.pyd",
       "sha256": "c934bd54355739daff001ca516f566ce942cf02e76b4b1727568a02542625a17",
       "size": 7892992
     },
     {
       "path": "_internal/PIL/_imaging.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_imaging.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_imaging.cp314-win_amd64.pyd",
       "sha256": "b4e06283c347910b5973bd5732159ea9eb26eda48e3eed183be2e3382db26597",
       "size": 2584576
     },
     {
       "path": "_internal/PIL/_imagingcms.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_imagingcms.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_imagingcms.cp314-win_amd64.pyd",
       "sha256": "68b85230ac4d44a2a377b69965936dfa7a5aff04b7a9ba562af3438d9a5a6550",
       "size": 269824
     },
     {
       "path": "_internal/PIL/_imagingft.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_imagingft.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_imagingft.cp314-win_amd64.pyd",
       "sha256": "7e6910e39fa06b4049f058a781a20bcac40c4844d46037859c76de76852dbb3e",
       "size": 2162688
     },
     {
       "path": "_internal/PIL/_imagingmath.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_imagingmath.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_imagingmath.cp314-win_amd64.pyd",
       "sha256": "a1c024d3e0e75802e3249a1a33335809b6cf032749ed2c4507d622d6610e36f2",
       "size": 25600
     },
     {
       "path": "_internal/PIL/_imagingtk.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_imagingtk.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_imagingtk.cp314-win_amd64.pyd",
       "sha256": "783d411905ecd94a341401c12b267f74e649627e046051e9813f8a8114851a60",
       "size": 14848
     },
     {
       "path": "_internal/PIL/_webp.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PIL/_webp.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PIL/_webp.cp314-win_amd64.pyd",
       "sha256": "1f61a83c78f034f06f9229c80008e900ea7fd5422e1b5b8e1515fc6df31820eb",
       "size": 409600
     },
     {
       "path": "_internal/psutil/_psutil_windows.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/psutil/_psutil_windows.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/psutil/_psutil_windows.pyd",
       "sha256": "0035450801bd7d938e9e146c5ec28e619cb5a5f4a18cdc53ac7e9734c7f94f78",
       "size": 70656
     },
     {
       "path": "_internal/pyexpat.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/pyexpat.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/pyexpat.pyd",
       "sha256": "b6d5142424d161039c25bea00e6acd8f7b1a5331d3994d9f3c28bd083ede159f",
       "size": 218968
     },
     {
       "path": "_internal/PySide6/MSVCP140.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/MSVCP140.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/MSVCP140.dll",
       "sha256": "90a1b0709fae970fe62072b7a322ebf713a956228f99bf5b46b3bdc980290b7e",
       "size": 549176
     },
     {
       "path": "_internal/PySide6/MSVCP140_1.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/MSVCP140_1.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/MSVCP140_1.dll",
       "sha256": "3402e3b5d062f4959c9255c543c81ef6a8e836a13d55f887ab5c8dfeb7c904cc",
       "size": 27448
     },
     {
       "path": "_internal/PySide6/MSVCP140_2.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/MSVCP140_2.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/MSVCP140_2.dll",
       "sha256": "9af161c91b5285562e0a0b637e802da007e9b7ffcfbc5d35a846075b5446fa3e",
       "size": 271672
     },
     {
       "path": "_internal/PySide6/opengl32sw.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/opengl32sw.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/opengl32sw.dll",
       "sha256": "f67385109e5e5f195034243ab57e6d162c0ee972a58c2bd528da02d97c5aea53",
       "size": 20639544
     },
     {
       "path": "_internal/PySide6/plugins/generic/qtuiotouchplugin.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/generic/qtuiotouchplugin.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/generic/qtuiotouchplugin.dll",
       "sha256": "2622444cb327ff788ac70a557e026029ec30230fc55d5d6d454177798215b615",
       "size": 102712
     },
     {
       "path": "_internal/PySide6/plugins/iconengines/qsvgicon.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/iconengines/qsvgicon.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/iconengines/qsvgicon.dll",
       "sha256": "f73ce2be52363e6b97a7e7f1f3dbf877542659963b452ee472e5bd34517d68cb",
       "size": 72504
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qgif.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qgif.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qgif.dll",
       "sha256": "1cfc07dbff333db31fa4df426eed42f3e8c080cf315209f710dc92b48d0f63c0",
       "size": 47928
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qicns.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qicns.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qicns.dll",
       "sha256": "daa1ef48bdeaf5ea7f179b2f70b1626f1eee7050228be51241c21fc6ffb4c17a",
       "size": 55608
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qico.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qico.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qico.dll",
       "sha256": "740fb392ede2f70ee1d0ac0f5ee56e1fa29db8cf319e0efc40466712048d6933",
       "size": 45880
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qjpeg.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qjpeg.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qjpeg.dll",
       "sha256": "a00273bbd70e9582989e09c11c15c92ea32402798a0980b1e00ef9d55fd87d1a",
       "size": 577336
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qpdf.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qpdf.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qpdf.dll",
       "sha256": "679908cae8bb885e0ebda06b1fc87942e25e5daae8a151cdcf1b0b8ef177a3c3",
       "size": 42296
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qsvg.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qsvg.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qsvg.dll",
       "sha256": "4eb18dbfc255b9d180c01695c65c55a5830a25d676d9c86526fd205501844a68",
       "size": 39224
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qtga.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qtga.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qtga.dll",
       "sha256": "77a602e4a88f54db804921f4051e0bd11b90a854d9b9ffdada9793c2e2de19b2",
       "size": 38200
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qtiff.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qtiff.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qtiff.dll",
       "sha256": "a3c9b982d9332f78fd131725d7a7cb43fd0728e1ce87278539819deda693fbc8",
       "size": 441656
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qwbmp.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qwbmp.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qwbmp.dll",
       "sha256": "4bd7b7f7bd890a570489f0e55261bcee559e76d09a82a7ca4320c1b310082cb4",
       "size": 36664
     },
     {
       "path": "_internal/PySide6/plugins/imageformats/qwebp.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/imageformats/qwebp.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/imageformats/qwebp.dll",
       "sha256": "ab176a6b6dfce8c9886b9a5fcc51877daffa3b49fe0f1480faf332e74757cbb6",
       "size": 562488
     },
     {
       "path": "_internal/PySide6/plugins/networkinformation/qnetworklistmanager.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/networkinformation/qnetworklistmanager.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/networkinformation/qnetworklistmanager.dll",
       "sha256": "f97ceaaa4bbb38bcb7d957372d859d2498b4b9d17ebafc7a6a95da4e7c8f79fd",
       "size": 70968
     },
     {
       "path": "_internal/PySide6/plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll",
       "sha256": "e88a0b1af3a7be1b9d152151ebbc8fe3c44b8993b1b3898164e493f6f365e916",
       "size": 33592
     },
     {
       "path": "_internal/PySide6/plugins/platforms/qdirect2d.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/platforms/qdirect2d.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/platforms/qdirect2d.dll",
       "sha256": "79bc6ad89693f1806a5df78de90144eab62a3c899a9bba98c19ab5cc08a4280d",
       "size": 1082680
     },
     {
       "path": "_internal/PySide6/plugins/platforms/qminimal.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/platforms/qminimal.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/platforms/qminimal.dll",
       "sha256": "690dafa73c039ffed32a71215c96a8c0e8dc3a14ab69ce1fa6753d15e7117502",
       "size": 61752
     },
     {
       "path": "_internal/PySide6/plugins/platforms/qoffscreen.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/platforms/qoffscreen.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/platforms/qoffscreen.dll",
       "sha256": "53b6c5447c1055d75be99e17b2e84bae323ef6da2954cf8f874eeb8009aa0159",
       "size": 113976
     },
     {
       "path": "_internal/PySide6/plugins/platforms/qwindows.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/platforms/qwindows.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/platforms/qwindows.dll",
       "sha256": "f857f6b5675bf70ce582fb166108285f31870a83d87b44bbc4b6da98a10b687b",
       "size": 1000248
     },
     {
       "path": "_internal/PySide6/plugins/styles/qmodernwindowsstyle.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/styles/qmodernwindowsstyle.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/styles/qmodernwindowsstyle.dll",
       "sha256": "b6cef67376d8fd43a73e7ebe8745634f3ab2bbf42790c699b3aa1a95d8c512b4",
       "size": 229176
     },
     {
       "path": "_internal/PySide6/plugins/tls/qcertonlybackend.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/tls/qcertonlybackend.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/tls/qcertonlybackend.dll",
       "sha256": "8293b522206bd47933d42316a7af44a869744ed9d2a9d75881ffd0f914f5920e",
       "size": 103224
     },
     {
       "path": "_internal/PySide6/plugins/tls/qopensslbackend.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/tls/qopensslbackend.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/tls/qopensslbackend.dll",
       "sha256": "5df405fe5d74edfcbc2e8288182f1891eab9fe56c7351558a915372e20b5e193",
       "size": 317752
     },
     {
       "path": "_internal/PySide6/plugins/tls/qschannelbackend.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/plugins/tls/qschannelbackend.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/plugins/tls/qschannelbackend.dll",
       "sha256": "ad8d88a72abd775a59a8a267094b517812342b4641cafe80576e18571ceaac03",
       "size": 263480
     },
     {
       "path": "_internal/PySide6/pyside6.abi3.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/pyside6.abi3.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/pyside6.abi3.dll",
       "sha256": "1d737937c8335025d5a3cd44fecc70000a8fd2e46bb8e1f031f2bd16cbd9b5c0",
       "size": 267576
     },
     {
       "path": "_internal/PySide6/Qt6Core.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Core.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Core.dll",
       "sha256": "89383ca8aa134bd228eac80c879e4048d2f7982f646eda53fee35547c20d0c3c",
       "size": 10486584
     },
     {
       "path": "_internal/PySide6/Qt6Gui.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Gui.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Gui.dll",
       "sha256": "5731a1d41f60ab686859943225848973726f4b00fd5e8e420453a12b1a2d1b95",
       "size": 9544504
     },
     {
       "path": "_internal/PySide6/Qt6Network.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Network.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Network.dll",
       "sha256": "0e7dfc2c0495e87e5fa451499f9af2105f8a5f09ed4a09123b86ca125263eed5",
       "size": 1770808
     },
     {
       "path": "_internal/PySide6/Qt6OpenGL.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6OpenGL.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6OpenGL.dll",
       "sha256": "d9fe875307794cfc10145236428d0e49d429744c537b650034cc83c38113733e",
       "size": 1977656
     },
     {
       "path": "_internal/PySide6/Qt6Pdf.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Pdf.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Pdf.dll",
       "sha256": "4fbf84097d5b4527e7e77c1a2b7f0d44635d3e74ce07d807d01df401aa30f583",
       "size": 4610360
     },
     {
       "path": "_internal/PySide6/Qt6Qml.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Qml.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Qml.dll",
       "sha256": "09c39c68d5d3267b3403c386f82caaf788719b012aa8afa8c268b66345f0486c",
       "size": 5370680
     },
     {
       "path": "_internal/PySide6/Qt6QmlMeta.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6QmlMeta.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6QmlMeta.dll",
       "sha256": "b3b1a1b2effa76b9b2047050e1cd61337612ea4507f5d9a2a8e7114af9b5bd46",
       "size": 160056
     },
     {
       "path": "_internal/PySide6/Qt6QmlModels.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6QmlModels.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6QmlModels.dll",
       "sha256": "96643d47e2db823711f01430e83efe18055e000c617f867462be63cd10021876",
       "size": 992056
     },
     {
       "path": "_internal/PySide6/Qt6QmlWorkerScript.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6QmlWorkerScript.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6QmlWorkerScript.dll",
       "sha256": "a0929be1179c2853855965fc88140ea0ac16808905f8671b1d72dc6809f04442",
       "size": 80696
     },
     {
       "path": "_internal/PySide6/Qt6Quick.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Quick.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Quick.dll",
       "sha256": "ed165c155cba166ea23de0157af875033e8a5ccf2894bff1620e10619cb2e2c3",
       "size": 6589240
     },
     {
       "path": "_internal/PySide6/Qt6Svg.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Svg.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Svg.dll",
       "sha256": "8d38e9bdf7ce0b08ef0f9a7ce19b7817f76d34289845008a08d7743223ee7991",
       "size": 640824
     },
     {
       "path": "_internal/PySide6/Qt6VirtualKeyboard.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6VirtualKeyboard.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6VirtualKeyboard.dll",
       "sha256": "62acb00cad8f1f97e83eb96c26baee7b535724451153c67a8539155994bcb593",
       "size": 440632
     },
     {
       "path": "_internal/PySide6/Qt6Widgets.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/Qt6Widgets.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/Qt6Widgets.dll",
       "sha256": "0bc3f3d90e6090023210887ea5748d0b0800727cb407bef5090aa338089ea22a",
       "size": 6588216
     },
     {
       "path": "_internal/PySide6/QtCore.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/QtCore.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/QtCore.pyd",
       "sha256": "9d9ec6d5244ec8cc93156386394fe9d0fc96e749c2969fe013bf15f5c5a9784d",
       "size": 3325752
     },
     {
       "path": "_internal/PySide6/QtGui.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/QtGui.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/QtGui.pyd",
       "sha256": "f58a2f83833ff32beb8729cbcf7d17a1a0386d7b535ba1ec60c20478f68bc2bf",
       "size": 3888440
     },
     {
       "path": "_internal/PySide6/QtNetwork.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/QtNetwork.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/QtNetwork.pyd",
       "sha256": "0c15fdf840b01621d52cb1e463d4853d0f0d873d87836ba0cc370d3425a522c3",
       "size": 1006904
     },
     {
       "path": "_internal/PySide6/QtWidgets.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/QtWidgets.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/QtWidgets.pyd",
       "sha256": "f14f92c99618246ee9a08632b46fc2493fb82607edb2f75318e44731ddcc7187",
       "size": 4855608
     },
     {
       "path": "_internal/PySide6/translations/qt_ar.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_ar.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_ar.qm",
       "sha256": "b11333c520ccd8e375cde20985df402d586a1a95e0796313bbeb9f717d4db22e",
       "size": 104
     },
     {
       "path": "_internal/PySide6/translations/qt_bg.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_bg.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_bg.qm",
       "sha256": "1e22ee126ec9f76031d880285a907b3a0c4510392319ff700dcdee964abbb1ad",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_ca.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_ca.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_ca.qm",
       "sha256": "17ab2623c7f6e8def44b3dbcb517544185817d65f1298ddb10ef71136f232bdc",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_cs.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_cs.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_cs.qm",
       "sha256": "c585918fb1d4821a054ea40bdcf279f275ca76c88a5793f433dac6a611ac7e8f",
       "size": 95
     },
     {
       "path": "_internal/PySide6/translations/qt_da.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_da.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_da.qm",
       "sha256": "f6773c672acb73fdef6e092060d69d1e5dfee840012bac912d1e92de28714386",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_de.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_de.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_de.qm",
       "sha256": "0401c316aa3b50a172eb44a4ff1ec384924073beec7c928ef888ec48e4612688",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_en.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_en.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_en.qm",
       "sha256": "494ac9a2b2cb2fdeced353f4a9f898ed8dcf616e9bc667438c62681e3f7f79cf",
       "size": 33
     },
     {
       "path": "_internal/PySide6/translations/qt_es.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_es.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_es.qm",
       "sha256": "648ed4519bc45d7a4779479a7626ea16cf9aa23e93a0b178546cc47bea0591ab",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_fa.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_fa.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_fa.qm",
       "sha256": "3f4c989c6b2990d80cc6299408214b31698923b52f154483b3371875de91f88e",
       "size": 84
     },
     {
       "path": "_internal/PySide6/translations/qt_fi.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_fi.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_fi.qm",
       "sha256": "342d01c7eeb234e431d0506821c4cd03c0433115d8d63fee3357be2331858879",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_fr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_fr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_fr.qm",
       "sha256": "c896a38892a92346b033793d56440993236b23e47e06f3974afdb0552f628387",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_gd.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_gd.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_gd.qm",
       "sha256": "49df855a004a17950338af3146466f6df4d5852410bd0b58ea80e0d0203a9d24",
       "size": 70
     },
     {
       "path": "_internal/PySide6/translations/qt_gl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_gl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_gl.qm",
       "sha256": "204a01ac7deb6b5bae193afecbd1e50d18c73bf7d94badeb2bbfdf6123c4ed93",
       "size": 323590
     },
     {
       "path": "_internal/PySide6/translations/qt_he.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_he.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_he.qm",
       "sha256": "36f01fff2f25e116d4b7af78097b7e49520fd5b7fb6fb120e40be228c05c045f",
       "size": 57
     },
     {
       "path": "_internal/PySide6/translations/qt_help_ar.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_ar.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_ar.qm",
       "sha256": "222088c9752d1cc3bab985ef2dc77e5ae78578dce18a61ec15b39f02e588163d",
       "size": 8743
     },
     {
       "path": "_internal/PySide6/translations/qt_help_bg.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_bg.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_bg.qm",
       "sha256": "cbcdd1e0bbae332d80ddb0a286056f17c824fa28d353d7fdf12fc97d9f6fe054",
       "size": 10599
     },
     {
       "path": "_internal/PySide6/translations/qt_help_ca.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_ca.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_ca.qm",
       "sha256": "8c98b5ee246e18397d0de7bd76b2891773a975553ec5dcdce42f8a696e5b34de",
       "size": 7426
     },
     {
       "path": "_internal/PySide6/translations/qt_help_cs.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_cs.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_cs.qm",
       "sha256": "4ac56fc63e400943bab13f1d4c418502138908e1d488c24aee6131d3d17552aa",
       "size": 15297
     },
     {
       "path": "_internal/PySide6/translations/qt_help_da.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_da.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_da.qm",
       "sha256": "6bb092552a398687119f6d52145f04bf8373977446d8f00c0dcbd56b96829f0f",
       "size": 4795
     },
     {
       "path": "_internal/PySide6/translations/qt_help_de.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_de.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_de.qm",
       "sha256": "037bc99abf98571ae9375c2513536c15b571d66406c36c1de447b547ff539c07",
       "size": 7569
     },
     {
       "path": "_internal/PySide6/translations/qt_help_en.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_en.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_en.qm",
       "sha256": "494ac9a2b2cb2fdeced353f4a9f898ed8dcf616e9bc667438c62681e3f7f79cf",
       "size": 33
     },
     {
       "path": "_internal/PySide6/translations/qt_help_es.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_es.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_es.qm",
       "sha256": "fd16b279f8cf69077f75e94d90c9c07a2afff3948a579e3789f5ffb5e5f4202d",
       "size": 10704
     },
     {
       "path": "_internal/PySide6/translations/qt_help_fr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_fr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_fr.qm",
       "sha256": "875ee2dcdc64e3dea888d84048e382d3921a175f12847de2e6b1cb12ad9add50",
       "size": 3573
     },
     {
       "path": "_internal/PySide6/translations/qt_help_gl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_gl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_gl.qm",
       "sha256": "7399a248609974773f60866c87b78ea7dfbc4f750313d692f7886cd763883c9f",
       "size": 10891
     },
     {
       "path": "_internal/PySide6/translations/qt_help_hr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_hr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_hr.qm",
       "sha256": "8c8cc3c5b1ab2b074f82937001b896603420ef75592b3b78172177360dd7ea61",
       "size": 5170
     },
     {
       "path": "_internal/PySide6/translations/qt_help_hu.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_hu.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_hu.qm",
       "sha256": "7be32e015119c969453abb6e8f3fb377963a69fafb10c27b796737b5eb283eaf",
       "size": 7255
     },
     {
       "path": "_internal/PySide6/translations/qt_help_it.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_it.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_it.qm",
       "sha256": "316fe8d0815e2b4b396895beb38ef1a40431915b5e054df80f4c0cd556f26e4b",
       "size": 10612
     },
     {
       "path": "_internal/PySide6/translations/qt_help_ja.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_ja.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_ja.qm",
       "sha256": "ae603b2c0d434d40cde433ffcba65f9ee27978a9e19316007be7fe782a5b8b47",
       "size": 7917
     },
     {
       "path": "_internal/PySide6/translations/qt_help_ka.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_ka.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_ka.qm",
       "sha256": "159c74f94b384b5ee6afdf38b6cfc4806bc99ecf73be02d4a7021d4ceba7ec7e",
       "size": 7091
     },
     {
       "path": "_internal/PySide6/translations/qt_help_ko.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_ko.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_ko.qm",
       "sha256": "f11c64694e8e34e1d2c46c1a1d15d6ba9f2db7b61de4fdf54eca5ab977c3e052",
       "size": 5708
     },
     {
       "path": "_internal/PySide6/translations/qt_help_nl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_nl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_nl.qm",
       "sha256": "44a8a0daf775d14352180052d13f623814d7bdf98e2c5c80144b7bf74214e3b0",
       "size": 5087
     },
     {
       "path": "_internal/PySide6/translations/qt_help_nn.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_nn.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_nn.qm",
       "sha256": "4c8a7213942078e4f72f5babd26c41b77ace70189714a58b5504a7d5ad0193dc",
       "size": 6934
     },
     {
       "path": "_internal/PySide6/translations/qt_help_pl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_pl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_pl.qm",
       "sha256": "cc6cb4d8c54086224672f2e49e623c8cb7c0c1cd65b8d5ecd42fc9ba3a6065bd",
       "size": 9673
     },
     {
       "path": "_internal/PySide6/translations/qt_help_pt_BR.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_pt_BR.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_pt_BR.qm",
       "sha256": "b4015c5d519b4fe93c00bf734d1742e4f0094d89862664d548eb64a46a2feae7",
       "size": 16030
     },
     {
       "path": "_internal/PySide6/translations/qt_help_ru.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_ru.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_ru.qm",
       "sha256": "557b644e6da5f1ec720ef93965617087e4d1f40b2494cc5aa524cf3796108de7",
       "size": 7288
     },
     {
       "path": "_internal/PySide6/translations/qt_help_sk.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_sk.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_sk.qm",
       "sha256": "f41e33e1d790bd0d3eb180f1f875bc191fe74773628f25c2cad95e1402e66867",
       "size": 10388
     },
     {
       "path": "_internal/PySide6/translations/qt_help_sl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_sl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_sl.qm",
       "sha256": "2ec955e662407ebcd8dcdae5aaa21e4108e0b5b0aee0e9db712c27072943535f",
       "size": 10363
     },
     {
       "path": "_internal/PySide6/translations/qt_help_sv.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_sv.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_sv.qm",
       "sha256": "95bdb03dbaa6dbdfda46c249e9ccce9a353f71ddb8b112961e8b005b2c60b13c",
       "size": 6934
     },
     {
       "path": "_internal/PySide6/translations/qt_help_tr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_tr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_tr.qm",
       "sha256": "81da2f88cd624097581f2d29b10311796bcd9ab289e65883346d276110542d28",
       "size": 6723
     },
     {
       "path": "_internal/PySide6/translations/qt_help_uk.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_uk.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_uk.qm",
       "sha256": "497cfc473684692ee44d7a3795e8fb2270c57069fd9eb98a615dd29ab9be8a7c",
       "size": 9750
     },
     {
       "path": "_internal/PySide6/translations/qt_help_zh_CN.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_zh_CN.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_zh_CN.qm",
       "sha256": "e256d1f6034a5a5521c62f129f91731216e474f71e1d9caea3d3dcb11b670deb",
       "size": 5115
     },
     {
       "path": "_internal/PySide6/translations/qt_help_zh_TW.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_help_zh_TW.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_help_zh_TW.qm",
       "sha256": "40112812abb43853d678cc6d97729f21f21b3a7321c827fc9d18f6c936447d1e",
       "size": 5160
     },
     {
       "path": "_internal/PySide6/translations/qt_hr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_hr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_hr.qm",
       "sha256": "fc9e4146f33be3d09b234be01e56235d3037d8d82d64f0700b4d4a6e253a61a7",
       "size": 102
     },
     {
       "path": "_internal/PySide6/translations/qt_hu.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_hu.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_hu.qm",
       "sha256": "c2fa649f167cdb801d1cc0cb69c1d93594fd5bf8c0b7e79b969935da5c3e19aa",
       "size": 84
     },
     {
       "path": "_internal/PySide6/translations/qt_it.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_it.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_it.qm",
       "sha256": "9e7a18bc20ebeec54baaaf41c918a74534511271f796dffffd0f9b9ec31c68d3",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_ja.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_ja.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_ja.qm",
       "sha256": "0f5fe50452947d1ee9755249d860354bff6977279b4c496a5bc77e5b89dd745e",
       "size": 84
     },
     {
       "path": "_internal/PySide6/translations/qt_ka.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_ka.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_ka.qm",
       "sha256": "00b67c6dfc255079b5b98a5640f82519c96b2520a028682fba4078b39d743eaa",
       "size": 94
     },
     {
       "path": "_internal/PySide6/translations/qt_ko.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_ko.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_ko.qm",
       "sha256": "1d254b535e1cb35cbcad8210b15b89f4488159826bf35b4504696263dd102fa3",
       "size": 84
     },
     {
       "path": "_internal/PySide6/translations/qt_lg.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_lg.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_lg.qm",
       "sha256": "6ba668501f4c040c66da1bdc022362da3c8cf663da6aa484cbdb599028da98ed",
       "size": 57
     },
     {
       "path": "_internal/PySide6/translations/qt_lt.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_lt.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_lt.qm",
       "sha256": "47eb5f97467df769261421d54a5bea1131c9fb9b6388791d38bb6574335b64bf",
       "size": 165383
     },
     {
       "path": "_internal/PySide6/translations/qt_lv.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_lv.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_lv.qm",
       "sha256": "addeca285282338294f24ca50d37d08a5f68d3785d0a94af86dd4ec8f2a3b449",
       "size": 63
     },
     {
       "path": "_internal/PySide6/translations/qt_nl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_nl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_nl.qm",
       "sha256": "39e870cbd25c0f97fa9b1828d5ea1ed9849857a2e26c5321b3f13c76be8f0548",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_nn.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_nn.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_nn.qm",
       "sha256": "4e544e23f75eafe1553dc896973db23b5795cd243786d5c653cc0f36a46ca74f",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_pl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_pl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_pl.qm",
       "sha256": "e6890afa0caf0f6db0248e4c94f6016b8ec8bc266f1e0e9b8f01e8ea912cf968",
       "size": 99
     },
     {
       "path": "_internal/PySide6/translations/qt_pt_BR.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_pt_BR.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_pt_BR.qm",
       "sha256": "0e24c58e35271853f8cdfb3f0f7b0741b5a9a588e43cdec62ae85a3842771e0a",
       "size": 106
     },
     {
       "path": "_internal/PySide6/translations/qt_pt_PT.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_pt_PT.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_pt_PT.qm",
       "sha256": "2c1e7bbf5168a64b43752dd4c547601c0bde6d610f8671fa3e3af38597e84783",
       "size": 70334
     },
     {
       "path": "_internal/PySide6/translations/qt_ru.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_ru.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_ru.qm",
       "sha256": "1b388e2d6d1bd405603e794e498c6d7ec5f5a5ad819243546f6399181da36758",
       "size": 102
     },
     {
       "path": "_internal/PySide6/translations/qt_sk.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_sk.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_sk.qm",
       "sha256": "840c3b01c89df976fc1d2e5bfc6fc84b65666b8a3ceb4cbf5aa0c22af3d2a383",
       "size": 95
     },
     {
       "path": "_internal/PySide6/translations/qt_sl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_sl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_sl.qm",
       "sha256": "c44e0313a9414cc0e490b65b0c036fa11bca959353b228886547bc2c8492034f",
       "size": 228428
     },
     {
       "path": "_internal/PySide6/translations/qt_sv.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_sv.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_sv.qm",
       "sha256": "daaae448e0814b469ac3d7a91096fde15491600a6b8bc6c01508425fb5e8b3ec",
       "size": 91
     },
     {
       "path": "_internal/PySide6/translations/qt_tr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_tr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_tr.qm",
       "sha256": "59e8a0c411be3b0802a68561b090f182099d6b75c4fe46f398e55f11528e11b9",
       "size": 84
     },
     {
       "path": "_internal/PySide6/translations/qt_uk.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_uk.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_uk.qm",
       "sha256": "053ec1f677c4dba48c6a97eb28f4fc78c1511324d1843d7f4cec2c7c00a66145",
       "size": 102
     },
     {
       "path": "_internal/PySide6/translations/qt_zh_CN.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_zh_CN.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_zh_CN.qm",
       "sha256": "c0e29d32c9540a7e78643b74214e633c56f6ab11f018e516629f2c11b1fb09fc",
       "size": 99
     },
     {
       "path": "_internal/PySide6/translations/qt_zh_TW.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qt_zh_TW.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qt_zh_TW.qm",
       "sha256": "24e226954491689549a1a1990db3b8cb78888008d8163b2fd2442b772b6d1b5f",
       "size": 99
     },
     {
       "path": "_internal/PySide6/translations/qtbase_ar.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_ar.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_ar.qm",
       "sha256": "e03fe68d83201543698fd7fe267dd5dfc5bfd195147e74ff2f19ac3491401263",
       "size": 160017
     },
     {
       "path": "_internal/PySide6/translations/qtbase_bg.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_bg.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_bg.qm",
       "sha256": "e448ac9e3f16c29eb27af3012efe21052daa78fabfb34cd6dff2f69ee3bd3cdb",
       "size": 165337
     },
     {
       "path": "_internal/PySide6/translations/qtbase_ca.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_ca.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_ca.qm",
       "sha256": "005b0aa0c9a5b930dfdd870661958a8069bbec862d75f98bce20bf7401bea13d",
       "size": 209899
     },
     {
       "path": "_internal/PySide6/translations/qtbase_cs.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_cs.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_cs.qm",
       "sha256": "03028b42df5479270371e4c3bdc7df2f56cbbe6dda956a2864ac6f6415861fe8",
       "size": 174701
     },
     {
       "path": "_internal/PySide6/translations/qtbase_da.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_da.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_da.qm",
       "sha256": "7d1e5ca3310b54d104c19bf2abd402b38e584e87039a70e153c4a9af74b25c22",
       "size": 181387
     },
     {
       "path": "_internal/PySide6/translations/qtbase_de.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_de.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_de.qm",
       "sha256": "ed828a83dfaa51944f166c842155b48ab3bd7cb2c46dcd96269eb5d48af4f63f",
       "size": 223282
     },
     {
       "path": "_internal/PySide6/translations/qtbase_en.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_en.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_en.qm",
       "sha256": "494ac9a2b2cb2fdeced353f4a9f898ed8dcf616e9bc667438c62681e3f7f79cf",
       "size": 33
     },
     {
       "path": "_internal/PySide6/translations/qtbase_es.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_es.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_es.qm",
       "sha256": "4ffda56ba3bb5414ab0482d1dde64a6f226e3488f6b7f3f11a150e01f53fa4c8",
       "size": 165170
     },
     {
       "path": "_internal/PySide6/translations/qtbase_fa.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_fa.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_fa.qm",
       "sha256": "f78e59b5bdd586181a999034ba418868ed17fe9c05707fb65e523f70e92253d2",
       "size": 148156
     },
     {
       "path": "_internal/PySide6/translations/qtbase_fi.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_fi.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_fi.qm",
       "sha256": "e47fe13713e184d07fa4495dde0c589b0e8f562e91574a3558a9363443a4fa72",
       "size": 179941
     },
     {
       "path": "_internal/PySide6/translations/qtbase_fr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_fr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_fr.qm",
       "sha256": "314243a55c32679ad473fdfe48dc7d66e973ad0fc8bf2164480c58dddb50c1a7",
       "size": 159463
     },
     {
       "path": "_internal/PySide6/translations/qtbase_gd.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_gd.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_gd.qm",
       "sha256": "63b439dd44139aa3aed54c2ebe03fa9bc77f22c14ed8fba8eff2608445bb233d",
       "size": 189580
     },
     {
       "path": "_internal/PySide6/translations/qtbase_he.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_he.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_he.qm",
       "sha256": "e1ebca16afe8994356f81ca007fbdb9ddf865842010fe908923d873b687cad3f",
       "size": 138690
     },
     {
       "path": "_internal/PySide6/translations/qtbase_hr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_hr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_hr.qm",
       "sha256": "bb9eec9a9a652c1340dc75eb2e749be50df00f885b3d6900dfc76799c45b244d",
       "size": 149711
     },
     {
       "path": "_internal/PySide6/translations/qtbase_hu.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_hu.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_hu.qm",
       "sha256": "98463295539d769c8645a0b7fb95ad38454cfd0b14f36af485513f036ddbbbc6",
       "size": 205885
     },
     {
       "path": "_internal/PySide6/translations/qtbase_it.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_it.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_it.qm",
       "sha256": "7808ed542a7833c4bd94ec8bdfbbca00bb4f2fe15979b9121ce3249323687300",
       "size": 161166
     },
     {
       "path": "_internal/PySide6/translations/qtbase_ja.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_ja.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_ja.qm",
       "sha256": "2b9581c69b975f59be505b127cd3c19d403ef3d12e0e8386fb97238223e9c1df",
       "size": 129913
     },
     {
       "path": "_internal/PySide6/translations/qtbase_ka.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_ka.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_ka.qm",
       "sha256": "e55e4b72fa620bebee5297ca59dfe2f49894a1e544f2b7485b1cfd8829289d6f",
       "size": 201105
     },
     {
       "path": "_internal/PySide6/translations/qtbase_ko.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_ko.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_ko.qm",
       "sha256": "0179ed1b136e1cb3f583351eaa2c545ba3d83a6ee3f82c32505926a1a5f5f183",
       "size": 156799
     },
     {
       "path": "_internal/PySide6/translations/qtbase_lg.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_lg.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_lg.qm",
       "sha256": "31c0cc4ce13b1d74fe0c19ed0b47638fb31e20c93ee08092533e884007aebfb5",
       "size": 315764
     },
     {
       "path": "_internal/PySide6/translations/qtbase_lv.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_lv.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_lv.qm",
       "sha256": "846e047573ae40c83671c3ba7f73e27efc24b98c82701da0df9973e574178bb2",
       "size": 153608
     },
     {
       "path": "_internal/PySide6/translations/qtbase_nl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_nl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_nl.qm",
       "sha256": "f61513bcdbb6ad800585f9437a95d018aab17fa12ee414aa31462ff279d8240e",
       "size": 202861
     },
     {
       "path": "_internal/PySide6/translations/qtbase_nn.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_nn.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_nn.qm",
       "sha256": "f9f2fb7c60e7fcb38bbd3c1314ef122145594265e20b0659ff00004baab13ac7",
       "size": 196411
     },
     {
       "path": "_internal/PySide6/translations/qtbase_pl.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_pl.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_pl.qm",
       "sha256": "3cf6b5c14d5eb0cf81e9af2066e66b3aa579a6b9b3c323ed670761f6254a8c54",
       "size": 162962
     },
     {
       "path": "_internal/PySide6/translations/qtbase_pt_BR.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_pt_BR.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_pt_BR.qm",
       "sha256": "3475d61604b938d459949801a906dbd34a8ca824ade94120015d676e208da859",
       "size": 290955
     },
     {
       "path": "_internal/PySide6/translations/qtbase_ru.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_ru.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_ru.qm",
       "sha256": "3da6605668f9178d11a838c4515478084dcfb4f9cf22f99d7a92b492db9c224b",
       "size": 203767
     },
     {
       "path": "_internal/PySide6/translations/qtbase_sk.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_sk.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_sk.qm",
       "sha256": "d586ae2c314074cf398417fdecb40709d5478dfeb0a67c2fe60d509ee9b59ed7",
       "size": 125763
     },
     {
       "path": "_internal/PySide6/translations/qtbase_sv.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_sv.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_sv.qm",
       "sha256": "ed7786bb4fec609e99e98c5c91fa468add90093e95079b9eb7ff2e01371c6abe",
       "size": 198420
     },
     {
       "path": "_internal/PySide6/translations/qtbase_tr.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_tr.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_tr.qm",
       "sha256": "353fdfd7165659a49212e7a25bf91c0a71588e52c836f7496640f26782414634",
       "size": 248720
     },
     {
       "path": "_internal/PySide6/translations/qtbase_uk.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_uk.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_uk.qm",
       "sha256": "51b8ff55b37dc5907d637a8ddda12fbe816852b0244c74eb4f0fb84867a786e0",
       "size": 158274
     },
     {
       "path": "_internal/PySide6/translations/qtbase_zh_CN.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_zh_CN.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_zh_CN.qm",
       "sha256": "0481a9b92a6f0578400e960a7d5ee70217a6a450eaf7f98b7d32b8dbd0d58616",
       "size": 147222
     },
     {
       "path": "_internal/PySide6/translations/qtbase_zh_TW.qm",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/translations/qtbase_zh_TW.qm",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/translations/qtbase_zh_TW.qm",
       "sha256": "21012b2b427f8d09d31ce9cae582ca27955b478ca3dc2ec18a3068d808638c6a",
       "size": 126185
     },
     {
       "path": "_internal/PySide6/VCRUNTIME140.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/VCRUNTIME140.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/VCRUNTIME140.dll",
       "sha256": "90b16bd48994b1373cfa5fbeded5996a4e999845958a3cd04992f50b6aaf71b3",
       "size": 116024
     },
     {
       "path": "_internal/PySide6/VCRUNTIME140_1.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/PySide6/VCRUNTIME140_1.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/PySide6/VCRUNTIME140_1.dll",
       "sha256": "ccda43d3b89f251253bbcda9fdea6a1844bbb39f0f44471b4fa77fedaf56f8b8",
       "size": 41272
     },
     {
       "path": "_internal/python3.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/python3.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/python3.dll",
       "sha256": "be1017ca4ca8ff837efbb343d5c8f739bd67bd1c43fb41068a539b19357c0213",
       "size": 74072
     },
     {
       "path": "_internal/python314.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/python314.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/python314.dll",
       "sha256": "1ac15e2224581fc678bbd17728b9aa538d47b891b72c76499ef07e54cd74f151",
       "size": 6753112
     },
     {
       "path": "_internal/pywin32_system32/pywintypes314.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/pywin32_system32/pywintypes314.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/pywin32_system32/pywintypes314.dll",
       "sha256": "74f036548f3321d312205085662b2b92c0654354a718a41c44e02fd4e01fedb9",
       "size": 136704
     },
     {
       "path": "_internal/select.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/select.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/select.pyd",
       "sha256": "05734bd352ce60c944d474aa62468cc5eebf400097f1d9d0c453d37aed26fcca",
       "size": 33624
     },
     {
       "path": "_internal/setuptools/_vendor/jaraco/text/Lorem ipsum.txt",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/setuptools/_vendor/jaraco/text/Lorem%20ipsum.txt",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/setuptools/_vendor/jaraco/text/Lorem%20ipsum.txt",
       "sha256": "37fedcffbf73c4eb9f058f47677cb33203a436ff9390e4d38a8e01c9dad28e0b",
       "size": 1335
     },
     {
       "path": "_internal/shiboken6/MSVCP140.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/shiboken6/MSVCP140.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/shiboken6/MSVCP140.dll",
       "sha256": "929357e3ca461248daf7a68e2dd49d44d734f28eb8f76959a2cdba3b42ddb1d6",
       "size": 549176
     },
     {
       "path": "_internal/shiboken6/Shiboken.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/shiboken6/Shiboken.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/shiboken6/Shiboken.pyd",
       "sha256": "5bfd3f7dad7c9dd7aaf66c4893cf5e5f073613c03a5c35c0625721556cfc5c5c",
       "size": 33080
     },
     {
       "path": "_internal/shiboken6/shiboken6.abi3.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/shiboken6/shiboken6.abi3.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/shiboken6/shiboken6.abi3.dll",
       "sha256": "7c94a10ac0b916fbf46ec7494aa578064d63636737e7081c6b969716c7dc7c9f",
       "size": 383800
     },
     {
       "path": "_internal/shiboken6/VCRUNTIME140.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/shiboken6/VCRUNTIME140.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/shiboken6/VCRUNTIME140.dll",
       "sha256": "9fabc4d1fd2ffbe1dbb7590d4c660fcbfc9f551a3e4233d2b70d8e6406c6a46d",
       "size": 116024
     },
     {
       "path": "_internal/shiboken6/VCRUNTIME140_1.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/shiboken6/VCRUNTIME140_1.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/shiboken6/VCRUNTIME140_1.dll",
       "sha256": "92aa4b4fffc5c3c7b7b52a85e665853259c25041ccf527016996622aa769b1f7",
       "size": 41272
     },
     {
       "path": "_internal/unicodedata.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/unicodedata.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/unicodedata.pyd",
       "sha256": "4445b894f836e89a8b9fdcc88b5e59fbc76aca805baaf40aeb69e869978d4e6d",
       "size": 758104
     },
     {
       "path": "_internal/VCRUNTIME140.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/VCRUNTIME140.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/VCRUNTIME140.dll",
       "sha256": "052ad6a20d375957e82aa6a3c441ea548d89be0981516ca7eb306e063d5027f4",
       "size": 120400
     },
     {
       "path": "_internal/VCRUNTIME140_1.dll",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/VCRUNTIME140_1.dll",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/VCRUNTIME140_1.dll",
       "sha256": "6a99bc0128e0c7d6cbbf615fcc26909565e17d4ca3451b97f8987f9c6acbc6c8",
       "size": 49776
     },
     {
       "path": "_internal/win32/win32pdh.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/win32/win32pdh.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/win32/win32pdh.pyd",
       "sha256": "ece1394836d29b4f8981fabf0fc2aa5f526884ec53e0b0ced78d50cb03d92150",
       "size": 34816
     },
     {
       "path": "_internal/yaml/_yaml.cp314-win_amd64.pyd",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/_internal/yaml/_yaml.cp314-win_amd64.pyd",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/_internal/yaml/_yaml.cp314-win_amd64.pyd",
       "sha256": "ef5cde08b05f7c8222a458fa49ca5ec891e54d4c721ffdbe1d6a609e26a26718",
       "size": 258560
     },
     {
       "path": "big_map.png",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/big_map.png",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/big_map.png",
       "sha256": "d90e4f90474c2e5ff37fe85aa3854b6a9907f69f57e07e86ccb061e487c373a2",
       "size": 33595983
     },
     {
       "path": "config.json",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/config.json",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/config.json",
       "sha256": "d32024493beca4e76670d66a80a2e47ac3547fefe76139fd922b8a80c836d897",
       "size": 3599,
       "install": "merge_config"
     },
     {
       "path": "GMT-N.exe",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/GMT-N.exe",
-      "sha256": "f4de0390f8d9286ded54e0a25006639bfcecc1ea8269346c33d27de33a2e7d87",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/GMT-N.exe",
+      "sha256": "69e99bf4201ea3f0061c89bbe7436a0eed7ba7878556f228b237ede69b2fac7b",
       "size": 8537272
     },
     {
       "path": "README.md",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/README.md",
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/README.md",
       "sha256": "8642e6fecfd68fd76e03d9a94c5dd97b7ccba7426b8ff9c42112f438b41e91d8",
       "size": 3025
     },
     {
       "path": "updater.exe",
-      "url": "https://greenjiao.github.io/Game-Map-Tracker/test/updater.exe",
-      "sha256": "c84c3d0a2d1cc54b0148ebccb9caf043a01fb703c9463612a7ee30dbd4fcf390",
-      "size": 8520864
+      "url": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/updater.exe",
+      "sha256": "340f6258c15a77ecbeab43a55c78a285c3c1e94642751c996c01341b71117b56",
+      "size": 8520876
     }
   ],
   "delete": [],
@@ -1634,9 +1634,10 @@
     "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/11695114",
     "FEEDBACK_QQ_GROUP": "311609019",
     "APP_UPDATE_MANIFEST_URLS": [
-      "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/app-manifest.json",
       "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
-      "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json"
+      "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
+      "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/test/app-manifest.json",
+      "https://greenjiao.github.io/Game-Map-Tracker/test/app-manifest.json"
     ]
   }
 }
