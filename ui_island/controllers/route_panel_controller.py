@@ -5,18 +5,43 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from copy import deepcopy
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
+from PySide6.QtCore import QPoint, QTimer, Qt
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QCheckBox,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..design import strings, theme
-from ..dialogs import toast
+from ..dialogs import StyledDialogBase, center_dialog, toast
+from ..dialogs.annotation_type_picker import open_annotation_type_picker
 from ..dialogs.route_notes_dialog import edit_route_notes
 from ..dialogs.settings_dialog import styled_confirm, styled_info
 from ..dialogs.text_input_dialog import prompt_text_input
 from ..widgets import ElidedCheckBox, RouteListItem, RouteSection, TrackedRouteItem
 from ..widgets.context_menu import ContextMenuItem, show_context_menu
 from ..widgets.factory import make_header_icon_button
+
+
+class RouteDrawingToolbarFrame(QFrame):
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        painter.setBrush(QColor(28, 28, 30, 236))
+        painter.setPen(QPen(QColor(255, 255, 255, 36), 1))
+        painter.drawRoundedRect(rect, 8, 8)
 
 
 class RoutePanelController:
@@ -168,7 +193,9 @@ class RoutePanelController:
         self.window.routes_scroll_inner.adjustSize()
         self.window.interaction_controller.install_resize_filters(self.window.routes_scroll_inner)
 
-    def reload_route_list(self) -> None:
+    def reload_route_list(self, _checked: bool = False) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         self.remember_route_section_states_from_widgets()
         self.cancel_active_route_rename()
         self.window.route_mgr.reload()
@@ -218,6 +245,7 @@ class RoutePanelController:
                     strings.ROUTE_NOTES,
                     lambda: self.show_route_notes_dialog(route_item.category, route_item.route_name),
                 ),
+                ContextMenuItem(strings.ROUTE_DRAWING_MENU_LABEL, lambda: self.begin_route_drawing(route_item)),
                 ContextMenuItem(
                     strings.ROUTE_DELETE,
                     lambda: self.delete_route(route_item.category, route_item.route_name),
@@ -228,6 +256,7 @@ class RoutePanelController:
                     lambda: self.open_route_file_location(route_item.category, route_item.route_name),
                 ),
             ],
+            object_name="RouteListContextMenu",
         )
 
     def show_category_context_menu(self, category: str, global_pos) -> None:
@@ -243,6 +272,567 @@ class RoutePanelController:
                     lambda: self.open_category_file_location(category),
                 ),
             ],
+            object_name="RouteListContextMenu",
+        )
+
+    def _drawing_allowed_modes(self) -> tuple[object, object]:
+        mode_enum = self.window._mode.__class__
+        return mode_enum.PAUSED, mode_enum.MAXIMIZED
+
+    def begin_route_drawing(self, route_item: RouteListItem) -> None:
+        if self.window._mode not in self._drawing_allowed_modes():
+            styled_info(self.window, strings.ROUTE_DRAWING_TITLE, strings.ROUTE_DRAWING_MODE_REQUIRED)
+            return
+        if not self.confirm_exit_route_drawing():
+            return
+
+        route = self.window.route_mgr.route_for_id(route_item.route_id)
+        if route is None:
+            styled_info(self.window, strings.ROUTE_DRAWING_TITLE, strings.ROUTE_DRAWING_ROUTE_MISSING)
+            return
+
+        points = [
+            self._normalize_drawing_point(point)
+            for point in route.get("points", []) or []
+            if isinstance(point, dict)
+        ]
+        self.window.route_drawing_state.begin(
+            route_id=route_item.route_id,
+            category=route_item.category,
+            name=route_item.route_name,
+            points=points,
+        )
+        self._sync_route_drawing_ui()
+        toast(self.window, strings.ROUTE_DRAWING_ENTERED_FMT.format(name=route_item.route_name))
+
+    @staticmethod
+    def _normalize_drawing_point(point: dict) -> dict:
+        copied = dict(point)
+        copied["node_type"] = str(copied.get("node_type") or "collect").strip() or "collect"
+        copied["visited"] = False
+        return copied
+
+    @staticmethod
+    def _strip_drawing_fields(point: dict) -> dict:
+        return {key: value for key, value in point.items() if key != "visited" and not str(key).startswith("_drawing_")}
+
+    def _clean_draft_points(self) -> list[dict]:
+        return [self._strip_drawing_fields(point) for point in self.window.route_drawing_state.draft_points]
+
+    def _drawing_points_equal_original(self) -> bool:
+        state = self.window.route_drawing_state
+        original = [self._strip_drawing_fields(point) for point in state.original_points]
+        current = [self._strip_drawing_fields(point) for point in state.draft_points]
+        return original == current
+
+    def _mark_drawing_dirty(self) -> None:
+        self.window.route_drawing_state.dirty = not self._drawing_points_equal_original()
+
+    def _sync_route_drawing_ui(self) -> None:
+        state = self.window.route_drawing_state
+        context = None
+        if state.active:
+            self._ensure_route_drawing_toolbar()
+            context = {
+                "active": True,
+                "paused": state.paused,
+                "route_id": state.route_id,
+                "name": state.name,
+                "points": deepcopy(state.draft_points),
+                "node_type": state.node_type,
+                "add_node_annotation": state.add_node_annotation,
+                "same_annotation_type": state.same_annotation_type,
+                "annotation_type": state.annotation_type,
+                "annotation_type_id": state.annotation_type_id,
+                "hide_other_routes": state.hide_other_routes,
+            }
+            self.window.state_hint_label.setVisible(True)
+            self.window.state_hint_label.setText(strings.ROUTE_DRAWING_STATE_FMT.format(name=state.name))
+            self.window.state_hint_label.setStyleSheet("")
+            self._update_route_drawing_toolbar()
+            help_btn = getattr(self.window, "route_drawing_help_btn", None)
+            if help_btn is not None:
+                help_btn.setVisible(True)
+        else:
+            toolbar = getattr(self.window, "route_drawing_toolbar", None)
+            if toolbar is not None:
+                toolbar.hide()
+            help_btn = getattr(self.window, "route_drawing_help_btn", None)
+            if help_btn is not None:
+                help_btn.hide()
+        self.window.map_view.set_route_drawing_context(context)
+
+    def _ensure_route_drawing_toolbar(self) -> None:
+        if getattr(self.window, "route_drawing_toolbar", None) is not None:
+            return
+
+        toolbar = RouteDrawingToolbarFrame(
+            self.window,
+            Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint,
+        )
+        toolbar.setObjectName("RouteDrawingToolbar")
+        toolbar.setWindowTitle(strings.ROUTE_DRAWING_TOOLBAR_TITLE)
+        toolbar.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        toolbar.setAttribute(Qt.WA_TranslucentBackground, True)
+        toolbar.setAttribute(Qt.WA_StyledBackground, True)
+        toolbar.setStyleSheet(theme.ISLAND_QSS)
+        toolbar.hide()
+        layout = QVBoxLayout(toolbar)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        end_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_END)
+        save_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_SAVE)
+        pause_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_PAUSE)
+        undo_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_UNDO)
+        clear_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_CLEAR)
+        hide_routes_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_HIDE_OTHER_ROUTES, checkable=True)
+        end_btn.clicked.connect(self.end_route_drawing)
+        save_btn.clicked.connect(self.save_route_drawing)
+        pause_btn.clicked.connect(self.toggle_route_drawing_paused)
+        undo_btn.clicked.connect(self.undo_route_drawing)
+        clear_btn.clicked.connect(self.clear_route_drawing)
+        hide_routes_btn.clicked.connect(
+            lambda checked=False: self.set_route_drawing_hide_other_routes(bool(checked))
+        )
+        for button in (end_btn, save_btn, pause_btn, undo_btn, clear_btn, hide_routes_btn):
+            layout.addWidget(button)
+
+        layout.addWidget(self._drawing_toolbar_separator())
+
+        type_group = QButtonGroup(toolbar)
+        type_group.setExclusive(True)
+        collect_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_NODE_COLLECT, checkable=True)
+        teleport_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_NODE_TELEPORT, checkable=True)
+        virtual_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_NODE_VIRTUAL, checkable=True)
+        for node_type, button in (
+            ("collect", collect_btn),
+            ("teleport", teleport_btn),
+            ("virtual", virtual_btn),
+        ):
+            type_group.addButton(button)
+            button.clicked.connect(lambda _checked=False, value=node_type: self.set_route_drawing_node_type(value))
+            layout.addWidget(button)
+
+        layout.addWidget(self._drawing_toolbar_separator())
+
+        add_annotation_check = QCheckBox(strings.ROUTE_DRAWING_ADD_ANNOTATION)
+        add_annotation_check.toggled.connect(self.set_route_drawing_add_annotation)
+        layout.addWidget(add_annotation_check)
+
+        same_annotation_check = QCheckBox(strings.ROUTE_DRAWING_SAME_ANNOTATION_TYPE)
+        same_annotation_check.toggled.connect(self.set_route_drawing_same_annotation)
+        layout.addWidget(same_annotation_check)
+
+        select_annotation_btn = self._drawing_toolbar_button(strings.ROUTE_DRAWING_SELECT_ANNOTATION_TYPE)
+        select_annotation_btn.clicked.connect(self.select_route_drawing_annotation_type)
+        layout.addWidget(select_annotation_btn)
+
+        self.window.route_drawing_toolbar = toolbar
+        self.window.route_drawing_toolbar_buttons = {
+            "end": end_btn,
+            "save": save_btn,
+            "pause": pause_btn,
+            "undo": undo_btn,
+            "clear": clear_btn,
+            "hide_other_routes": hide_routes_btn,
+            "collect": collect_btn,
+            "teleport": teleport_btn,
+            "virtual": virtual_btn,
+            "add_annotation": add_annotation_check,
+            "same_annotation": same_annotation_check,
+            "select_annotation": select_annotation_btn,
+        }
+
+    @staticmethod
+    def _drawing_toolbar_button(text: str, *, checkable: bool = False) -> QPushButton:
+        button = QPushButton(text)
+        button.setCheckable(checkable)
+        button.setMinimumWidth(96)
+        return button
+
+    @staticmethod
+    def _drawing_toolbar_separator() -> QFrame:
+        separator = QFrame()
+        separator.setObjectName("RouteDrawingToolbarSeparator")
+        separator.setFrameShape(QFrame.HLine)
+        return separator
+
+    def _update_route_drawing_toolbar(self) -> None:
+        state = self.window.route_drawing_state
+        toolbar = getattr(self.window, "route_drawing_toolbar", None)
+        buttons = getattr(self.window, "route_drawing_toolbar_buttons", {})
+        if toolbar is None or not buttons:
+            return
+
+        buttons["pause"].setText(strings.ROUTE_DRAWING_RESUME if state.paused else strings.ROUTE_DRAWING_PAUSE)
+        node_button = buttons.get(state.node_type) or buttons["collect"]
+        node_button.setChecked(True)
+
+        add_annotation = bool(state.add_node_annotation)
+        same_annotation = bool(state.same_annotation_type)
+        buttons["add_annotation"].blockSignals(True)
+        buttons["add_annotation"].setChecked(add_annotation)
+        buttons["add_annotation"].blockSignals(False)
+        buttons["same_annotation"].blockSignals(True)
+        buttons["same_annotation"].setChecked(same_annotation)
+        buttons["same_annotation"].blockSignals(False)
+        hide_routes_btn = buttons.get("hide_other_routes")
+        if hide_routes_btn is not None:
+            hide_routes_btn.blockSignals(True)
+            hide_routes_btn.setChecked(bool(state.hide_other_routes))
+            hide_routes_btn.blockSignals(False)
+        buttons["same_annotation"].setVisible(add_annotation)
+        buttons["select_annotation"].setVisible(add_annotation and same_annotation)
+        buttons["select_annotation"].setText(state.annotation_type or strings.ROUTE_DRAWING_SELECT_ANNOTATION_TYPE)
+        self.position_route_drawing_toolbar()
+        toolbar.show()
+        toolbar.raise_()
+
+    def position_route_drawing_toolbar(self) -> None:
+        state = getattr(self.window, "route_drawing_state", None)
+        toolbar = getattr(self.window, "route_drawing_toolbar", None)
+        if state is None or toolbar is None or not state.active:
+            return
+
+        toolbar.adjustSize()
+        margin = 12
+        if self.window.isMaximized():
+            anchor = self.window.map_view.mapToGlobal(QPoint(margin, 0))
+            center = self.window.map_view.mapToGlobal(
+                QPoint(0, max(margin, (self.window.map_view.height() - toolbar.height()) // 2))
+            )
+            x = anchor.x()
+            y = center.y()
+        else:
+            body = getattr(self.window, "body_container", None)
+            window_frame = self.window.frameGeometry()
+            x = window_frame.left() - toolbar.width()
+            if body is None:
+                y = window_frame.top() + max(margin, (window_frame.height() - toolbar.height()) // 2)
+            else:
+                body_top = body.mapToGlobal(QPoint(0, 0)).y()
+                y = body_top + max(margin, (body.height() - toolbar.height()) // 2)
+
+        screen = toolbar.screen() or self.window.screen() or QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            min_x = available.left()
+            min_y = available.top() + margin
+            max_x = available.right() - toolbar.width() + 1
+            max_y = available.bottom() - toolbar.height() - margin + 1
+            x = max(min_x, min(x, max(min_x, max_x)))
+            y = max(min_y, min(y, max(min_y, max_y)))
+        toolbar.move(x, y)
+        toolbar.raise_()
+
+    def end_route_drawing(self) -> None:
+        self.confirm_exit_route_drawing()
+
+    def save_route_drawing(self) -> bool:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return True
+        if not self.window.route_mgr.save_route_points(state.route_id, self._clean_draft_points()):
+            styled_info(self.window, strings.ROUTE_DRAWING_SAVE_FAILED_TITLE, strings.ROUTE_DRAWING_SAVE_FAILED_BODY)
+            return False
+        drawing_options = {
+            "paused": state.paused,
+            "node_type": state.node_type,
+            "add_node_annotation": state.add_node_annotation,
+            "same_annotation_type": state.same_annotation_type,
+            "annotation_type": state.annotation_type,
+            "annotation_type_id": state.annotation_type_id,
+            "hide_other_routes": state.hide_other_routes,
+        }
+        route = self.window.route_mgr.route_for_id(state.route_id)
+        saved_points = route.get("points", []) if route is not None else self._clean_draft_points()
+        state.begin(route_id=state.route_id, category=state.category, name=state.name, points=saved_points)
+        for key, value in drawing_options.items():
+            setattr(state, key, value)
+        self._sync_route_drawing_ui()
+        try:
+            self.window.map_view._refresh_from_last_frame()
+            self.refresh_tracked_routes()
+        except Exception:
+            pass
+        toast(self.window, strings.ROUTE_DRAWING_SAVED_FMT.format(name=state.name))
+        return True
+
+    def discard_route_drawing(self) -> None:
+        self.window.route_drawing_state.reset()
+        self._sync_route_drawing_ui()
+
+    def confirm_exit_route_drawing(self) -> bool:
+        state = getattr(self.window, "route_drawing_state", None)
+        if state is None or not state.active:
+            return True
+        self._mark_drawing_dirty()
+        if not state.dirty:
+            self.discard_route_drawing()
+            return True
+
+        choice = self._prompt_save_discard_cancel()
+        if choice == "cancel":
+            return False
+        if choice == "save" and not self.save_route_drawing():
+            return False
+        self.discard_route_drawing()
+        return True
+
+    def _prompt_save_discard_cancel(self) -> str:
+        dialog = StyledDialogBase(self.window, strings.ROUTE_DRAWING_EXIT_TITLE, min_width=380, max_width=420)
+        body = QLabel(strings.ROUTE_DRAWING_EXIT_UNSAVED_BODY)
+        body.setObjectName("BodyLabel")
+        body.setWordWrap(True)
+        dialog.shell_layout.addWidget(body)
+
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+        result = {"value": "cancel"}
+        for value, text in (
+            ("discard", strings.ROUTE_DRAWING_EXIT_DISCARD),
+            ("cancel", strings.ROUTE_DRAWING_EXIT_CANCEL),
+            ("save", strings.ROUTE_DRAWING_EXIT_SAVE),
+        ):
+            button = QPushButton(text)
+            button.clicked.connect(lambda _checked=False, v=value: (result.__setitem__("value", v), dialog.accept()))
+            button_row.addWidget(button)
+        dialog.shell_layout.addLayout(button_row)
+        dialog.adjustSize()
+        center_dialog(dialog, self.window)
+        if dialog.exec() != QDialog.Accepted:
+            return "cancel"
+        return result["value"]
+
+    def append_drawing_point(self, x: int, y: int) -> None:
+        state = self.window.route_drawing_state
+        if not state.active or state.paused:
+            return
+        annotation = self._drawing_annotation_for_new_point()
+        if annotation is False:
+            return
+        point = {
+            "id": self.window.route_mgr.new_route_point_id(),
+            "x": int(x),
+            "y": int(y),
+            "node_type": state.node_type if state.node_type in {"collect", "teleport", "virtual"} else "collect",
+            "_drawing_new": True,
+        }
+        if isinstance(annotation, dict):
+            point["typeId"] = annotation["typeId"]
+            point["type"] = annotation["type"]
+        index = len(state.draft_points)
+        state.draft_points.append(point)
+        state.undo_stack.append({"op": "add", "index": index, "point": deepcopy(point)})
+        state.added_count += 1
+        self._mark_drawing_dirty()
+        self._sync_route_drawing_ui()
+
+    def _drawing_annotation_for_new_point(self) -> dict | bool | None:
+        state = self.window.route_drawing_state
+        if not state.add_node_annotation:
+            return None
+        if state.same_annotation_type:
+            if not state.annotation_type_id:
+                styled_info(
+                    self.window,
+                    strings.ANNOTATION_TYPE_PICKER_TITLE,
+                    strings.ROUTE_DRAWING_SELECT_ANNOTATION_FIRST,
+                )
+                return False
+            return {"typeId": state.annotation_type_id, "type": state.annotation_type or state.annotation_type_id}
+
+        selected = self._pick_route_node_annotation(state.annotation_type_id)
+        if selected is None:
+            return False
+        return selected
+
+    def _pick_route_node_annotation(self, current_type_id: str = "") -> dict | None:
+        items = self.window.route_mgr.annotation_type_items()
+        if not items:
+            styled_info(self.window, strings.ANNOTATION_TYPE_PICKER_TITLE, strings.ANNOTATION_TYPE_PICKER_EMPTY)
+            return None
+        selected = open_annotation_type_picker(self.window, items, current_type_id)
+        if selected is None:
+            return None
+        type_id = str(selected.get("typeId") or "").strip()
+        if not type_id:
+            return None
+        return {"typeId": type_id, "type": str(selected.get("type") or type_id).strip() or type_id}
+
+    def delete_drawing_point(self, index: int) -> None:
+        state = self.window.route_drawing_state
+        if not state.active or not (0 <= index < len(state.draft_points)):
+            return
+        point = state.draft_points.pop(index)
+        state.undo_stack.append({"op": "delete", "index": index, "point": deepcopy(point)})
+        if point.get("_drawing_new"):
+            state.added_count = max(0, state.added_count - 1)
+        self._mark_drawing_dirty()
+        self._sync_route_drawing_ui()
+
+    def undo_route_drawing(self) -> None:
+        state = self.window.route_drawing_state
+        if not state.active or not state.undo_stack:
+            return
+        action = state.undo_stack.pop()
+        op = action.get("op")
+        if op == "add":
+            index = int(action.get("index", -1))
+            if 0 <= index < len(state.draft_points):
+                point = state.draft_points.pop(index)
+                if point.get("_drawing_new"):
+                    state.added_count = max(0, state.added_count - 1)
+        elif op == "delete":
+            index = max(0, min(len(state.draft_points), int(action.get("index", len(state.draft_points)))))
+            point = deepcopy(action.get("point") or {})
+            state.draft_points.insert(index, point)
+            if point.get("_drawing_new"):
+                state.added_count += 1
+        elif op == "clear":
+            index = int(action.get("index", len(state.draft_points)))
+            points = [deepcopy(point) for point in action.get("points", []) if isinstance(point, dict)]
+            for offset, point in enumerate(points):
+                state.draft_points.insert(index + offset, point)
+                if point.get("_drawing_new"):
+                    state.added_count += 1
+        elif op == "annotation":
+            index = int(action.get("index", -1))
+            before = deepcopy(action.get("before") or {})
+            if 0 <= index < len(state.draft_points) and isinstance(before, dict):
+                state.draft_points[index] = before
+        self._mark_drawing_dirty()
+        self._sync_route_drawing_ui()
+
+    def clear_route_drawing(self) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        removed: list[dict] = []
+        kept: list[dict] = []
+        first_removed = None
+        for index, point in enumerate(state.draft_points):
+            if isinstance(point, dict) and point.get("_drawing_new"):
+                if first_removed is None:
+                    first_removed = index
+                removed.append(deepcopy(point))
+            else:
+                kept.append(point)
+        if not removed:
+            return
+        state.draft_points = kept
+        state.undo_stack.append({"op": "clear", "index": first_removed or len(kept), "points": removed})
+        state.added_count = 0
+        self._mark_drawing_dirty()
+        self._sync_route_drawing_ui()
+
+    def set_route_drawing_hide_other_routes(self, enabled: bool) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        state.hide_other_routes = bool(enabled)
+        self._sync_route_drawing_ui()
+
+    def toggle_route_drawing_paused(self) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        state.paused = not state.paused
+        self._sync_route_drawing_ui()
+
+    def set_route_drawing_node_type(self, node_type: str) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        state.node_type = node_type if node_type in {"collect", "teleport", "virtual"} else "collect"
+        self._sync_route_drawing_ui()
+
+    def set_route_drawing_add_annotation(self, enabled: bool) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        state.add_node_annotation = bool(enabled)
+        if not state.add_node_annotation:
+            state.same_annotation_type = False
+            state.annotation_type = ""
+            state.annotation_type_id = ""
+        self._sync_route_drawing_ui()
+
+    def set_route_drawing_same_annotation(self, enabled: bool) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        state.same_annotation_type = bool(enabled)
+        if not state.same_annotation_type:
+            state.annotation_type = ""
+            state.annotation_type_id = ""
+        self._sync_route_drawing_ui()
+
+    def select_route_drawing_annotation_type(self) -> None:
+        state = self.window.route_drawing_state
+        if not state.active:
+            return
+        selected = self._pick_route_node_annotation(state.annotation_type_id)
+        if selected is None:
+            return
+        state.annotation_type_id = selected["typeId"]
+        state.annotation_type = selected["type"]
+        self._sync_route_drawing_ui()
+
+    def drawing_point_annotation_type_id(self, point_index: int) -> str:
+        state = self.window.route_drawing_state
+        if not state.active or not (0 <= point_index < len(state.draft_points)):
+            return ""
+        point = state.draft_points[point_index]
+        return str(point.get("typeId") or "") if isinstance(point, dict) else ""
+
+    def change_drawing_point_annotation(self, point_index: int) -> None:
+        state = self.window.route_drawing_state
+        if not state.active or not (0 <= point_index < len(state.draft_points)):
+            return
+        current_type_id = self.drawing_point_annotation_type_id(point_index)
+        selected = self._pick_route_node_annotation(current_type_id)
+        if selected is None:
+            return
+        before = deepcopy(state.draft_points[point_index])
+        state.draft_points[point_index]["typeId"] = selected["typeId"]
+        state.draft_points[point_index]["type"] = selected["type"]
+        state.undo_stack.append({
+            "op": "annotation",
+            "index": point_index,
+            "before": before,
+            "after": deepcopy(state.draft_points[point_index]),
+        })
+        self._mark_drawing_dirty()
+        self._sync_route_drawing_ui()
+
+    def clear_drawing_point_annotation(self, point_index: int) -> None:
+        state = self.window.route_drawing_state
+        if not state.active or not (0 <= point_index < len(state.draft_points)):
+            return
+        point = state.draft_points[point_index]
+        if not isinstance(point, dict):
+            return
+        if not (str(point.get("typeId") or "").strip() or str(point.get("type") or "").strip()):
+            return
+        before = deepcopy(point)
+        point.pop("typeId", None)
+        point.pop("type", None)
+        state.undo_stack.append({
+            "op": "annotation",
+            "index": point_index,
+            "before": before,
+            "after": deepcopy(point),
+        })
+        self._mark_drawing_dirty()
+        self._sync_route_drawing_ui()
+
+    def show_route_drawing_help(self) -> None:
+        styled_info(
+            self.window,
+            strings.ROUTE_DRAWING_HELP_TITLE,
+            strings.ROUTE_DRAWING_HELP_BODY,
         )
 
     def show_add_category_row(self) -> None:
@@ -265,6 +855,8 @@ class RoutePanelController:
         self.window.window_mode_controller.schedule_layout_refresh()
 
     def confirm_add_category(self) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         if self.window._add_category_input is None:
             return
         name = self.window._add_category_input.text().strip()
@@ -299,6 +891,8 @@ class RoutePanelController:
         self.window.window_mode_controller.schedule_layout_refresh()
 
     def confirm_add_route(self, category: str) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         section = self.window._route_sections.get(category)
         if section is None:
             return
@@ -369,6 +963,8 @@ class RoutePanelController:
         if not new_name:
             route_item.show_rename_error(strings.ROUTE_RENAME_EMPTY)
             return
+        if not self.confirm_exit_route_drawing():
+            return
         if not self.window.route_mgr.rename_route(route_item.category, route_item.route_name, new_name):
             route_item.show_rename_error(strings.ROUTE_RENAME_INVALID)
             return
@@ -376,6 +972,8 @@ class RoutePanelController:
         self.reload_route_list()
 
     def rename_category(self, category: str) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         accepted, new_name = prompt_text_input(
             self.window,
             title=strings.ROUTE_CATEGORY_RENAME_TITLE,
@@ -411,6 +1009,8 @@ class RoutePanelController:
         toast(self.window, strings.ROUTE_NOTES_SAVED.format(name=name))
 
     def delete_route(self, category: str, name: str) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         route_id = next(
             (
                 self.window.route_mgr.route_id(route)
@@ -436,6 +1036,8 @@ class RoutePanelController:
         self.reload_route_list()
 
     def delete_category(self, category: str) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         confirmed = styled_confirm(
             self.window,
             strings.ROUTE_CATEGORY_DELETE_TITLE,
@@ -649,6 +1251,8 @@ class RoutePanelController:
         toast(self.window, f"已重置路线“{route_name}”进度")
 
     def add_current_position_to_route(self, route_id: str) -> None:
+        if not self.confirm_exit_route_drawing():
+            return
         player_xy = getattr(self.window, "_last_player_xy", None)
         if player_xy is None:
             styled_info(

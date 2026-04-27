@@ -78,6 +78,31 @@ function Read-YesNo {
     }
 }
 
+function Show-GitPreview {
+    param(
+        [string]$Pathspec = "docs/update",
+        [int]$Limit = 40
+    )
+
+    $changes = @(& git status --short -- $Pathspec)
+    $count = $changes.Count
+    Write-Host ""
+    Write-Host "当前暂存变更摘要："
+    Write-Host "  路径：$Pathspec"
+    Write-Host "  文件数：$count"
+    if ($count -gt 0) {
+        Write-Host "  前 $([Math]::Min($Limit, $count)) 个文件："
+        $changes | Select-Object -First $Limit | ForEach-Object {
+            Write-Host "    $_"
+        }
+        if ($count -gt $Limit) {
+            Write-Host "    ... 还有 $($count - $Limit) 个文件未显示"
+            Write-Host "    如需完整列表，请运行：git status --short -- $Pathspec"
+        }
+    }
+    Write-Host "  如需统计信息，请手动运行：git diff --cached --stat -- $Pathspec"
+}
+
 if (-not $Version.Trim()) {
     $Version = Read-RequiredText "请输入发布版本号，例如 0.1.1"
 } else {
@@ -186,11 +211,7 @@ Invoke-Python @manifestArgs
 Write-Host "暂存 docs/update..."
 Invoke-CheckedCommand -Command { & git add docs/update } -ErrorMessage "git add 失败"
 
-Write-Host ""
-Write-Host "当前暂存变更："
-& git status --short
-Write-Host ""
-& git diff --cached --stat
+Show-GitPreview -Pathspec "docs/update" -Limit 40
 
 & git diff --cached --quiet -- docs/update
 if ($LASTEXITCODE -eq 0) {

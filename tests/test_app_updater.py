@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import requests
+
 import config
 import updater_main
 from scripts import generate_update_manifest
@@ -14,6 +16,32 @@ from ui_island.services import app_updater
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+class _FakeHttpResponse:
+    def __init__(self, status_code: int = 200, payload: dict | None = None, body: bytes = b"") -> None:
+        self.status_code = status_code
+        self._payload = payload or {}
+        self._body = body
+
+    def json(self) -> dict:
+        return self._payload
+
+    def iter_content(self, chunk_size: int):
+        yield self._body
+
+
+class _SequenceSession:
+    def __init__(self, responses: dict[str, _FakeHttpResponse | Exception]) -> None:
+        self.responses = responses
+        self.urls: list[str] = []
+
+    def get(self, url: str, *args, **kwargs):
+        self.urls.append(url)
+        response = self.responses[url]
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 class AppUpdaterTests(unittest.TestCase):
@@ -75,6 +103,72 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertTrue(result.prompt_update)
         self.assertTrue(manifest.force_update_prompt)
         self.assertTrue(result.force_update_prompt)
+
+    def test_normalize_and_compare_versions(self) -> None:
+        self.assertEqual(app_updater.normalize_version("v1.2.3"), "1.2.3")
+        self.assertEqual(app_updater.normalize_version("1.2.3-beta"), "1.2.3-beta")
+        self.assertGreater(app_updater.compare_versions("v1.2.4", "1.2.3"), 0)
+        self.assertEqual(app_updater.compare_versions("v1.2.3", "1.2.3"), 0)
+        self.assertLess(app_updater.compare_versions("1.2.3-beta", "1.2.3"), 0)
+
+    def test_check_app_update_uses_gitee_first_and_stops_after_success(self) -> None:
+        gitee_url = "https://gitee.test/update/app-manifest.json"
+        github_url = "https://github.test/update/app-manifest.json"
+        session = _SequenceSession(
+            {
+                gitee_url: _FakeHttpResponse(200, {"version": "0.2.0", "files": []}),
+                github_url: _FakeHttpResponse(200, {"version": "0.3.0", "files": []}),
+            }
+        )
+
+        with patch.object(config, "APP_UPDATE_MANIFEST_URLS", [gitee_url, github_url]), patch.object(
+            config, "APP_UPDATE_MANIFEST_URL", ""
+        ):
+            result = app_updater.check_app_update(current_version="0.1.0", session=session)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.latest_version, "0.2.0")
+        self.assertEqual(session.urls, [gitee_url])
+        self.assertEqual(result.manifest.source_base_url, "https://gitee.test/update/")
+
+    def test_check_app_update_falls_back_to_github_pages(self) -> None:
+        gitee_url = "https://gitee.test/update/app-manifest.json"
+        github_url = "https://github.test/update/app-manifest.json"
+        session = _SequenceSession(
+            {
+                gitee_url: requests.ConnectionError("offline"),
+                github_url: _FakeHttpResponse(200, {"version": "0.2.0", "files": []}),
+            }
+        )
+
+        with patch.object(config, "APP_UPDATE_MANIFEST_URLS", [gitee_url, github_url]), patch.object(
+            config, "APP_UPDATE_MANIFEST_URL", ""
+        ):
+            result = app_updater.check_app_update(current_version="0.1.0", session=session)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.latest_version, "0.2.0")
+        self.assertEqual(session.urls, [gitee_url, github_url])
+        self.assertEqual(result.manifest.source_base_url, "https://github.test/update/")
+
+    def test_check_app_update_reports_all_sources_failed(self) -> None:
+        gitee_url = "https://gitee.test/update/app-manifest.json"
+        github_url = "https://github.test/update/app-manifest.json"
+        session = _SequenceSession(
+            {
+                gitee_url: requests.ConnectionError("offline"),
+                github_url: _FakeHttpResponse(500, {}),
+            }
+        )
+
+        with patch.object(config, "APP_UPDATE_MANIFEST_URLS", [gitee_url, github_url]), patch.object(
+            config, "APP_UPDATE_MANIFEST_URL", ""
+        ):
+            result = app_updater.check_app_update(current_version="0.1.0", session=session)
+
+        self.assertFalse(result.ok)
+        self.assertIn("无法连接所有更新源", result.error)
+        self.assertIn("已尝试 2 个更新源", result.error)
 
     def test_should_show_startup_update_prompt_respects_force_prompt(self) -> None:
         normal = app_updater.AppUpdateCheckResult(
@@ -259,6 +353,76 @@ class AppUpdaterTests(unittest.TestCase):
             self.assertEqual(events[0], (0, len(payload), "demo.bin"))
             self.assertIn((len(payload), len(payload), "demo.bin"), events)
             self.assertEqual(events[-1], (len(payload), len(payload), ""))
+
+    def test_download_changed_files_prefers_manifest_source_base_url(self) -> None:
+        payload = b"from gitee"
+        manifest = app_updater.parse_app_manifest(
+            {
+                "version": "0.2.0",
+                "files": [
+                    {
+                        "path": "dir/demo.bin",
+                        "url": "https://github.test/update/dir/demo.bin",
+                        "sha256": _sha256_bytes(payload),
+                        "size": len(payload),
+                    }
+                ],
+            },
+            source_base_url="https://gitee.test/update/",
+        )
+        session = _SequenceSession({"https://gitee.test/update/dir/demo.bin": _FakeHttpResponse(200, body=payload)})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config.BASE_DIR = tmp
+            staging = Path(tmp, "staging")
+            plan = app_updater.build_update_plan(manifest, current_version="0.1.0")
+            with patch("ui_island.services.app_updater.tempfile.mkdtemp", return_value=str(staging)):
+                app_updater.download_changed_files(plan, session=session)
+
+        self.assertEqual(session.urls, ["https://gitee.test/update/dir/demo.bin"])
+
+    def test_download_changed_files_falls_back_to_manifest_file_url(self) -> None:
+        payload = b"from github"
+        manifest = app_updater.parse_app_manifest(
+            {
+                "version": "0.2.0",
+                "files": [
+                    {
+                        "path": "demo.bin",
+                        "url": "https://github.test/update/demo.bin",
+                        "sha256": _sha256_bytes(payload),
+                        "size": len(payload),
+                    }
+                ],
+            },
+            source_base_url="https://gitee.test/update/",
+        )
+        session = _SequenceSession(
+            {
+                "https://gitee.test/update/demo.bin": _FakeHttpResponse(500),
+                "https://github.test/update/demo.bin": _FakeHttpResponse(200, body=payload),
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config.BASE_DIR = tmp
+            staging = Path(tmp, "staging")
+            plan = app_updater.build_update_plan(manifest, current_version="0.1.0")
+            with patch("ui_island.services.app_updater.tempfile.mkdtemp", return_value=str(staging)):
+                result_path = app_updater.download_changed_files(plan, session=session)
+            self.assertEqual(Path(result_path, "demo.bin").read_bytes(), payload)
+
+        self.assertEqual(
+            session.urls,
+            ["https://gitee.test/update/demo.bin", "https://github.test/update/demo.bin"],
+        )
+
+    def test_update_error_hint_is_not_duplicated(self) -> None:
+        once = app_updater.strings.with_update_error_hint("下载失败")
+        twice = app_updater.strings.with_update_error_hint(once)
+
+        self.assertEqual(once, twice)
+        self.assertIn("长期更新失败", once)
 
     def test_build_update_plan_detects_restart_file(self) -> None:
         exe_payload = b"new exe"

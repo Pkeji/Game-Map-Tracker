@@ -32,6 +32,10 @@ class MapInteractionController:
             pass
 
     def on_add_point_requested(self, x: int, y: int) -> None:
+        drawing = getattr(self.window, "route_drawing_state", None)
+        if drawing is not None and drawing.active:
+            self.window.route_panel_controller.append_drawing_point(x, y)
+            return
         self.add_point_to_routes(x, y)
 
     def add_annotation_point(self, x: int, y: int) -> None:
@@ -147,6 +151,10 @@ class MapInteractionController:
         toast(self.window, strings.MAP_ANNOTATION_DELETE_SUCCESS)
 
     def on_delete_point_requested(self, route_id: str, point_index: int) -> None:
+        drawing = getattr(self.window, "route_drawing_state", None)
+        if drawing is not None and drawing.active and route_id == drawing.route_id:
+            self.window.route_panel_controller.delete_drawing_point(point_index)
+            return
         self.delete_points_from_routes({route_id: [point_index]})
 
     def mark_point_visited(self, route_id: str, point_index: int, visited: bool) -> None:
@@ -163,6 +171,11 @@ class MapInteractionController:
             pass
 
     def change_point_annotation(self, route_id: str, point_index: int) -> None:
+        drawing = getattr(self.window, "route_drawing_state", None)
+        if drawing is not None and drawing.active and route_id == drawing.route_id:
+            self.window.route_panel_controller.change_drawing_point_annotation(point_index)
+            return
+
         route_mgr = self.window.route_mgr
         items = route_mgr.annotation_type_items()
         if not items:
@@ -199,6 +212,11 @@ class MapInteractionController:
             pass
 
     def delete_point_annotation(self, route_id: str, point_index: int) -> None:
+        drawing = getattr(self.window, "route_drawing_state", None)
+        if drawing is not None and drawing.active and route_id == drawing.route_id:
+            self.window.route_panel_controller.clear_drawing_point_annotation(point_index)
+            return
+
         if not self.window.route_mgr.clear_point_annotation(route_id, point_index):
             styled_info(
                 self.window,

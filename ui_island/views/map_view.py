@@ -6,11 +6,11 @@ import math
 import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QApplication, QWidget
 
 from base import TrackState
-from route_manager import RouteManager
+from route_manager import NODE_TYPE_COLLECT, NODE_TYPE_TELEPORT, NODE_TYPE_VIRTUAL, RouteManager
 
 from ..design import strings
 from ..widgets.context_menu import ContextMenuItem, show_context_menu
@@ -33,6 +33,8 @@ class MapView(QWidget):
     add_annotation_to_route_requested = Signal(str, int)
     delete_annotation_requested = Signal(str, int)
     guide_hint_changed = Signal(object)
+    drawing_point_requested = Signal(int, int)
+    drawing_undo_requested = Signal()
 
     _ABSOLUTE_MIN_ZOOM = 0.05
     _MAX_ZOOM = 3.5
@@ -53,6 +55,11 @@ class MapView(QWidget):
         self._center_locked = True
         self._view_center: QPointF | None = None
         self._drag_last_pos: QPointF | None = None
+        self._left_press_pos: QPointF | None = None
+        self._left_press_map: tuple[float, float] | None = None
+        self._left_dragging = False
+        self._hover_map_pos: tuple[float, float] | None = None
+        self._drawing_context: dict | None = None
         self._last_player: tuple[int, int] | None = None
         self._last_state: TrackState | None = None
         self._last_minimap: np.ndarray | None = None
@@ -61,6 +68,7 @@ class MapView(QWidget):
         self.setMinimumSize(260, 180)
         self.setAttribute(Qt.WA_OpaquePaintEvent, False)
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.StrongFocus)
 
     def set_map(self, base_map_bgr: np.ndarray) -> None:
         self._base_map = base_map_bgr
@@ -115,14 +123,29 @@ class MapView(QWidget):
         self._last_vx1, self._last_vy1 = vx1, vy1
         self._last_crop_size = (crop.shape[1], crop.shape[0])
 
-        self.route_mgr.draw_on(crop, vx1, vy1, max(crop_w, crop_h), cx, cy)
-        self.guide_hint_changed.emit(
-            self.route_mgr.guide_hint_for_view(cx, cy, vx1, vy1, crop.shape[1], crop.shape[0])
+        drawing_route = self._drawing_route_payload()
+        drawing_active = drawing_route is not None
+        draw_player_x = None if drawing_active else cx
+        draw_player_y = None if drawing_active else cy
+        self.route_mgr.draw_on(
+            crop,
+            vx1,
+            vy1,
+            max(crop_w, crop_h),
+            draw_player_x,
+            draw_player_y,
+            drawing_route=drawing_route,
         )
+        if drawing_active:
+            self.guide_hint_changed.emit(None)
+        else:
+            self.guide_hint_changed.emit(
+                self.route_mgr.guide_hint_for_view(cx, cy, vx1, vy1, crop.shape[1], crop.shape[0])
+            )
 
         local_x = cx - vx1
         local_y = cy - vy1
-        if 0 <= local_x < crop.shape[1] and 0 <= local_y < crop.shape[0]:
+        if not drawing_active and 0 <= local_x < crop.shape[1] and 0 <= local_y < crop.shape[0]:
             if state == TrackState.INERTIAL:
                 # 惯性态无新截图：黄圈降级显示
                 cv2.circle(crop, (local_x, local_y), 10, (0, 255, 255), -1)
@@ -237,6 +260,64 @@ class MapView(QWidget):
         map_y = self._last_vy1 + rel_y * crop_h
         return map_x, map_y
 
+    def _map_to_widget(self, map_x: float, map_y: float) -> QPointF | None:
+        draw_rect = self._last_draw_rect if not self._last_draw_rect.isNull() else self._draw_rect()
+        crop_w, crop_h = self._last_crop_size
+        if draw_rect.width() <= 0 or draw_rect.height() <= 0 or crop_w <= 0 or crop_h <= 0:
+            return None
+        rel_x = (map_x - self._last_vx1) / crop_w
+        rel_y = (map_y - self._last_vy1) / crop_h
+        return QPointF(
+            draw_rect.left() + rel_x * draw_rect.width(),
+            draw_rect.top() + rel_y * draw_rect.height(),
+        )
+
+    def set_route_drawing_context(self, context: dict | None) -> None:
+        self._drawing_context = dict(context) if isinstance(context, dict) else None
+        self._refresh_from_last_frame()
+
+    def _is_drawing_active(self) -> bool:
+        return bool(isinstance(self._drawing_context, dict) and self._drawing_context.get("active"))
+
+    def _is_drawing_paused(self) -> bool:
+        return bool(self._is_drawing_active() and self._drawing_context and self._drawing_context.get("paused"))
+
+    def _drawing_route_payload(self) -> dict | None:
+        if not self._is_drawing_active() or not self._drawing_context:
+            return None
+        return {
+            "id": self._drawing_context.get("route_id", ""),
+            "display_name": self._drawing_context.get("name", ""),
+            "points": self._drawing_context.get("points") or [],
+            "loop": False,
+            "_hide_other_routes": bool(self._drawing_context.get("hide_other_routes")),
+        }
+
+    def _draw_drawing_preview(self, painter: QPainter) -> None:
+        if not self._is_drawing_active() or self._is_drawing_paused() or not self._drawing_context:
+            return
+        points = self._drawing_context.get("points") or []
+        if not points or self._hover_map_pos is None:
+            return
+        last = points[-1]
+        if not isinstance(last, dict):
+            return
+        try:
+            start = self._map_to_widget(float(last["x"]), float(last["y"]))
+        except (KeyError, TypeError, ValueError):
+            return
+        end = self._map_to_widget(self._hover_map_pos[0], self._hover_map_pos[1])
+        if start is None or end is None:
+            return
+        node_type = str(self._drawing_context.get("node_type") or NODE_TYPE_COLLECT)
+        pen = QPen(QColor(255, 255, 255), 2)
+        if node_type == NODE_TYPE_TELEPORT:
+            pen.setStyle(Qt.DashLine)
+        elif node_type == NODE_TYPE_VIRTUAL:
+            pen.setStyle(Qt.DotLine)
+        painter.setPen(pen)
+        painter.drawLine(start, end)
+
     def _disable_center_lock(self) -> None:
         if not self._center_locked:
             return
@@ -255,18 +336,51 @@ class MapView(QWidget):
         y = (self.height() - scaled.height()) / 2.0
         self._last_draw_rect = QRectF(x, y, float(scaled.width()), float(scaled.height()))
         painter.drawPixmap(int(x), int(y), scaled)
+        self._draw_drawing_preview(painter)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+    def keyPressEvent(self, event):
+        if (
+            self._is_drawing_active()
+            and event.key() == Qt.Key_Z
+            and event.modifiers() & Qt.ControlModifier
+        ):
+            self.drawing_undo_requested.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self._pixmap is not None:
+            self.setFocus(Qt.MouseFocusReason)
+            self._left_press_pos = event.position()
+            self._left_press_map = self._widget_to_map(event.position())
+            self._left_dragging = False
             self._drag_last_pos = event.position()
             event.accept()
             return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        self._hover_map_pos = self._widget_to_map(event.position())
+        if self._is_drawing_active() and not self._is_drawing_paused():
+            self.update()
+
         if self._drag_last_pos is None or self._view_center is None:
             super().mouseMoveEvent(event)
             return
+
+        if self._left_press_pos is not None and not self._left_dragging:
+            delta_from_press = event.position() - self._left_press_pos
+            app = QApplication.instance()
+            threshold = app.startDragDistance() if app is not None else QApplication.startDragDistance()
+            threshold = max(1, int(threshold))
+            if max(abs(delta_from_press.x()), abs(delta_from_press.y())) < threshold:
+                event.accept()
+                return
+            self._left_dragging = True
 
         draw_rect = self._last_draw_rect if not self._last_draw_rect.isNull() else self._draw_rect()
         crop_w, crop_h = self._last_crop_size
@@ -287,6 +401,23 @@ class MapView(QWidget):
         event.accept()
 
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            mapped = self._widget_to_map(event.position())
+            should_add = (
+                self._is_drawing_active()
+                and not self._is_drawing_paused()
+                and not self._left_dragging
+                and mapped is not None
+                and self._left_press_map is not None
+            )
+            self._drag_last_pos = None
+            self._left_press_pos = None
+            self._left_press_map = None
+            self._left_dragging = False
+            if should_add:
+                self.drawing_point_requested.emit(int(mapped[0]), int(mapped[1]))
+                event.accept()
+                return
         self._drag_last_pos = None
         super().mouseReleaseEvent(event)
 
@@ -322,6 +453,9 @@ class MapView(QWidget):
         event.accept()
 
     def mouseDoubleClickEvent(self, event):
+        if self._is_drawing_active():
+            event.accept()
+            return
         mapped = self._widget_to_map(event.position())
         if mapped is None:
             return
@@ -338,6 +472,32 @@ class MapView(QWidget):
         map_threshold = max(6.0, _HIT_RADIUS_WIDGET_PX * ratio)
         return self.route_mgr.hit_test_point(mapped[0], mapped[1], map_threshold)
 
+    def _hit_test_draft_node(self, widget_pos: QPointF) -> int | None:
+        mapped = self._widget_to_map(widget_pos)
+        context = self._drawing_context if isinstance(self._drawing_context, dict) else None
+        if mapped is None or not context:
+            return None
+        draw_rect = self._last_draw_rect if not self._last_draw_rect.isNull() else self._draw_rect()
+        if draw_rect.width() <= 0 or self._last_crop_size[0] <= 0:
+            return None
+        ratio = self._last_crop_size[0] / draw_rect.width()
+        map_threshold = max(6.0, _HIT_RADIUS_WIDGET_PX * ratio)
+        best: tuple[float, int] | None = None
+        for index, point in enumerate(context.get("points") or []):
+            if not isinstance(point, dict):
+                continue
+            try:
+                px = float(point["x"])
+                py = float(point["y"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            dist = math.hypot(px - mapped[0], py - mapped[1])
+            if dist > map_threshold:
+                continue
+            if best is None or dist < best[0]:
+                best = (dist, index)
+        return None if best is None else best[1]
+
     def _hit_test_annotation(self, widget_pos: QPointF) -> dict | None:
         mapped = self._widget_to_map(widget_pos)
         if mapped is None:
@@ -351,6 +511,52 @@ class MapView(QWidget):
 
     def contextMenuEvent(self, event):
         pos = QPointF(event.pos())
+        if self._is_drawing_active():
+            draft_hit = self._hit_test_draft_node(pos)
+            if draft_hit is not None:
+                route_id = str(self._drawing_context.get("route_id") or "") if self._drawing_context else ""
+                point = (self._drawing_context.get("points") or [])[draft_hit] if self._drawing_context else {}
+                has_annotation = bool(
+                    isinstance(point, dict)
+                    and (str(point.get("typeId") or "").strip() or str(point.get("type") or "").strip())
+                )
+                annotation_label = (
+                    strings.CHANGE_POINT_ANNOTATION_MENU_LABEL
+                    if has_annotation
+                    else strings.ADD_POINT_ANNOTATION_MENU_LABEL
+                )
+                items = [
+                    ContextMenuItem(
+                        annotation_label,
+                        lambda rid=route_id, idx=draft_hit: self.change_point_annotation_requested.emit(rid, idx),
+                    ),
+                ]
+                if has_annotation:
+                    items.append(
+                        ContextMenuItem(
+                            strings.DELETE_POINT_ANNOTATION_MENU_LABEL,
+                            lambda rid=route_id, idx=draft_hit:
+                            self.delete_point_annotation_requested.emit(rid, idx),
+                        )
+                    )
+                items.extend(
+                    [
+                        ContextMenuItem.separator_item(),
+                        ContextMenuItem(
+                            strings.DELETE_POINT_MENU_LABEL,
+                            lambda rid=route_id, idx=draft_hit: self.delete_point_requested.emit(rid, idx),
+                        ),
+                    ]
+                )
+                show_context_menu(
+                    self,
+                    event.globalPos(),
+                    items,
+                    object_name="MapNodeContextMenu",
+                )
+                event.accept()
+                return
+
         hit = self._hit_test_node(pos)
         if hit is not None:
             route_id, point_index = hit

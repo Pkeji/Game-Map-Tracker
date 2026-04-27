@@ -36,7 +36,7 @@ from ..services.app_updater import (
     start_restart_update,
 )
 from ..services.annotation_preferences import normalize_type_ids
-from ..state import HotkeyState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
+from ..state import HotkeyState, RouteDrawingState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
 from ..widgets import RestoreIcon
 from ..platform.win_overlay import apply_overlay_flags, set_click_through
 from ..controllers import HotkeyController, InteractionController, MapInteractionController, RoutePanelController, TrackingController, WindowModeController
@@ -82,6 +82,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.window_mode_state = WindowModeState()
         self.window_layout_prefs = WindowLayoutPrefs()
         self.route_panel_state = RoutePanelState()
+        self.route_drawing_state = RouteDrawingState()
         self.tracking_state = TrackingState()
         self.hotkey_state = HotkeyState()
         self.route_panel_controller = RoutePanelController(self)
@@ -237,6 +238,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.map_view.add_annotation_to_route_requested.connect(self.map_interaction_controller.add_annotation_to_route)
         self.map_view.delete_annotation_requested.connect(self.map_interaction_controller.delete_map_annotation)
         self.map_view.guide_hint_changed.connect(self._on_route_guide_hint_changed)
+        self.map_view.drawing_point_requested.connect(self.route_panel_controller.append_drawing_point)
+        self.map_view.drawing_undo_requested.connect(self.route_panel_controller.undo_route_drawing)
         self.annotation_toggle_btn.clicked.connect(lambda _checked=False: self._toggle_annotation_panel())
         self.annotation_panel.load_index(config.app_path("tools", "points_all", "points.json"))
         self.annotation_panel.set_preferences(self.annotation_type_ids, self.annotation_recent_type_ids)
@@ -401,10 +404,18 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._startup_update_install_running = False
         self._clear_startup_update_progress()
         if not isinstance(result, AppUpdateInstallResult):
-            styled_info(self, "更新失败", "更新安装返回了未知结果。")
+            styled_info(
+                self,
+                strings.UPDATE_ERROR_INSTALL_TITLE,
+                strings.with_update_error_hint(strings.UPDATE_ERROR_INSTALL_UNKNOWN),
+            )
             return
         if not result.ok:
-            styled_info(self, "更新失败", result.error or "未知错误。")
+            styled_info(
+                self,
+                strings.UPDATE_ERROR_INSTALL_TITLE,
+                strings.with_update_error_hint(result.error or strings.UPDATE_ERROR_UNKNOWN),
+            )
             return
 
         if result.requires_restart:
@@ -670,6 +681,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._recent_limit = self.settings_gateway.get_route_recent_limit()
         self._recent_route_names = self.recent_routes_store.load()
         self.route_panel_controller.refresh_recent_routes()
+        self.map_view._refresh_from_last_frame()
 
     def _collapse_to_icon(self) -> None:
         if self._mini_icon is not None:
@@ -892,6 +904,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         super().resizeEvent(event)
         self._update_window_controls()
         self.window_mode_controller.position_sidebar_overlay()
+        self.route_panel_controller.position_route_drawing_toolbar()
 
         if self.isMaximized() or self._applying_mode:
             return
@@ -910,6 +923,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
     def moveEvent(self, event):
         super().moveEvent(event)
+        self.route_panel_controller.position_route_drawing_toolbar()
         if not self._applying_mode and not self.isMaximized():
             self._preferred_right_edge = self.x() + self.width()
         if (
@@ -924,6 +938,9 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         apply_overlay_flags(self)
 
     def closeEvent(self, event):
+        if not self.route_panel_controller.confirm_exit_route_drawing():
+            event.ignore()
+            return
         self._running = False
         self.hotkey_controller.stop_listener()
         self.route_panel_controller.save_route_section_expanded()
@@ -946,6 +963,8 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
 
     def _prompt_relocate(self) -> None:
         if self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED):
+            if not self.route_panel_controller.confirm_exit_route_drawing():
+                return
             self.tracking_controller.start_navigation()
             return
 

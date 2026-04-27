@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+from copy import deepcopy
 
 import numpy as np
 from PySide6.QtCore import QRect
@@ -50,6 +51,57 @@ class RoutePanelState:
     add_category_confirm_btn: QPushButton | None = None
     add_category_cancel_btn: QPushButton | None = None
     search_term: str = ""
+
+
+@dataclass
+class RouteDrawingState:
+    active: bool = False
+    paused: bool = False
+    route_id: str = ""
+    category: str = ""
+    name: str = ""
+    original_points: list[dict] = field(default_factory=list)
+    draft_points: list[dict] = field(default_factory=list)
+    original_count: int = 0
+    node_type: str = "collect"
+    add_node_annotation: bool = False
+    same_annotation_type: bool = False
+    annotation_type: str = ""
+    annotation_type_id: str = ""
+    hide_other_routes: bool = False
+    undo_stack: list[dict] = field(default_factory=list)
+    dirty: bool = False
+    added_count: int = 0
+
+    def reset(self) -> None:
+        self.active = False
+        self.paused = False
+        self.route_id = ""
+        self.category = ""
+        self.name = ""
+        self.original_points = []
+        self.draft_points = []
+        self.original_count = 0
+        self.node_type = "collect"
+        self.add_node_annotation = False
+        self.same_annotation_type = False
+        self.annotation_type = ""
+        self.annotation_type_id = ""
+        self.hide_other_routes = False
+        self.undo_stack = []
+        self.dirty = False
+        self.added_count = 0
+
+    def begin(self, *, route_id: str, category: str, name: str, points: list[dict]) -> None:
+        copied = deepcopy(points)
+        self.reset()
+        self.active = True
+        self.route_id = route_id
+        self.category = category
+        self.name = name
+        self.original_points = deepcopy(copied)
+        self.draft_points = copied
+        self.original_count = len(copied)
 
 
 @dataclass

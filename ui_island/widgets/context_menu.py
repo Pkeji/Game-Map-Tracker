@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from typing import Callable, Iterable
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMenu
+from PySide6.QtWidgets import QApplication, QMenu
+
+from ..design import theme
 
 
 @dataclass(frozen=True)
@@ -23,13 +25,28 @@ class ContextMenuItem:
 
 
 def _context_menu_style(parent) -> str:
-    if parent is None:
-        return ""
-    style = parent.styleSheet() if hasattr(parent, "styleSheet") else ""
-    if style:
-        return style
-    window = parent.window() if hasattr(parent, "window") else None
-    return window.styleSheet() if window is not None and hasattr(window, "styleSheet") else ""
+    candidates: list[str] = []
+    if parent is not None:
+        style = parent.styleSheet() if hasattr(parent, "styleSheet") else ""
+        if style:
+            candidates.append(style)
+        window = parent.window() if hasattr(parent, "window") else None
+        window_style = window.styleSheet() if window is not None and hasattr(window, "styleSheet") else ""
+        if window_style:
+            candidates.append(window_style)
+
+    app = QApplication.instance()
+    app_style = app.styleSheet() if app is not None else ""
+    if app_style:
+        candidates.append(app_style)
+
+    for style in candidates:
+        if "QMenu" in style:
+            return style
+
+    if candidates:
+        return "\n".join(candidates + [theme.ISLAND_QSS])
+    return theme.ISLAND_QSS
 
 
 def show_context_menu(

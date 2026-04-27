@@ -58,6 +58,35 @@ class ConfigMergeTests(unittest.TestCase):
         self.assertIn("SIDEBAR_WIDTH", repaired)
         self.assertIn("MINIMAP", repaired)
 
+    def test_route_color_settings_are_merged_and_repaired(self) -> None:
+        merged, _repaired = config.merge_config_payload(config.DEFAULT_CONFIG, {"CONFIG_VERSION": 2})
+
+        self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], True)
+        self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#1ad1ff")
+
+        user = {
+            "CONFIG_VERSION": 2,
+            "ROUTE_MULTI_COLOR_ENABLED": False,
+            "ROUTE_DEFAULT_COLOR": "#abc123",
+        }
+        merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
+
+        self.assertEqual(repaired, [])
+        self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], False)
+        self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#abc123")
+
+        user = {
+            "CONFIG_VERSION": 2,
+            "ROUTE_MULTI_COLOR_ENABLED": "false",
+            "ROUTE_DEFAULT_COLOR": 123,
+        }
+        merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
+
+        self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], True)
+        self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#1ad1ff")
+        self.assertIn("ROUTE_MULTI_COLOR_ENABLED", repaired)
+        self.assertIn("ROUTE_DEFAULT_COLOR", repaired)
+
     def test_merge_config_file_backs_up_and_rewrites_corrupt_json(self) -> None:
         defaults = {"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 270}
         with tempfile.TemporaryDirectory() as tmp:

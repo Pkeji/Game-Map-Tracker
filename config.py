@@ -61,11 +61,17 @@ DEFAULT_CONFIG = {
     "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
     "ROUTE_GUIDE_POINTER_SPACING": 28,
     "ROUTE_GUIDE_POINTER_SIZE": 10,
+    "ROUTE_MULTI_COLOR_ENABLED": True,
+    "ROUTE_DEFAULT_COLOR": "#1ad1ff",
     "ROUTE_SECTION_EXPANDED": {},
     "ANNOTATION_TYPE_IDS": [],
     "ANNOTATION_RECENT_TYPE_IDS": [],
     "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
-    "APP_UPDATE_MANIFEST_URL": "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
+    "APP_UPDATE_MANIFEST_URL": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
+    "APP_UPDATE_MANIFEST_URLS": [
+        "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
+        "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
+    ],
     "APP_UPDATE_LAST_PROMPTED_VERSION": "",
 }
 
@@ -262,6 +268,7 @@ ANNOTATION_TYPE_IDS = settings.get("ANNOTATION_TYPE_IDS") or []
 ANNOTATION_RECENT_TYPE_IDS = settings.get("ANNOTATION_RECENT_TYPE_IDS") or []
 QUARK_DOWNLOAD_URL = settings.get("QUARK_DOWNLOAD_URL") or ""
 APP_UPDATE_MANIFEST_URL = settings.get("APP_UPDATE_MANIFEST_URL") or ""
+APP_UPDATE_MANIFEST_URLS = settings.get("APP_UPDATE_MANIFEST_URLS") or []
 APP_UPDATE_LAST_PROMPTED_VERSION = settings.get("APP_UPDATE_LAST_PROMPTED_VERSION") or ""
 
 
@@ -310,3 +317,5 @@ ROUTE_GUIDE_NODE_DISTANCE = settings.get("ROUTE_GUIDE_NODE_DISTANCE")
 ROUTE_GUIDE_SEGMENT_DISTANCE = settings.get("ROUTE_GUIDE_SEGMENT_DISTANCE")
 ROUTE_GUIDE_POINTER_SPACING = settings.get("ROUTE_GUIDE_POINTER_SPACING")
 ROUTE_GUIDE_POINTER_SIZE = settings.get("ROUTE_GUIDE_POINTER_SIZE")
+ROUTE_MULTI_COLOR_ENABLED = settings.get("ROUTE_MULTI_COLOR_ENABLED")
+ROUTE_DEFAULT_COLOR = settings.get("ROUTE_DEFAULT_COLOR")

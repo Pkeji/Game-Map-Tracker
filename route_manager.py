@@ -8,8 +8,10 @@ import hashlib
 import json
 import math
 import os
+import secrets
 import shutil
 import time
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -41,6 +43,12 @@ _ROUTE_ID_SEQ_WIDTH = 2
 _POINT_ICON_SIZE = 24
 _POINT_ICON_VISITED_ALPHA = 0.35
 _ANNOTATION_ICON_SIZE = 20
+NODE_TYPE_COLLECT = "collect"
+NODE_TYPE_TELEPORT = "teleport"
+NODE_TYPE_VIRTUAL = "virtual"
+NODE_TYPES = {NODE_TYPE_COLLECT, NODE_TYPE_TELEPORT, NODE_TYPE_VIRTUAL}
+_SPECIAL_SEGMENT_COLOR = (255, 255, 255)
+_DEFAULT_ROUTE_COLOR_HEX = "#1ad1ff"
 
 
 @dataclass(frozen=True)
@@ -61,6 +69,23 @@ def _color_for_key(key: str) -> tuple[int, int, int]:
     hue = digest[0] / 255.0
     r, g, b = colorsys.hsv_to_rgb(hue, 0.85, 0.95)
     return int(b * 255), int(g * 255), int(r * 255)
+
+
+def _route_color_from_hex(value: object) -> tuple[int, int, int]:
+    raw = str(value or "").strip()
+    if raw.startswith("#"):
+        raw = raw[1:]
+    if len(raw) != 6:
+        raw = _DEFAULT_ROUTE_COLOR_HEX[1:]
+    try:
+        r = int(raw[0:2], 16)
+        g = int(raw[2:4], 16)
+        b = int(raw[4:6], 16)
+    except ValueError:
+        r = int(_DEFAULT_ROUTE_COLOR_HEX[1:3], 16)
+        g = int(_DEFAULT_ROUTE_COLOR_HEX[3:5], 16)
+        b = int(_DEFAULT_ROUTE_COLOR_HEX[5:7], 16)
+    return b, g, r
 
 
 _best_insertion_index = best_insertion_index
@@ -94,6 +119,73 @@ def _point_xy(point: dict) -> tuple[float, float] | None:
         return float(point["x"]), float(point["y"])
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _node_type(point: dict | None) -> str:
+    if not isinstance(point, dict):
+        return NODE_TYPE_COLLECT
+    value = str(point.get("node_type") or NODE_TYPE_COLLECT).strip().casefold()
+    return value if value in NODE_TYPES else NODE_TYPE_COLLECT
+
+
+def _new_route_point_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _has_external_edges(payload: object) -> bool:
+    return isinstance(payload, dict) and "edges" in payload
+
+
+def _external_nodes_as_points(payload: dict) -> list[dict] | None:
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        return None
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        if _point_xy(node) is None:
+            continue
+        node["node_type"] = _node_type(node)
+    return nodes
+
+
+def _draw_styled_line(
+    canvas: np.ndarray,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    color: tuple[int, int, int],
+    *,
+    style: str,
+    thickness: int = 2,
+) -> None:
+    if style == NODE_TYPE_COLLECT:
+        cv2.line(canvas, start, end, color, thickness, cv2.LINE_AA)
+        return
+
+    sx, sy = start
+    ex, ey = end
+    dx = ex - sx
+    dy = ey - sy
+    distance = math.hypot(dx, dy)
+    if distance <= 0:
+        return
+
+    if style == NODE_TYPE_TELEPORT:
+        dash_len = 14.0
+        gap_len = 8.0
+    else:
+        dash_len = 2.0
+        gap_len = 7.0
+
+    ux = dx / distance
+    uy = dy / distance
+    cursor = 0.0
+    while cursor < distance:
+        segment_end = min(distance, cursor + dash_len)
+        p1 = (int(round(sx + ux * cursor)), int(round(sy + uy * cursor)))
+        p2 = (int(round(sx + ux * segment_end)), int(round(sy + uy * segment_end)))
+        cv2.line(canvas, p1, p2, _SPECIAL_SEGMENT_COLOR, thickness, cv2.LINE_AA)
+        cursor += dash_len + gap_len
 
 
 def _safe_route_stem(value: object, fallback: str) -> str:
@@ -564,6 +656,8 @@ class RouteManager:
         self._load_progress()
 
     def color_for(self, key: str) -> tuple[int, int, int]:
+        if not bool(getattr(config, "ROUTE_MULTI_COLOR_ENABLED", True)):
+            return _route_color_from_hex(getattr(config, "ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX))
         if key not in self._color_cache:
             self._color_cache[key] = _color_for_key(key)
         return self._color_cache[key]
@@ -657,6 +751,14 @@ class RouteManager:
         if meta is not None and isinstance(points, list):
             meta["count"] = len(points)
 
+    @staticmethod
+    def _new_manual_annotation_id() -> int:
+        return 1_000_000_000_000 + secrets.randbelow(9_000_000_000_000)
+
+    @staticmethod
+    def new_route_point_id() -> str:
+        return _new_route_point_id()
+
     def annotation_point(self, type_id: str, point_index: int) -> dict | None:
         type_id = str(type_id or "").strip()
         if not type_id or not isinstance(point_index, int):
@@ -742,6 +844,7 @@ class RouteManager:
                 "label": name,
                 "type": name,
                 "typeId": type_id,
+                "id": self._new_manual_annotation_id(),
                 "manual": True,
             }
         except (TypeError, ValueError):
@@ -1103,10 +1206,11 @@ class RouteManager:
             else:
                 index = _best_insertion_index(points, (x, y))
 
-            new_point = {}
-            for key in ("label", "type", "typeId", "radius", "sourceId", "manual"):
+            new_point = {"id": self.new_route_point_id()}
+            for key in ("label", "type", "typeId", "radius", "sourceId", "manual", "node_type"):
                 if isinstance(point_fields, dict) and key in point_fields:
                     new_point[key] = point_fields[key]
+            new_point["node_type"] = _node_type(new_point)
             new_point["x"] = int(x)
             new_point["y"] = int(y)
             new_point["visited"] = False
@@ -1130,6 +1234,40 @@ class RouteManager:
                 print(f"Save progress after insert failed: {e}")
 
         return outcomes
+
+    def save_route_points(self, route_id: str, points: list[dict]) -> bool:
+        route = self.route_for_id(route_id)
+        category = self.category_for_route_id(route_id)
+        if route is None or category is None:
+            return False
+
+        old_points = route.get("points", [])
+        normalized: list[dict] = []
+        for point in points or []:
+            if not isinstance(point, dict):
+                continue
+            copied = dict(point)
+            if _point_xy(copied) is None:
+                continue
+            copied["x"] = int(round(float(copied["x"])))
+            copied["y"] = int(round(float(copied["y"])))
+            copied["node_type"] = _node_type(copied)
+            copied["visited"] = False
+            normalized.append(copied)
+
+        route["points"] = normalized
+        try:
+            self._write_route_file(category, route.get("display_name", ""), route)
+        except Exception as e:
+            route["points"] = old_points
+            print(f"Save route points failed route_id={route_id}: {e}")
+            return False
+
+        try:
+            self.save_progress()
+        except Exception as e:
+            print(f"Save progress after point save failed: {e}")
+        return True
 
     def route_name_for_id(self, route_id: str) -> str:
         route = self.route_for_id(route_id)
@@ -1497,7 +1635,16 @@ class RouteManager:
             return False
         return True
 
-    def draw_on(self, canvas, vx1, vy1, view_size, player_x=None, player_y=None) -> None:
+    def draw_on(
+        self,
+        canvas,
+        vx1,
+        vy1,
+        view_size,
+        player_x=None,
+        player_y=None,
+        drawing_route: dict | None = None,
+    ) -> None:
         local_player = None
         if player_x is not None and player_y is not None:
             local_player = (int(player_x - vx1), int(player_y - vy1))
@@ -1509,22 +1656,52 @@ class RouteManager:
             for _category, route in self.iter_routes()
             if self.route_id(route) and self.visibility.get(self.route_id(route), False)
         ]
-        draw_records: list[tuple[dict, tuple[int, int, int], list[tuple[int, int]], list[dict]]] = []
+        guide_routes = list(visible_routes)
+        if drawing_route is not None:
+            drawing_route_id = self.route_id(drawing_route)
+            if bool(drawing_route.get("_hide_other_routes")):
+                visible_routes = []
+            elif drawing_route_id:
+                visible_routes = [
+                    route for route in visible_routes if self.route_id(route) != drawing_route_id
+                ]
+            visible_routes.append(drawing_route)
+
+        draw_records: list[tuple[dict, tuple[int, int, int], list[tuple[int, int] | None], list[dict], bool]] = []
 
         for route in visible_routes:
             route_id = self.route_id(route)
             points = route.get("points", [])
             color = self.color_for(route_id)
-            local_points = [(int(point["x"] - vx1), int(point["y"] - vy1)) for point in points]
-            draw_records.append((route, color, local_points, points))
+            local_points: list[tuple[int, int] | None] = []
+            for point in points:
+                xy = _point_xy(point) if isinstance(point, dict) else None
+                if xy is None:
+                    local_points.append(None)
+                else:
+                    local_points.append((int(xy[0] - vx1), int(xy[1] - vy1)))
+            is_drawing_route = drawing_route is not None and route is drawing_route
+            draw_records.append((route, color, local_points, points, is_drawing_route))
 
             for index in range(len(local_points) - 1):
-                cv2.line(canvas, local_points[index], local_points[index + 1], color, 2, cv2.LINE_AA)
+                start = local_points[index]
+                end = local_points[index + 1]
+                if start is None or end is None:
+                    continue
+                next_type = _node_type(points[index + 1] if index + 1 < len(points) else None)
+                _draw_styled_line(canvas, start, end, color, style=next_type)
             if route.get("loop") and len(local_points) > 2:
-                cv2.line(canvas, local_points[-1], local_points[0], color, 2, cv2.LINE_AA)
+                start = local_points[-1]
+                end = local_points[0]
+                if start is not None and end is not None:
+                    _draw_styled_line(canvas, start, end, color, style=_node_type(points[0] if points else None))
 
-        for _route, _color, local_points, points in draw_records:
+        for _route, _color, local_points, points, is_drawing_route in draw_records:
+            if is_drawing_route:
+                continue
             for index, (local_point, point_data) in enumerate(zip(local_points, points)):
+                if local_point is None:
+                    continue
                 if not (0 <= local_point[0] <= canvas_width and 0 <= local_point[1] <= canvas_height):
                     continue
 
@@ -1536,7 +1713,7 @@ class RouteManager:
 
         if player_x is not None and player_y is not None:
             target = _guide_target_for_player(
-                visible_routes,
+                guide_routes,
                 (float(player_x), float(player_y)),
                 _config_int("ROUTE_GUIDE_NODE_DISTANCE", 80),
                 _config_int("ROUTE_GUIDE_SEGMENT_DISTANCE", 35),
@@ -1551,8 +1728,10 @@ class RouteManager:
                     spacing=_config_int("ROUTE_GUIDE_POINTER_SPACING", 28, 8),
                     size=_config_int("ROUTE_GUIDE_POINTER_SIZE", 10, 5),
                 )
-        for _route, color, local_points, points in draw_records:
+        for _route, color, local_points, points, _is_drawing_route in draw_records:
             for index, (local_point, point_data) in enumerate(zip(local_points, points)):
+                if local_point is None:
+                    continue
                 if not (0 <= local_point[0] <= canvas_width and 0 <= local_point[1] <= canvas_height):
                     continue
 
@@ -1672,6 +1851,8 @@ class RouteManager:
                 continue
 
             route_id = data.get("id")
+            if _has_external_edges(data) and (not self._is_valid_route_id(route_id) or route_id in used_ids):
+                continue
             if self._is_valid_route_id(route_id) and route_id not in used_ids:
                 used_ids.add(route_id)
                 used_daily_sequences[route_id[:8]].add(int(route_id[8:]))
@@ -1703,12 +1884,22 @@ class RouteManager:
                     with open(path, "r", encoding="utf-8") as handle:
                         data = json.load(handle)
 
+                    has_edges = _has_external_edges(data)
+                    if has_edges:
+                        external_points = _external_nodes_as_points(data)
+                        if external_points is not None:
+                            data["_gmt_points_from_nodes"] = True
+                            data["_gmt_had_original_points"] = "points" in data
+                            data["_gmt_original_points"] = data.get("points")
+                            data["points"] = external_points
+
                     route_id = data.get("id")
                     if not self._is_valid_route_id(route_id) or route_id in used_ids:
                         created_at = self._route_file_timestamp(path)
                         route_id = self._allocate_route_id_for_timestamp(created_at, used_ids, used_daily_sequences)
                         data["id"] = route_id
-                        self._write_json_file(path, data)
+                        if not has_edges:
+                            self._write_json_file(path, data)
                     else:
                         used_ids.add(route_id)
                         used_daily_sequences[route_id[:8]].add(int(route_id[8:]))
@@ -1826,18 +2017,29 @@ class RouteManager:
 
     @staticmethod
     def _serialize_route(route: dict, default_name: str, route_id: str) -> dict:
-        payload = {key: value for key, value in route.items() if key != "display_name"}
+        payload = {
+            key: value
+            for key, value in route.items()
+            if key != "display_name" and not str(key).startswith("_gmt_")
+        }
         payload["id"] = route_id
         payload["name"] = payload.get("name") or default_name
         notes = payload.get("notes", "")
         payload["notes"] = "" if notes is None else (notes if isinstance(notes, str) else str(notes))
+
+        point_key = "nodes" if route.get("_gmt_points_from_nodes") and "nodes" in payload else "points"
         points: list[object] = []
-        for point in payload.get("points", []):
+        for point in route.get("points", []):
             if isinstance(point, dict):
                 points.append({key: value for key, value in point.items() if key != "visited"})
             else:
                 points.append(point)
-        payload["points"] = points
+        payload[point_key] = points
+        if point_key == "nodes":
+            if route.get("_gmt_had_original_points"):
+                payload["points"] = route.get("_gmt_original_points")
+            else:
+                payload.pop("points", None)
         return payload
 
     def _find_route(self, category: str, name: str) -> dict | None:

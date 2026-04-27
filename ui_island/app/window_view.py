@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..design import theme
+from ..design import strings, theme
 from ..views.map_view import MapView
 from ..widgets import AnnotationPanel, StatusDot
 from ..widgets.factory import make_scroll_area
@@ -75,6 +75,13 @@ def _build_header(window, root_layout: QVBoxLayout) -> None:
     window.state_hint_label.setObjectName("StateHint")
     window.state_hint_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
     title_layout.addWidget(window.state_hint_label)
+
+    window.route_drawing_help_btn = QPushButton("?")
+    window.route_drawing_help_btn.setObjectName("RouteDrawingHelpButton")
+    window.route_drawing_help_btn.setToolTip(strings.ROUTE_DRAWING_HELP_TITLE)
+    window.route_drawing_help_btn.hide()
+    window.route_drawing_help_btn.clicked.connect(window.route_panel_controller.show_route_drawing_help)
+    title_layout.addWidget(window.route_drawing_help_btn)
 
     window.unlock_hint_label = QLabel("快捷键Alt+~解锁")
     window.unlock_hint_label.setObjectName("MapHint")

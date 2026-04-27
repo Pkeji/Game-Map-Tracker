@@ -49,6 +49,54 @@ QToolTip {{
 }}
 """
 
+COLOR_DIALOG_QSS = f"""
+QColorDialog {{
+    background: rgb(28, 28, 30);
+    color: {FG};
+}}
+QColorDialog QLabel {{
+    color: {FG};
+    font-size: 11px;
+}}
+QColorDialog QFrame,
+QColorDialog QWidget {{
+    background: rgb(28, 28, 30);
+    color: {FG};
+}}
+QColorDialog QLineEdit {{
+    background: rgba(255, 255, 255, 0.08);
+    color: {FG};
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 7px;
+    padding: 4px 6px;
+    min-width: 78px;
+    max-width: 96px;
+}}
+QColorDialog QSpinBox {{
+    background: rgba(255, 255, 255, 0.08);
+    color: {FG};
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 7px;
+    padding: 3px 4px;
+    min-width: 44px;
+    max-width: 56px;
+}}
+QColorDialog QPushButton {{
+    background: rgba(255, 255, 255, 0.12);
+    color: {FG};
+    border: none;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 11px;
+}}
+QColorDialog QPushButton:hover {{
+    background: rgba(255, 255, 255, 0.20);
+}}
+QColorDialog QPushButton:pressed {{
+    background: rgba(255, 255, 255, 0.28);
+}}
+"""
+
 
 def ensure_tooltip_style() -> None:
     try:
@@ -476,6 +524,14 @@ QScrollBar::handle:vertical {{
     background: rgba(255, 255, 255, 0.35);
     border-radius: 3px;
 }}
+QScrollBar:horizontal {{
+    background: transparent;
+    height: 6px;
+}}
+QScrollBar::handle:horizontal {{
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 3px;
+}}
 QMenu {{
     background: rgba(28, 28, 30, 245);
     color: {FG};
@@ -496,6 +552,7 @@ QMenu::separator {{
     margin: 6px 10px;
     background: rgba(255, 255, 255, 0.08);
 }}
+QMenu#RouteListContextMenu,
 QMenu#MapNodeContextMenu,
 QMenu#MapBlankContextMenu,
 QMenu#MapAnnotationContextMenu {{
@@ -504,6 +561,7 @@ QMenu#MapAnnotationContextMenu {{
     border-radius: 8px;
     padding: 3px 0px;
 }}
+QMenu#RouteListContextMenu::item,
 QMenu#MapNodeContextMenu::item,
 QMenu#MapBlankContextMenu::item,
 QMenu#MapAnnotationContextMenu::item {{
@@ -511,6 +569,7 @@ QMenu#MapAnnotationContextMenu::item {{
     margin: 1px 4px;
     border-radius: 5px;
 }}
+QMenu#RouteListContextMenu::separator,
 QMenu#MapNodeContextMenu::separator,
 QMenu#MapBlankContextMenu::separator,
 QMenu#MapAnnotationContextMenu::separator {{
@@ -529,6 +588,52 @@ QMenu#AnnotationContextMenu::item {{
 }}
 QMenu#AnnotationContextMenu::separator {{
     margin: 5px 9px;
+}}
+QFrame#RouteDrawingToolbar {{
+    background: rgba(28, 28, 30, 236);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+}}
+QFrame#RouteDrawingToolbar QPushButton {{
+    min-height: 26px;
+    padding: 3px 10px;
+    border-radius: 5px;
+    color: {FG};
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}}
+QFrame#RouteDrawingToolbar QPushButton:hover {{
+    background: rgba(255, 255, 255, 0.15);
+}}
+QFrame#RouteDrawingToolbar QPushButton:checked {{
+    background: rgba(74, 144, 226, 0.92);
+    color: #ffffff;
+}}
+QFrame#RouteDrawingToolbar QCheckBox {{
+    spacing: 6px;
+    color: {FG};
+    font-size: 12px;
+}}
+QFrame#RouteDrawingToolbarSeparator {{
+    color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.10);
+    max-height: 1px;
+    border: none;
+}}
+QPushButton#RouteDrawingHelpButton {{
+    min-width: 20px;
+    max-width: 20px;
+    min-height: 20px;
+    max-height: 20px;
+    padding: 0px;
+    border-radius: 10px;
+    color: {FG};
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-weight: 700;
+}}
+QPushButton#RouteDrawingHelpButton:hover {{
+    background: rgba(255, 255, 255, 0.18);
 }}
 QPushButton#AnnotationToggleButton {{
     min-height: 22px;

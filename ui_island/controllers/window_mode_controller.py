@@ -361,6 +361,8 @@ class WindowModeController:
                 self.apply_geometry_for_mode(self.size_for_mode(new_mode))
                 QTimer.singleShot(0, lambda: self.apply_geometry_for_mode(self.size_for_mode(new_mode)))
             self.schedule_layout_refresh()
+            QTimer.singleShot(0, self.window.route_panel_controller.position_route_drawing_toolbar)
+            QTimer.singleShot(60, self.window.route_panel_controller.position_route_drawing_toolbar)
         finally:
             self.window._applying_mode = False
 
@@ -639,6 +641,9 @@ class WindowModeController:
         mode_enum = self.window._mode.__class__
         if self.window.isMaximized():
             target = self.window._mode_before_max or mode_enum.PAUSED
+            if target not in (mode_enum.PAUSED, mode_enum.MAXIMIZED):
+                if not self.window.route_panel_controller.confirm_exit_route_drawing():
+                    return
             self.window._mode_before_max = None
             self.enter_mode(target)
         else:
@@ -646,3 +651,7 @@ class WindowModeController:
             self.enter_mode(mode_enum.MAXIMIZED)
         self.window._update_window_controls()
         apply_overlay_flags(self.window)
+        QTimer.singleShot(0, self.window.route_panel_controller.position_route_drawing_toolbar)
+        QTimer.singleShot(60, self.window.route_panel_controller.position_route_drawing_toolbar)
+        QTimer.singleShot(0, self.window.map_view._refresh_from_last_frame)
+        QTimer.singleShot(60, self.window.map_view._refresh_from_last_frame)

@@ -80,6 +80,8 @@ class TrackingController:
         self.window._update_lock_button_visibility()
 
     def start_navigation(self) -> None:
+        if not self.window.route_panel_controller.confirm_exit_route_drawing():
+            return
         mode_enum = self.window._mode.__class__
         self.window._mode_before_max = None
         self.window._tracking_bootstrap_pending = True
@@ -127,6 +129,12 @@ class TrackingController:
         if self.window._mode in (mode_enum.PAUSED, mode_enum.MAXIMIZED):
             self.restore_lock_state_after_lost()
             self.set_alert_mode(False)
+            drawing = getattr(self.window, "route_drawing_state", None)
+            if drawing is not None and drawing.active:
+                self.window.state_hint_label.setVisible(True)
+                self.window.state_hint_label.setText(f"纯净绘制中：{drawing.name}")
+                self.window.state_hint_label.setStyleSheet("")
+                return
             if self.window._mode == mode_enum.PAUSED:
                 self.window.state_hint_label.setText("暂停定位")
                 self.window.state_hint_label.setStyleSheet("")

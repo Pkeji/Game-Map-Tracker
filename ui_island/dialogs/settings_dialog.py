@@ -9,16 +9,20 @@ from html import escape
 from typing import Callable
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QDoubleValidator, QIntValidator, QMouseEvent
+from PySide6.QtGui import QColor, QDoubleValidator, QIntValidator, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QColorDialog,
     QDialog,
+    QDialogButtonBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
     QSizePolicy,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +42,8 @@ from ..services.app_updater import (
 )
 from ..services.settings_schema import ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
 from ..widgets.factory import make_scroll_area
+
+_DEFAULT_ROUTE_COLOR_HEX = "#1ad1ff"
 
 
 def styled_info(parent, title: str, message: str, *, allow_links: bool = False) -> None:
@@ -118,6 +124,7 @@ class SettingsDialog(QDialog):
     _SECTION_H_MARGIN = 14
     _SECTION_TOP_MARGIN = 12
     _SECTION_BOTTOM_MARGIN = 12
+    _TOOLS_SECTION_WIDTH = 150
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -133,6 +140,11 @@ class SettingsDialog(QDialog):
         self._editors: dict[str, QLineEdit] = {}
         self._initial_values: dict[str, str] = {}
         self._minimap_editors: dict[str, QLineEdit] = {}
+        self._route_multi_color_checkbox: QCheckBox | None = None
+        self._route_color_button: QPushButton | None = None
+        self._route_default_color = self._normalize_route_color(
+            getattr(config, "ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX)
+        )
         self._update_check_button: QPushButton | None = None
         self._update_check_running = False
         self._update_progress_toast: Toast | None = None
@@ -178,6 +190,8 @@ class SettingsDialog(QDialog):
         shell_layout.addWidget(title_bar)
 
         minimap_row = self._build_minimap_row()
+        route_color_row = self._build_route_color_row()
+        common_extra = self._build_common_extra(minimap_row, route_color_row)
         tools_section = self._build_tools_section()
 
         buttons_bar = QWidget()
@@ -208,7 +222,7 @@ class SettingsDialog(QDialog):
             COMMON_FIELDS,
             two_columns=True,
             narrow_editor=True,
-            extra_widget=minimap_row,
+            extra_widget=common_extra,
             extra_widget_position="top",
         )
         top_section_max_height = self._compute_top_section_max_height(
@@ -226,8 +240,9 @@ class SettingsDialog(QDialog):
             max_height=top_section_max_height,
             two_columns=True,
             narrow_editor=True,
-            extra_widget=minimap_row,
+            extra_widget=common_extra,
             extra_widget_position="top",
+            horizontal_scroll=True,
         )
 
         columns = QHBoxLayout()
@@ -247,7 +262,7 @@ class SettingsDialog(QDialog):
         bottom_cols = QHBoxLayout()
         bottom_cols.setSpacing(10)
         bottom_cols.addWidget(common_section, stretch=2)
-        bottom_cols.addWidget(tools_section, stretch=1)
+        bottom_cols.addWidget(tools_section, stretch=0)
         shell_layout.addLayout(bottom_cols)
         shell_layout.addWidget(buttons_bar)
 
@@ -261,6 +276,7 @@ class SettingsDialog(QDialog):
         narrow_editor: bool = False,
         extra_widget: QWidget | None = None,
         extra_widget_position: str = "bottom",
+        horizontal_scroll: bool = False,
     ) -> QFrame:
         card = QFrame()
         card.setObjectName("PanelCard")
@@ -306,10 +322,12 @@ class SettingsDialog(QDialog):
 
         if max_height is not None:
             natural = self._measure_body_height(body, self._estimate_top_section_body_width())
-            if natural > max_height:
+            if natural > max_height or horizontal_scroll:
                 body.setMinimumHeight(natural)
+                if horizontal_scroll:
+                    body.setMinimumWidth(body.sizeHint().width())
                 scroll = make_scroll_area(
-                    horizontal_policy=Qt.ScrollBarAlwaysOff,
+                    horizontal_policy=Qt.ScrollBarAsNeeded if horizontal_scroll else Qt.ScrollBarAlwaysOff,
                     vertical_policy=Qt.ScrollBarAsNeeded,
                     fixed_height=max_height,
                 )
@@ -391,6 +409,95 @@ class SettingsDialog(QDialog):
         mid = (len(fields) + 1) // 2
         return [fields[:mid], fields[mid:]]
 
+    @staticmethod
+    def _build_common_extra(*widgets: QWidget) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        for widget in widgets:
+            layout.addWidget(widget)
+        return container
+
+    @staticmethod
+    def _normalize_route_color(value: object) -> str:
+        color = QColor(str(value or "").strip())
+        if not color.isValid():
+            color = QColor(_DEFAULT_ROUTE_COLOR_HEX)
+        return color.name(QColor.HexRgb)
+
+    def _build_route_color_row(self) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 6, 0)
+        layout.setSpacing(8)
+
+        checkbox = QCheckBox("多路线随机颜色")
+        checkbox.setChecked(bool(getattr(config, "ROUTE_MULTI_COLOR_ENABLED", True)))
+        checkbox.setToolTip("开启后不同路线使用原有稳定随机颜色；关闭后全部路线使用右侧默认颜色。")
+        self._route_multi_color_checkbox = checkbox
+        layout.addWidget(checkbox)
+
+        label = QLabel("默认颜色")
+        label.setObjectName("StatLabel")
+        layout.addWidget(label)
+
+        button = QPushButton(self._route_default_color)
+        button.setFixedHeight(26)
+        button.setFixedWidth(86)
+        button.clicked.connect(self._on_pick_route_default_color)
+        self._route_color_button = button
+        self._sync_route_color_button()
+        layout.addWidget(button)
+        layout.addStretch()
+        return row
+
+    def _sync_route_color_button(self) -> None:
+        if self._route_color_button is None:
+            return
+        color = self._normalize_route_color(self._route_default_color)
+        text_color = "#000000" if QColor(color).lightness() > 150 else "#ffffff"
+        self._route_color_button.setText(color)
+        self._route_color_button.setStyleSheet(
+            f"background: {color}; color: {text_color}; border: 1px solid rgba(255, 255, 255, 0.35);"
+        )
+
+    def _on_pick_route_default_color(self) -> None:
+        current = QColor(self._normalize_route_color(self._route_default_color))
+        dialog = QColorDialog(current, self)
+        dialog.setWindowTitle("选择默认路线颜色")
+        dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+        dialog.setAttribute(Qt.WA_StyledBackground, True)
+        dialog.setStyleSheet(qss.ISLAND_QSS + qss.COLOR_DIALOG_QSS)
+        for spin in dialog.findChildren(QSpinBox):
+            spin.setFixedWidth(56)
+        for editor in dialog.findChildren(QLineEdit):
+            editor.setMaximumWidth(96)
+
+        reset_btn = QPushButton("恢复默认颜色", dialog)
+        reset_btn.clicked.connect(lambda: dialog.setCurrentColor(QColor(_DEFAULT_ROUTE_COLOR_HEX)))
+        layout = dialog.layout()
+        if layout is not None:
+            layout.addWidget(reset_btn)
+
+        buttons = dialog.findChild(QDialogButtonBox)
+        if buttons is not None:
+            ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
+            cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+            if ok_btn is not None:
+                ok_btn.setText("确认")
+            if cancel_btn is not None:
+                cancel_btn.setText("取消")
+
+        center_dialog(dialog, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        color = dialog.selectedColor()
+        if not color.isValid():
+            return
+        self._route_default_color = color.name(QColor.NameFormat.HexRgb)
+        self._sync_route_color_button()
+
     def _build_minimap_row(self) -> QWidget:
         row = QWidget()
         layout = QHBoxLayout(row)
@@ -415,7 +522,7 @@ class SettingsDialog(QDialog):
             layout.addWidget(lbl)
             editor = QLineEdit()
             editor.setFixedHeight(minimap_control_height)
-            editor.setFixedWidth(60)
+            editor.setFixedWidth(52)
             editor.setStyleSheet("padding: 2px 6px;")
             editor.setAlignment(Qt.AlignRight)
             editor.setValidator(QIntValidator(-10_000, 10_000, editor))
@@ -452,6 +559,8 @@ class SettingsDialog(QDialog):
     def _build_tools_section(self) -> QFrame:
         card = QFrame()
         card.setObjectName("PanelCard")
+        card.setFixedWidth(self._TOOLS_SECTION_WIDTH)
+        card.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(14, 12, 14, 12)
         card_layout.setSpacing(8)
@@ -524,10 +633,18 @@ class SettingsDialog(QDialog):
             self._update_check_button.setText("检查更新")
 
         if not isinstance(result, AppUpdateCheckResult):
-            styled_info(self, "检查更新失败", "更新检查返回了未知结果。")
+            styled_info(
+                self,
+                strings.UPDATE_ERROR_CHECK_TITLE,
+                strings.with_update_error_hint(strings.UPDATE_ERROR_CHECK_UNKNOWN),
+            )
             return
         if not result.ok:
-            styled_info(self, "检查更新失败", result.error or "未知错误。")
+            styled_info(
+                self,
+                strings.UPDATE_ERROR_CHECK_TITLE,
+                strings.with_update_error_hint(result.error or strings.UPDATE_ERROR_UNKNOWN),
+            )
             return
         if not result.has_update:
             styled_info(self, "检查更新", f"当前已是最新版本：{result.current_version}")
@@ -654,10 +771,18 @@ class SettingsDialog(QDialog):
             self._update_check_button.setText("检查更新")
 
         if not isinstance(result, AppUpdateInstallResult):
-            styled_info(self, "更新失败", "更新安装返回了未知结果。")
+            styled_info(
+                self,
+                strings.UPDATE_ERROR_INSTALL_TITLE,
+                strings.with_update_error_hint(strings.UPDATE_ERROR_INSTALL_UNKNOWN),
+            )
             return
         if not result.ok:
-            styled_info(self, "更新失败", result.error or "未知错误。")
+            styled_info(
+                self,
+                strings.UPDATE_ERROR_INSTALL_TITLE,
+                strings.with_update_error_hint(result.error or strings.UPDATE_ERROR_UNKNOWN),
+            )
             return
 
         if result.requires_restart:
@@ -747,7 +872,7 @@ class SettingsDialog(QDialog):
 
         editor = QLineEdit(str(getattr(config, field.key, "")))
         editor.setMinimumHeight(28)
-        editor.setFixedWidth(36 if narrow_editor else 72)
+        editor.setFixedWidth(32 if narrow_editor else 60)
         if narrow_editor:
             editor.setStyleSheet("padding: 5px;")
         editor.setAlignment(Qt.AlignRight)
@@ -791,6 +916,11 @@ class SettingsDialog(QDialog):
                     f"字段 {field.label} 的值“{raw}”无法解析为 {field.type_.__name__}。",
                 )
                 return None
+
+        if self._route_multi_color_checkbox is not None:
+            result["ROUTE_MULTI_COLOR_ENABLED"] = self._route_multi_color_checkbox.isChecked()
+        self._route_default_color = self._normalize_route_color(self._route_default_color)
+        result["ROUTE_DEFAULT_COLOR"] = self._route_default_color
 
         minimap_payload: dict = {}
         for key, editor in self._minimap_editors.items():
@@ -865,6 +995,12 @@ class SettingsDialog(QDialog):
                 continue
             default_val = config.DEFAULT_CONFIG.get(field.key, "")
             editor.setText(str(default_val))
+        if self._route_multi_color_checkbox is not None:
+            self._route_multi_color_checkbox.setChecked(bool(config.DEFAULT_CONFIG.get("ROUTE_MULTI_COLOR_ENABLED", True)))
+        self._route_default_color = self._normalize_route_color(
+            config.DEFAULT_CONFIG.get("ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX)
+        )
+        self._sync_route_color_button()
 
     def _is_on_title_bar(self, global_pos: QPoint) -> bool:
         local = self._title_bar.mapFromGlobal(global_pos)

@@ -13,11 +13,31 @@ from route_manager import (
     _nearest_segment,
     _nearest_teleport_label,
     _nearest_unvisited_node,
+    _route_color_from_hex,
     RouteManager,
 )
 
 
 class RouteGuideTests(unittest.TestCase):
+    def test_route_color_uses_existing_multi_color_cache_when_enabled(self) -> None:
+        manager = RouteManager.__new__(RouteManager)
+        manager._color_cache = {"a": (1, 2, 3), "b": (4, 5, 6)}
+
+        with patch("config.ROUTE_MULTI_COLOR_ENABLED", True):
+            self.assertEqual(manager.color_for("a"), (1, 2, 3))
+            self.assertEqual(manager.color_for("b"), (4, 5, 6))
+
+    def test_route_color_uses_default_color_when_multi_color_disabled(self) -> None:
+        manager = RouteManager.__new__(RouteManager)
+        manager._color_cache = {"a": (1, 2, 3), "b": (4, 5, 6)}
+
+        with patch("config.ROUTE_MULTI_COLOR_ENABLED", False), patch("config.ROUTE_DEFAULT_COLOR", "#1ad1ff"):
+            self.assertEqual(manager.color_for("a"), (255, 209, 26))
+            self.assertEqual(manager.color_for("b"), (255, 209, 26))
+
+    def test_invalid_route_default_color_falls_back_to_blue(self) -> None:
+        self.assertEqual(_route_color_from_hex("not-a-color"), (255, 209, 26))
+
     def test_distance_to_segment_projects_inside_segment(self) -> None:
         distance, projection = _distance_to_segment((5.0, 5.0), (0.0, 0.0), (10.0, 0.0))
 
@@ -110,6 +130,76 @@ class RouteGuideTests(unittest.TestCase):
         label = _guide_distance_label(target, vx1=0, vy1=0, width=100, height=100)
 
         self.assertIsNone(label)
+
+    def test_edges_route_uses_nodes_as_runtime_points_without_writing_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            routes_dir = Path(tmp) / "routes"
+            category = routes_dir / "其他"
+            category.mkdir(parents=True)
+            source = category / "edge-route.json"
+            payload = {
+                "name": "edge-route",
+                "points": [{"x": 999, "y": 999, "label": "legacy"}],
+                "nodes": [
+                    {"id": "a", "x": 10, "y": 20, "node_type": "collect"},
+                    {"id": "b", "x": 30, "y": 40, "node_type": "virtual"},
+                ],
+                "edges": [
+                    {"id": "e1", "from": "a", "to": "b", "edge_type": "virtual"},
+                ],
+            }
+            source.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            before = source.read_text(encoding="utf-8")
+
+            manager = RouteManager(str(routes_dir))
+            route = next(route for _category, route in manager.iter_routes() if route.get("display_name") == "edge-route")
+
+            self.assertEqual(source.read_text(encoding="utf-8"), before)
+            self.assertEqual([(point["x"], point["y"], point["node_type"]) for point in route["points"]], [
+                (10, 20, "collect"),
+                (30, 40, "virtual"),
+            ])
+
+            route_id = manager.route_id(route)
+            self.assertTrue(manager.set_point_annotation(route_id, 1, "ore", "矿石"))
+            saved = json.loads(source.read_text(encoding="utf-8"))
+            self.assertEqual(saved["points"], payload["points"])
+            self.assertEqual(saved["nodes"][1]["typeId"], "ore")
+            self.assertEqual(saved["nodes"][1]["type"], "矿石")
+
+    def test_edges_route_without_points_writes_node_edits_to_nodes_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            routes_dir = Path(tmp) / "routes"
+            category = routes_dir / "其他"
+            category.mkdir(parents=True)
+            source = category / "edge-route.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "name": "edge-route",
+                        "nodes": [
+                            {"id": "a", "x": 10, "y": 20},
+                            {"id": "b", "x": 30, "y": 40},
+                        ],
+                        "edges": [
+                            {"id": "e1", "from": "a", "to": "b", "edge_type": "normal"},
+                        ],
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            manager = RouteManager(str(routes_dir))
+            route = next(route for _category, route in manager.iter_routes() if route.get("display_name") == "edge-route")
+            route_id = manager.route_id(route)
+
+            self.assertTrue(manager.set_point_annotation(route_id, 0, "ore", "矿石"))
+            saved = json.loads(source.read_text(encoding="utf-8"))
+            self.assertNotIn("points", saved)
+            self.assertEqual(saved["nodes"][0]["typeId"], "ore")
+            self.assertEqual(saved["nodes"][0]["type"], "矿石")
 
     def test_distance_label_shown_when_target_is_outside_crop(self) -> None:
         target = _GuideTarget((180.0, 50.0), 180.2)

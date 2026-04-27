@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,12 +13,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import requests
 
 import config
 from ..app.app_info import APP_UPDATE_MANIFEST_URL, APP_VERSION
-from .update_checker import compare_versions, normalize_version
+from ..design import strings
 
 
 INSTALLED_MANIFEST = "installed-manifest.json"
@@ -60,6 +62,7 @@ class AppUpdateManifest:
     requires_launcher_update: bool = False
     prompt_update: bool = False
     force_update_prompt: bool = False
+    source_base_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,57 @@ class AppUpdateInstallResult:
 
 class ManifestError(RuntimeError):
     """更新清单无效时抛出。"""
+
+
+_VERSION_RE = re.compile(r"^\s*v?(\d+)\.(\d+)\.(\d+)(?:[-+]([0-9A-Za-z.-]+))?\s*$")
+
+
+@dataclass(frozen=True)
+class ParsedVersion:
+    major: int
+    minor: int
+    patch: int
+    prerelease: str = ""
+
+
+def parse_version(value: str) -> ParsedVersion:
+    match = _VERSION_RE.match(str(value or ""))
+    if not match:
+        raise ValueError(f"版本号格式无效：{value}")
+    major, minor, patch, prerelease = match.groups()
+    return ParsedVersion(int(major), int(minor), int(patch), prerelease or "")
+
+
+def normalize_version(value: str) -> str:
+    parsed = parse_version(value)
+    base = f"{parsed.major}.{parsed.minor}.{parsed.patch}"
+    return f"{base}-{parsed.prerelease}" if parsed.prerelease else base
+
+
+def compare_versions(left: str, right: str) -> int:
+    left_parsed = parse_version(left)
+    right_parsed = parse_version(right)
+    left_core = (left_parsed.major, left_parsed.minor, left_parsed.patch)
+    right_core = (right_parsed.major, right_parsed.minor, right_parsed.patch)
+    if left_core != right_core:
+        return 1 if left_core > right_core else -1
+    if left_parsed.prerelease == right_parsed.prerelease:
+        return 0
+    if not left_parsed.prerelease:
+        return 1
+    if not right_parsed.prerelease:
+        return -1
+    return 1 if _prerelease_key(left_parsed.prerelease) > _prerelease_key(right_parsed.prerelease) else -1
+
+
+def _prerelease_key(value: str) -> tuple[tuple[int, int | str], ...]:
+    parts: list[tuple[int, int | str]] = []
+    for part in re.split(r"[.-]", value):
+        if part.isdigit():
+            parts.append((0, int(part)))
+        else:
+            parts.append((1, part.lower()))
+    return tuple(parts)
 
 
 def _normalize_relative_path(value: str) -> str:
@@ -142,9 +196,9 @@ def _write_json_file(path: str, payload: dict) -> None:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
 
-def parse_app_manifest(payload: dict[str, Any]) -> AppUpdateManifest:
+def parse_app_manifest(payload: dict[str, Any], *, source_base_url: str = "") -> AppUpdateManifest:
     if not isinstance(payload, dict) or not payload:
-        raise ManifestError("更新清单为空。")
+        raise ManifestError(strings.UPDATE_ERROR_MANIFEST_EMPTY)
 
     version = normalize_version(str(payload.get("version") or ""))
     files: list[ManifestFile] = []
@@ -188,6 +242,7 @@ def parse_app_manifest(payload: dict[str, Any]) -> AppUpdateManifest:
         requires_launcher_update=bool(payload.get("requires_launcher_update", False)),
         prompt_update=bool(payload.get("prompt_update", False)),
         force_update_prompt=bool(payload.get("force_update_prompt", False)),
+        source_base_url=source_base_url,
     )
 
 
@@ -328,6 +383,46 @@ def should_show_startup_update_prompt(result: AppUpdateCheckResult, last_prompte
     return not (result.latest_version and result.latest_version == last_prompted)
 
 
+def _dedupe_urls(urls: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for url in urls:
+        clean = str(url or "").strip()
+        if clean and clean not in seen:
+            seen.add(clean)
+            result.append(clean)
+    return result
+
+
+def _configured_manifest_urls(manifest_url: str | None) -> list[str]:
+    if manifest_url is not None:
+        return _dedupe_urls([manifest_url])
+
+    urls: list[str] = []
+    configured_urls = getattr(config, "APP_UPDATE_MANIFEST_URLS", None)
+    if isinstance(configured_urls, (list, tuple)):
+        urls.extend(str(url) for url in configured_urls)
+    urls.append(getattr(config, "APP_UPDATE_MANIFEST_URL", ""))
+    urls.append(APP_UPDATE_MANIFEST_URL)
+    return _dedupe_urls(urls)
+
+
+def _base_url_from_manifest_url(url: str) -> str:
+    clean = str(url or "").strip()
+    if not clean:
+        return ""
+    return clean.rsplit("/", 1)[0] + "/"
+
+
+def _join_update_url(base_url: str, relative_path: str) -> str:
+    split = urlsplit(str(base_url or ""))
+    base_path = split.path
+    if not base_path.endswith("/"):
+        base_path += "/"
+    encoded_path = quote(str(relative_path or "").replace("\\", "/"), safe="/")
+    return urlunsplit((split.scheme, split.netloc, base_path + encoded_path, "", ""))
+
+
 def check_app_update(
     *,
     manifest_url: str | None = None,
@@ -335,34 +430,40 @@ def check_app_update(
     timeout: float = 10.0,
     session: Any | None = None,
 ) -> AppUpdateCheckResult:
-    url = str(
-        manifest_url
-        if manifest_url is not None
-        else getattr(config, "APP_UPDATE_MANIFEST_URL", APP_UPDATE_MANIFEST_URL)
-    ).strip()
-    if not url:
+    urls = _configured_manifest_urls(manifest_url)
+    if not urls:
         return AppUpdateCheckResult(
             ok=False,
             current_version=current_version,
-            error="尚未配置 APP_UPDATE_MANIFEST_URL。",
+            error=strings.UPDATE_ERROR_NO_MANIFEST_URL,
         )
 
     client = session or requests
-    try:
-        response = client.get(url, timeout=timeout, headers={"User-Agent": "GMT-N app updater"})
-    except requests.RequestException as exc:
-        return AppUpdateCheckResult(ok=False, current_version=current_version, error=f"无法连接更新源：{exc}")
+    errors: list[str] = []
+    for url in urls:
+        try:
+            response = client.get(url, timeout=timeout, headers={"User-Agent": "GMT-N app updater"})
+        except requests.RequestException as exc:
+            errors.append(strings.UPDATE_ERROR_SOURCE_CONNECT_FMT.format(error=exc))
+            continue
 
-    status_code = int(getattr(response, "status_code", 0) or 0)
-    if status_code != 200:
-        return AppUpdateCheckResult(ok=False, current_version=current_version, error=f"更新源返回 HTTP {status_code}。")
+        status_code = int(getattr(response, "status_code", 0) or 0)
+        if status_code != 200:
+            errors.append(strings.UPDATE_ERROR_SOURCE_HTTP_FMT.format(status_code=status_code))
+            continue
 
-    try:
-        manifest = parse_app_manifest(response.json())
-    except (ValueError, ManifestError) as exc:
-        return AppUpdateCheckResult(ok=False, current_version=current_version, error=str(exc))
+        try:
+            manifest = parse_app_manifest(response.json(), source_base_url=_base_url_from_manifest_url(url))
+        except (ValueError, ManifestError) as exc:
+            errors.append(str(exc))
+            continue
 
-    return build_update_plan(manifest, current_version=current_version)
+        return build_update_plan(manifest, current_version=current_version)
+
+    error = strings.UPDATE_ERROR_ALL_SOURCES_FAILED_FMT.format(count=len(urls))
+    if errors:
+        error = f"{error}\n" + "\n".join(f"- {item}" for item in errors)
+    return AppUpdateCheckResult(ok=False, current_version=current_version, error=error)
 
 
 ProgressCallback = Callable[[int, int, str], None]
@@ -380,20 +481,34 @@ def _download_file(
     display_path: str = "",
 ) -> int:
     client = session or requests
-    response = client.get(url, timeout=timeout, stream=True, headers={"User-Agent": "GMT-N app updater"})
+    try:
+        response = client.get(url, timeout=timeout, stream=True, headers={"User-Agent": "GMT-N app updater"})
+    except requests.RequestException as exc:
+        raise RuntimeError(strings.UPDATE_ERROR_DOWNLOAD_FAILED_FMT.format(error=exc)) from exc
     status_code = int(getattr(response, "status_code", 0) or 0)
     if status_code != 200:
-        raise RuntimeError(f"下载失败 HTTP {status_code}: {url}")
+        raise RuntimeError(strings.UPDATE_ERROR_DOWNLOAD_HTTP_FMT.format(status_code=status_code, url=url))
     target.parent.mkdir(parents=True, exist_ok=True)
     downloaded = int(downloaded_before)
-    with target.open("wb") as handle:
-        for chunk in response.iter_content(chunk_size=1024 * 256):
-            if chunk:
-                handle.write(chunk)
-                downloaded += len(chunk)
-                if progress_callback is not None:
-                    progress_callback(downloaded, total_size, display_path)
+    try:
+        with target.open("wb") as handle:
+            for chunk in response.iter_content(chunk_size=1024 * 256):
+                if chunk:
+                    handle.write(chunk)
+                    downloaded += len(chunk)
+                    if progress_callback is not None:
+                        progress_callback(downloaded, total_size, display_path)
+    except requests.RequestException as exc:
+        raise RuntimeError(strings.UPDATE_ERROR_DOWNLOAD_FAILED_FMT.format(error=exc)) from exc
     return downloaded
+
+
+def _download_urls_for_change(manifest: AppUpdateManifest, file: ManifestFile) -> list[str]:
+    urls: list[str] = []
+    if manifest.source_base_url:
+        urls.append(_join_update_url(manifest.source_base_url, file.path))
+    urls.append(file.url)
+    return _dedupe_urls(urls)
 
 
 def download_changed_files(
@@ -404,7 +519,7 @@ def download_changed_files(
     progress_callback: ProgressCallback | None = None,
 ) -> Path:
     if not plan.ok or plan.manifest is None:
-        raise RuntimeError(plan.error or "更新计划无效。")
+        raise RuntimeError(plan.error or strings.UPDATE_ERROR_PLAN_INVALID)
     staging = Path(tempfile.mkdtemp(prefix="gmt-n-update-"))
     total_size = sum(max(0, change.file.size) for change in plan.changed_files)
     downloaded = 0
@@ -412,19 +527,34 @@ def download_changed_files(
         target = staging / change.file.path
         if progress_callback is not None:
             progress_callback(downloaded, total_size, change.file.path)
-        downloaded = _download_file(
-            change.file.url,
-            target,
-            timeout=timeout,
-            session=session,
-            progress_callback=progress_callback,
-            downloaded_before=downloaded,
-            total_size=total_size,
-            display_path=change.file.path,
-        )
-        actual = _sha256_file(target)
-        if actual != change.file.sha256:
-            raise RuntimeError(f"文件校验失败：{change.file.path}")
+        last_error: Exception | None = None
+        file_start = downloaded
+        for url in _download_urls_for_change(plan.manifest, change.file):
+            try:
+                candidate_downloaded = _download_file(
+                    url,
+                    target,
+                    timeout=timeout,
+                    session=session,
+                    progress_callback=progress_callback,
+                    downloaded_before=file_start,
+                    total_size=total_size,
+                    display_path=change.file.path,
+                )
+                actual = _sha256_file(target)
+                if actual != change.file.sha256:
+                    raise RuntimeError(strings.UPDATE_ERROR_FILE_HASH_FMT.format(path=change.file.path))
+                downloaded = candidate_downloaded
+                last_error = None
+                break
+            except Exception as exc:
+                last_error = exc
+                try:
+                    target.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        if last_error is not None:
+            raise RuntimeError(str(last_error))
     if progress_callback is not None:
         progress_callback(total_size, total_size, "")
     return staging
@@ -436,10 +566,10 @@ def install_non_restart_update(plan: AppUpdateCheckResult, staging: Path) -> App
             ok=False,
             version=plan.latest_version,
             requires_restart=True,
-            error="此更新包含程序本体文件，需要重启安装。",
+            error=strings.UPDATE_ERROR_RESTART_REQUIRED,
         )
     if plan.manifest is None:
-        return AppUpdateInstallResult(ok=False, error="更新清单为空。")
+        return AppUpdateInstallResult(ok=False, error=strings.UPDATE_ERROR_MANIFEST_EMPTY)
 
     installed_files: list[str] = []
     try:
@@ -516,7 +646,7 @@ def write_restart_update_job(
 ) -> Path:
     """把需要重启安装的更新任务写入 staging/update-job.json。"""
     if not plan.ok or plan.manifest is None:
-        raise RuntimeError(plan.error or "更新计划无效。")
+        raise RuntimeError(plan.error or strings.UPDATE_ERROR_PLAN_INVALID)
 
     root = Path(app_dir) if app_dir is not None else Path(config.BASE_DIR)
     job = {
@@ -560,7 +690,7 @@ def start_restart_update(
             ok=False,
             version=plan.latest_version,
             requires_restart=True,
-            error=f"未找到更新器：{updater_path}",
+            error=strings.UPDATE_ERROR_UPDATER_MISSING_FMT.format(path=updater_path),
         )
 
     try:
@@ -579,7 +709,7 @@ def start_restart_update(
             ok=False,
             version=plan.latest_version,
             requires_restart=True,
-            error=f"启动更新器失败：{exc}",
+            error=strings.UPDATE_ERROR_UPDATER_START_FAILED_FMT.format(error=exc),
         )
 
     return AppUpdateInstallResult(
