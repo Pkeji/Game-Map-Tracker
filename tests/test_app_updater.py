@@ -49,6 +49,7 @@ class AppUpdaterTests(unittest.TestCase):
         self._old_base_dir = config.BASE_DIR
         self._old_config_file = config.CONFIG_FILE
         self._old_localappdata = os.environ.get("LOCALAPPDATA")
+        self._old_settings = dict(config.settings)
 
     def tearDown(self) -> None:
         config.BASE_DIR = self._old_base_dir
@@ -57,6 +58,8 @@ class AppUpdaterTests(unittest.TestCase):
             os.environ.pop("LOCALAPPDATA", None)
         else:
             os.environ["LOCALAPPDATA"] = self._old_localappdata
+        config.settings.clear()
+        config.settings.update(self._old_settings)
 
     def test_parse_manifest_rejects_unsafe_paths(self) -> None:
         payload = {
@@ -122,7 +125,7 @@ class AppUpdaterTests(unittest.TestCase):
         )
 
         with patch.object(config, "APP_UPDATE_MANIFEST_URLS", [gitee_url, github_url]), patch.object(
-            config, "APP_UPDATE_MANIFEST_URL", ""
+            app_updater, "APP_UPDATE_MANIFEST_URLS", ()
         ):
             result = app_updater.check_app_update(current_version="0.1.0", session=session)
 
@@ -142,7 +145,7 @@ class AppUpdaterTests(unittest.TestCase):
         )
 
         with patch.object(config, "APP_UPDATE_MANIFEST_URLS", [gitee_url, github_url]), patch.object(
-            config, "APP_UPDATE_MANIFEST_URL", ""
+            app_updater, "APP_UPDATE_MANIFEST_URLS", ()
         ):
             result = app_updater.check_app_update(current_version="0.1.0", session=session)
 
@@ -150,6 +153,70 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertEqual(result.latest_version, "0.2.0")
         self.assertEqual(session.urls, [gitee_url, github_url])
         self.assertEqual(result.manifest.source_base_url, "https://github.test/update/")
+
+    def test_check_app_update_uses_hardcoded_sources_when_config_has_no_sources(self) -> None:
+        gitee_url = "https://raw.giteeusercontent.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json"
+        github_url = "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json"
+        session = _SequenceSession(
+            {
+                gitee_url: requests.ConnectionError("offline"),
+                github_url: _FakeHttpResponse(200, {"version": "0.2.0", "files": []}),
+            }
+        )
+
+        with patch.object(config, "APP_UPDATE_MANIFEST_URLS", []):
+            result = app_updater.check_app_update(current_version="0.1.0", session=session)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(session.urls, [gitee_url, github_url])
+
+    def test_check_app_update_applies_runtime_config_without_writing_config_json(self) -> None:
+        manifest_url = "https://gitee.test/update/app-manifest.json"
+        session = _SequenceSession(
+            {
+                manifest_url: _FakeHttpResponse(
+                    200,
+                    {
+                        "version": "0.2.0",
+                        "files": [],
+                        "runtime_config": {
+                            "QUARK_DOWNLOAD_URL": "https://pan.example/download",
+                            "ROUTE_RESOURCE_URL": "https://example.test/routes",
+                            "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
+                            "FEEDBACK_QQ_GROUP": "123456789",
+                            "APP_UPDATE_MANIFEST_URL": "https://legacy.test/app-manifest.json",
+                            "APP_UPDATE_MANIFEST_URLS": [
+                                "https://legacy.test/app-manifest.json",
+                                "https://github.test/app-manifest.json",
+                            ],
+                        },
+                    },
+                ),
+            }
+        )
+
+        with patch.object(config, "QUARK_DOWNLOAD_URL", ""), patch.object(
+            config, "ROUTE_RESOURCE_URL", ""
+        ), patch.object(config, "FEEDBACK_BILIBILI_URL", ""), patch.object(
+            config, "FEEDBACK_QQ_GROUP", ""
+        ), patch.object(config, "APP_UPDATE_MANIFEST_URLS", []), patch.object(
+            config, "save_config"
+        ) as save_config:
+            result = app_updater.check_app_update(
+                manifest_url=manifest_url,
+                current_version="0.1.0",
+                session=session,
+            )
+            self.assertTrue(result.ok)
+            self.assertEqual(config.QUARK_DOWNLOAD_URL, "https://pan.example/download")
+            self.assertEqual(config.ROUTE_RESOURCE_URL, "https://example.test/routes")
+            self.assertEqual(config.FEEDBACK_BILIBILI_URL, "https://space.bilibili.com/example")
+            self.assertEqual(config.FEEDBACK_QQ_GROUP, "123456789")
+            self.assertEqual(
+                config.APP_UPDATE_MANIFEST_URLS,
+                ["https://legacy.test/app-manifest.json", "https://github.test/app-manifest.json"],
+            )
+            save_config.assert_not_called()
 
     def test_check_app_update_reports_all_sources_failed(self) -> None:
         gitee_url = "https://gitee.test/update/app-manifest.json"
@@ -162,7 +229,7 @@ class AppUpdaterTests(unittest.TestCase):
         )
 
         with patch.object(config, "APP_UPDATE_MANIFEST_URLS", [gitee_url, github_url]), patch.object(
-            config, "APP_UPDATE_MANIFEST_URL", ""
+            app_updater, "APP_UPDATE_MANIFEST_URLS", ()
         ):
             result = app_updater.check_app_update(current_version="0.1.0", session=session)
 
@@ -225,6 +292,115 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertFalse(quiet["force_update_prompt"])
         self.assertTrue(prompted["prompt_update"])
         self.assertTrue(prompted["force_update_prompt"])
+
+    def test_generate_manifest_writes_runtime_config_from_explicit_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            Path(root, "demo.txt").write_bytes(b"demo")
+            runtime_config_path = root / "private-runtime-config.json"
+            runtime_config_path.write_text(
+                json.dumps(
+                    {
+                        "QUARK_DOWNLOAD_URL": " https://pan.example/download ",
+                        "ROUTE_RESOURCE_URL": "https://example.test/routes",
+                        "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
+                        "FEEDBACK_QQ_GROUP": "123456789",
+                        "APP_UPDATE_MANIFEST_URL": "https://gitee.test/app-manifest.json",
+                        "APP_UPDATE_MANIFEST_URLS": [
+                            "https://gitee.test/app-manifest.json",
+                            "https://gitee.test/app-manifest.json",
+                            "https://github.test/app-manifest.json",
+                            "",
+                        ],
+                        "SECRET_TOKEN": "do-not-ship",
+                        "ROUTE_DEFAULT_COLOR": "#ff00ff",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            manifest = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=False,
+                force_update_prompt=False,
+                runtime_config_path=runtime_config_path,
+            )
+
+        self.assertEqual(
+            manifest["runtime_config"],
+            {
+                "QUARK_DOWNLOAD_URL": "https://pan.example/download",
+                "ROUTE_RESOURCE_URL": "https://example.test/routes",
+                "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
+                "FEEDBACK_QQ_GROUP": "123456789",
+                "APP_UPDATE_MANIFEST_URLS": [
+                    "https://gitee.test/app-manifest.json",
+                    "https://github.test/app-manifest.json",
+                ],
+            },
+        )
+        self.assertNotIn("SECRET_TOKEN", manifest["runtime_config"])
+        self.assertNotIn("ROUTE_DEFAULT_COLOR", manifest["runtime_config"])
+
+    def test_generate_manifest_ignores_missing_and_invalid_runtime_config_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            Path(root, "demo.txt").write_bytes(b"demo")
+
+            missing_manifest = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=False,
+                force_update_prompt=False,
+                runtime_config_path=root / "missing-runtime-config.json",
+            )
+
+            runtime_config_path = root / "runtime-config.json"
+            runtime_config_path.write_text(
+                json.dumps(
+                    {
+                        "QUARK_DOWNLOAD_URL": ["https://wrong.example"],
+                        "ROUTE_RESOURCE_URL": 123,
+                        "FEEDBACK_BILIBILI_URL": None,
+                        "FEEDBACK_QQ_GROUP": {},
+                        "APP_UPDATE_MANIFEST_URL": False,
+                        "APP_UPDATE_MANIFEST_URLS": "https://wrong.example",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            invalid_manifest = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=False,
+                force_update_prompt=False,
+                runtime_config_path=runtime_config_path,
+            )
+            runtime_config_path.write_text("{broken", encoding="utf-8")
+            broken_manifest = generate_update_manifest.build_manifest(
+                root,
+                version="0.2.0",
+                base_url="https://example.test/update/",
+                notes="",
+                requires_launcher_update=False,
+                prompt_update=False,
+                force_update_prompt=False,
+                runtime_config_path=runtime_config_path,
+            )
+
+        self.assertNotIn("runtime_config", missing_manifest)
+        self.assertNotIn("runtime_config", invalid_manifest)
+        self.assertNotIn("runtime_config", broken_manifest)
 
     def test_generate_manifest_excludes_user_routes_and_points(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

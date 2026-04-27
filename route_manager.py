@@ -12,9 +12,7 @@ import secrets
 import shutil
 import time
 import uuid
-from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Iterable
 
 import cv2
@@ -39,7 +37,9 @@ _RECENT_FILE = "recent_routes.json"
 _ALGORITHM_CATEGORY = "算法生成"
 _ALGORITHM_ROUTE_SUFFIX = "_路线(算法生成)"
 _INVALID_FILE_NAME_CHARS = set('<>:"/\\|?*')
-_ROUTE_ID_SEQ_WIDTH = 2
+_ROUTE_ID_LENGTH = 13
+_ROUTE_ID_MIN = 10 ** (_ROUTE_ID_LENGTH - 1)
+_ROUTE_ID_RANGE = 9 * _ROUTE_ID_MIN
 _POINT_ICON_SIZE = 24
 _POINT_ICON_VISITED_ALPHA = 0.35
 _ANNOTATION_ICON_SIZE = 20
@@ -96,6 +96,18 @@ def _config_int(name: str, default: int, minimum: int = 0) -> int:
         return max(minimum, int(getattr(config, name, default) or default))
     except (TypeError, ValueError):
         return max(minimum, default)
+
+
+def _clamp_opacity(value: object, default: float) -> float:
+    try:
+        opacity = float(value)
+    except (TypeError, ValueError):
+        opacity = float(default)
+    return max(0.0, min(1.0, opacity))
+
+
+def _config_opacity(name: str, default: float) -> float:
+    return _clamp_opacity(getattr(config, name, default), default)
 
 
 def _project_root() -> str:
@@ -186,6 +198,25 @@ def _draw_styled_line(
         p2 = (int(round(sx + ux * segment_end)), int(round(sy + uy * segment_end)))
         cv2.line(canvas, p1, p2, _SPECIAL_SEGMENT_COLOR, thickness, cv2.LINE_AA)
         cursor += dash_len + gap_len
+
+
+def _draw_circle_with_opacity(
+    canvas: np.ndarray,
+    center: tuple[int, int],
+    radius: int,
+    color: tuple[int, int, int],
+    thickness: int,
+    opacity: float,
+) -> None:
+    alpha = _clamp_opacity(opacity, 1.0)
+    if alpha <= 0:
+        return
+    if alpha >= 1.0:
+        cv2.circle(canvas, center, radius, color, thickness, cv2.LINE_AA)
+        return
+    overlay = canvas.copy()
+    cv2.circle(overlay, center, radius, color, thickness, cv2.LINE_AA)
+    cv2.addWeighted(overlay, alpha, canvas, 1.0 - alpha, 0, dst=canvas)
 
 
 def _safe_route_stem(value: object, fallback: str) -> str:
@@ -642,6 +673,7 @@ class RouteManager:
         self._color_cache: dict[str, tuple[int, int, int]] = {}
         self._route_index_by_id: dict[str, dict] = {}
         self._category_by_route_id: dict[str, str] = {}
+        self._generated_route_ids: set[str] = set()
         self._teleport_points_cache: list[_TeleportPoint] | None = None
         self._point_icon_index: dict[str, str] | None = None
         self._point_icon_cache: dict[str, np.ndarray | None] = {}
@@ -956,7 +988,7 @@ class RouteManager:
 
         base_name = _safe_route_stem(f"{source_name}{_ALGORITHM_ROUTE_SUFFIX}", f"{type_id}{_ALGORITHM_ROUTE_SUFFIX}")
         route_name, path = self._unique_route_name_and_path(category, base_name)
-        route_id = self._next_route_id(datetime.now().strftime("%Y%m%d"))
+        route_id = self._next_route_id()
         payload = {
             "id": route_id,
             "name": route_name,
@@ -1235,13 +1267,15 @@ class RouteManager:
 
         return outcomes
 
-    def save_route_points(self, route_id: str, points: list[dict]) -> bool:
+    def save_route_points(self, route_id: str, points: list[dict], loop: bool | None = None) -> bool:
         route = self.route_for_id(route_id)
         category = self.category_for_route_id(route_id)
         if route is None or category is None:
             return False
 
         old_points = route.get("points", [])
+        had_loop = "loop" in route
+        old_loop = route.get("loop")
         normalized: list[dict] = []
         for point in points or []:
             if not isinstance(point, dict):
@@ -1256,10 +1290,17 @@ class RouteManager:
             normalized.append(copied)
 
         route["points"] = normalized
+        if loop is not None:
+            route["loop"] = bool(loop)
         try:
             self._write_route_file(category, route.get("display_name", ""), route)
         except Exception as e:
             route["points"] = old_points
+            if loop is not None:
+                if had_loop:
+                    route["loop"] = old_loop
+                else:
+                    route.pop("loop", None)
             print(f"Save route points failed route_id={route_id}: {e}")
             return False
 
@@ -1409,6 +1450,33 @@ class RouteManager:
             return False
         return True
 
+    def set_point_node_type(self, route_ref: str, point_index: int, node_type: str) -> bool:
+        route_id = self.resolve_route_id(route_ref)
+        if route_id is None:
+            return False
+        route = self.route_for_id(route_id)
+        category = self.category_for_route_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if route is None or category is None or not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            return False
+        point = points[point_index]
+        if not isinstance(point, dict):
+            return False
+
+        normalized = _node_type({"node_type": node_type})
+        old_node_type = point.get("node_type", None)
+        point["node_type"] = normalized
+        try:
+            self._write_route_file(category, route.get("display_name", ""), route)
+        except Exception as e:
+            if old_node_type is None:
+                point.pop("node_type", None)
+            else:
+                point["node_type"] = old_node_type
+            print(f"Set point node type failed route_id={route_id} index={point_index}: {e}")
+            return False
+        return True
+
     def set_point_visited(self, route_ref: str, point_index: int, visited: bool) -> bool:
         route_id = self.resolve_route_id(route_ref)
         if route_id is None:
@@ -1430,6 +1498,7 @@ class RouteManager:
         self._color_cache = {}
         self._route_index_by_id = {}
         self._category_by_route_id = {}
+        self._generated_route_ids = set()
         self._discover_categories()
         self._ensure_route_ids()
         self._load_all_routes()
@@ -1516,7 +1585,7 @@ class RouteManager:
             return False
 
         payload = {
-            "id": self._next_route_id(datetime.now().strftime("%Y%m%d")),
+            "id": self._next_route_id(),
             "name": name,
             "notes": "",
             "loop": False,
@@ -1737,6 +1806,8 @@ class RouteManager:
 
                 visited = point_data.get("visited", False)
                 point_icon = self.point_icon_for(point_data.get("typeId"))
+                visited_point_opacity = _config_opacity("ROUTE_VISITED_POINT_OPACITY", 1.0)
+                visited_icon_opacity = _config_opacity("ROUTE_VISITED_ICON_OPACITY", _POINT_ICON_VISITED_ALPHA)
 
                 if visited:
                     dot_color = (45, 45, 45)
@@ -1752,11 +1823,12 @@ class RouteManager:
                         canvas,
                         point_icon,
                         local_point,
-                        opacity=_POINT_ICON_VISITED_ALPHA if visited else 1.0,
+                        opacity=visited_icon_opacity if visited else 1.0,
                     )
                 else:
-                    cv2.circle(canvas, local_point, 5, dot_color, -1)
-                    cv2.circle(canvas, local_point, 5, border_color, 1, cv2.LINE_AA)
+                    opacity = visited_point_opacity if visited else 1.0
+                    _draw_circle_with_opacity(canvas, local_point, 5, dot_color, -1, opacity)
+                    _draw_circle_with_opacity(canvas, local_point, 5, border_color, 1, opacity)
 
                 label = str(index + 1)
                 text_x = local_point[0] + (10 if point_icon is not None else 7)
@@ -1839,10 +1911,9 @@ class RouteManager:
             return
 
         used_ids: set[str] = set()
-        used_daily_sequences: dict[str, set[int]] = defaultdict(set)
-        pending_updates: list[tuple[str, dict, float]] = []
+        pending_updates: list[tuple[str, dict]] = []
 
-        for _category, path, created_at in route_files:
+        for _category, path, _created_at in route_files:
             try:
                 with open(path, "r", encoding="utf-8") as handle:
                     data = json.load(handle)
@@ -1855,13 +1926,12 @@ class RouteManager:
                 continue
             if self._is_valid_route_id(route_id) and route_id not in used_ids:
                 used_ids.add(route_id)
-                used_daily_sequences[route_id[:8]].add(int(route_id[8:]))
                 continue
 
-            pending_updates.append((path, data, created_at))
+            pending_updates.append((path, data))
 
-        for path, data, created_at in pending_updates:
-            route_id = self._allocate_route_id_for_timestamp(created_at, used_ids, used_daily_sequences)
+        for path, data in pending_updates:
+            route_id = self._allocate_route_id(used_ids)
             data["id"] = route_id
             try:
                 self._write_json_file(path, data)
@@ -1870,7 +1940,6 @@ class RouteManager:
 
     def _load_all_routes(self) -> None:
         used_ids: set[str] = set()
-        used_daily_sequences: dict[str, set[int]] = defaultdict(set)
 
         for category in self.categories:
             category_path = self._category_path(category)
@@ -1895,14 +1964,12 @@ class RouteManager:
 
                     route_id = data.get("id")
                     if not self._is_valid_route_id(route_id) or route_id in used_ids:
-                        created_at = self._route_file_timestamp(path)
-                        route_id = self._allocate_route_id_for_timestamp(created_at, used_ids, used_daily_sequences)
+                        route_id = self._allocate_route_id(used_ids)
                         data["id"] = route_id
                         if not has_edges:
                             self._write_json_file(path, data)
                     else:
                         used_ids.add(route_id)
-                        used_daily_sequences[route_id[:8]].add(int(route_id[8:]))
 
                     data.setdefault("name", route_name)
                     data.setdefault("notes", "")
@@ -2068,41 +2135,22 @@ class RouteManager:
             except OSError:
                 return time.time()
 
-    @staticmethod
-    def _date_key_for_timestamp(timestamp: float) -> str:
-        return time.strftime("%Y%m%d", time.localtime(timestamp))
-
-    @staticmethod
-    def _format_route_id(date_key: str, sequence: int) -> str:
-        return f"{date_key}{sequence:0{_ROUTE_ID_SEQ_WIDTH}d}"
-
-    def _allocate_route_id_for_timestamp(
-        self,
-        timestamp: float,
-        used_ids: set[str],
-        used_daily_sequences: dict[str, set[int]],
-    ) -> str:
-        date_key = self._date_key_for_timestamp(timestamp)
-        used_sequences = used_daily_sequences[date_key]
-        sequence = 1
-        while sequence in used_sequences:
-            sequence += 1
-        route_id = self._format_route_id(date_key, sequence)
-        used_sequences.add(sequence)
+    def _allocate_route_id(self, used_ids: set[str]) -> str:
+        route_id = self._new_random_route_id()
+        while route_id in used_ids:
+            route_id = self._new_random_route_id()
         used_ids.add(route_id)
         return route_id
 
-    def _next_route_id(self, date_key: str | None = None) -> str:
-        target_date = date_key or datetime.now().strftime("%Y%m%d")
-        used_sequences = {
-            int(route_id[8:])
-            for route_id in self._route_index_by_id
-            if route_id.startswith(target_date) and self._is_valid_route_id(route_id)
-        }
-        sequence = 1
-        while sequence in used_sequences:
-            sequence += 1
-        return self._format_route_id(target_date, sequence)
+    def _next_route_id(self) -> str:
+        used_ids = set(self._route_index_by_id) | self._generated_route_ids
+        route_id = self._allocate_route_id(used_ids)
+        self._generated_route_ids.add(route_id)
+        return route_id
+
+    @staticmethod
+    def _new_random_route_id() -> str:
+        return str(_ROUTE_ID_MIN + secrets.randbelow(_ROUTE_ID_RANGE))
 
     @staticmethod
     def _write_json_file(path: str, payload: dict) -> None:

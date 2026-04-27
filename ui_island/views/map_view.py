@@ -5,7 +5,7 @@ import math
 
 import cv2
 import numpy as np
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -29,6 +29,7 @@ class MapView(QWidget):
     mark_point_visited_requested = Signal(str, int, bool)
     change_point_annotation_requested = Signal(str, int)
     delete_point_annotation_requested = Signal(str, int)
+    change_point_node_type_requested = Signal(str, int, object)
     change_annotation_requested = Signal(str, int)
     add_annotation_to_route_requested = Signal(str, int)
     delete_annotation_requested = Signal(str, int)
@@ -92,6 +93,11 @@ class MapView(QWidget):
         self._center_locked = True
         self._view_center = QPointF(float(x), float(y))
         self._render_frame(state, x, y)
+
+    def focus_map_position(self, x: int, y: int) -> None:
+        self._center_locked = False
+        self._view_center = QPointF(float(x), float(y))
+        self._refresh_from_last_frame()
 
     def update_frame(
         self,
@@ -289,7 +295,7 @@ class MapView(QWidget):
             "id": self._drawing_context.get("route_id", ""),
             "display_name": self._drawing_context.get("name", ""),
             "points": self._drawing_context.get("points") or [],
-            "loop": False,
+            "loop": bool(self._drawing_context.get("loop")),
             "_hide_other_routes": bool(self._drawing_context.get("hide_other_routes")),
         }
 
@@ -530,6 +536,11 @@ class MapView(QWidget):
                         annotation_label,
                         lambda rid=route_id, idx=draft_hit: self.change_point_annotation_requested.emit(rid, idx),
                     ),
+                    ContextMenuItem(
+                        strings.CHANGE_POINT_NODE_TYPE_MENU_LABEL,
+                        lambda rid=route_id, idx=draft_hit, gpos=QPoint(event.globalPos()):
+                        self.change_point_node_type_requested.emit(rid, idx, gpos),
+                    ),
                 ]
                 if has_annotation:
                     items.append(
@@ -576,6 +587,11 @@ class MapView(QWidget):
                 ContextMenuItem(
                     annotation_label,
                     lambda rid=route_id, idx=point_index: self.change_point_annotation_requested.emit(rid, idx),
+                ),
+                ContextMenuItem(
+                    strings.CHANGE_POINT_NODE_TYPE_MENU_LABEL,
+                    lambda rid=route_id, idx=point_index, gpos=QPoint(event.globalPos()):
+                    self.change_point_node_type_requested.emit(rid, idx, gpos),
                 ),
             ]
             if has_annotation:

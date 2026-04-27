@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -18,7 +18,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 import requests
 
 import config
-from ..app.app_info import APP_UPDATE_MANIFEST_URL, APP_VERSION
+from ..app.app_info import APP_UPDATE_MANIFEST_URLS, APP_VERSION
 from ..design import strings
 
 
@@ -42,6 +42,13 @@ RESTART_PATHS = (
     "_internal/",
     "app/current/",
 )
+RUNTIME_CONFIG_STRING_KEYS = (
+    "QUARK_DOWNLOAD_URL",
+    "ROUTE_RESOURCE_URL",
+    "FEEDBACK_BILIBILI_URL",
+    "FEEDBACK_QQ_GROUP",
+)
+RUNTIME_CONFIG_LIST_KEYS = ("APP_UPDATE_MANIFEST_URLS",)
 
 
 @dataclass(frozen=True)
@@ -63,6 +70,7 @@ class AppUpdateManifest:
     prompt_update: bool = False
     force_update_prompt: bool = False
     source_base_url: str = ""
+    runtime_config: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -196,6 +204,55 @@ def _write_json_file(path: str, payload: dict) -> None:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
 
+def _dedupe_runtime_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        clean = str(value or "").strip()
+        if clean and clean not in seen:
+            seen.add(clean)
+            result.append(clean)
+    return result
+
+
+def sanitize_runtime_config(payload: Any) -> dict[str, object]:
+    if not isinstance(payload, dict):
+        return {}
+
+    runtime_config: dict[str, object] = {}
+    for key in RUNTIME_CONFIG_STRING_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str):
+            runtime_config[key] = value.strip()
+
+    manifest_urls: list[str] = []
+    legacy_manifest_url = payload.get("APP_UPDATE_MANIFEST_URL")
+    if isinstance(legacy_manifest_url, str):
+        manifest_urls.append(legacy_manifest_url)
+    for key in RUNTIME_CONFIG_LIST_KEYS:
+        value = payload.get(key)
+        if isinstance(value, list):
+            manifest_urls.extend(item for item in value if isinstance(item, str))
+    clean_manifest_urls = _dedupe_runtime_strings(manifest_urls)
+    if clean_manifest_urls:
+        runtime_config["APP_UPDATE_MANIFEST_URLS"] = clean_manifest_urls
+
+    return runtime_config
+
+
+def apply_runtime_config(runtime_config: dict[str, object] | None) -> None:
+    if not isinstance(runtime_config, dict) or not runtime_config:
+        return
+
+    clean_config = sanitize_runtime_config(runtime_config)
+    if not clean_config:
+        return
+
+    config.settings.update(clean_config)
+    for key, value in clean_config.items():
+        setattr(config, key, value)
+
+
 def parse_app_manifest(payload: dict[str, Any], *, source_base_url: str = "") -> AppUpdateManifest:
     if not isinstance(payload, dict) or not payload:
         raise ManifestError(strings.UPDATE_ERROR_MANIFEST_EMPTY)
@@ -243,6 +300,7 @@ def parse_app_manifest(payload: dict[str, Any], *, source_base_url: str = "") ->
         prompt_update=bool(payload.get("prompt_update", False)),
         force_update_prompt=bool(payload.get("force_update_prompt", False)),
         source_base_url=source_base_url,
+        runtime_config=sanitize_runtime_config(payload.get("runtime_config")),
     )
 
 
@@ -402,8 +460,7 @@ def _configured_manifest_urls(manifest_url: str | None) -> list[str]:
     configured_urls = getattr(config, "APP_UPDATE_MANIFEST_URLS", None)
     if isinstance(configured_urls, (list, tuple)):
         urls.extend(str(url) for url in configured_urls)
-    urls.append(getattr(config, "APP_UPDATE_MANIFEST_URL", ""))
-    urls.append(APP_UPDATE_MANIFEST_URL)
+    urls.extend(str(url) for url in APP_UPDATE_MANIFEST_URLS)
     return _dedupe_urls(urls)
 
 
@@ -458,6 +515,7 @@ def check_app_update(
             errors.append(str(exc))
             continue
 
+        apply_runtime_config(manifest.runtime_config)
         return build_update_plan(manifest, current_version=current_version)
 
     error = strings.UPDATE_ERROR_ALL_SOURCES_FAILED_FMT.format(count=len(urls))

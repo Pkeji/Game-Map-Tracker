@@ -63,16 +63,22 @@ DEFAULT_CONFIG = {
     "ROUTE_GUIDE_POINTER_SIZE": 10,
     "ROUTE_MULTI_COLOR_ENABLED": True,
     "ROUTE_DEFAULT_COLOR": "#1ad1ff",
+    "ROUTE_VISITED_POINT_OPACITY": 1.0,
+    "ROUTE_VISITED_ICON_OPACITY": 0.35,
+    "WINDOW_LOCKED_OPACITY": 0.78,
+    "WINDOW_NORMAL_OPACITY": 1.0,
     "ROUTE_SECTION_EXPANDED": {},
     "ANNOTATION_TYPE_IDS": [],
     "ANNOTATION_RECENT_TYPE_IDS": [],
-    "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
-    "APP_UPDATE_MANIFEST_URL": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
-    "APP_UPDATE_MANIFEST_URLS": [
-        "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
-        "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json",
-    ],
     "APP_UPDATE_LAST_PROMPTED_VERSION": "",
+}
+OBSOLETE_CONFIG_KEYS = {
+    "QUARK_DOWNLOAD_URL",
+    "ROUTE_RESOURCE_URL",
+    "FEEDBACK_BILIBILI_URL",
+    "FEEDBACK_QQ_GROUP",
+    "APP_UPDATE_MANIFEST_URL",
+    "APP_UPDATE_MANIFEST_URLS",
 }
 
 
@@ -168,9 +174,12 @@ def _merge_dict(defaults: dict, user_values: dict, prefix: str = "") -> tuple[di
             merged[key] = _clone(default_value)
             repaired.append(key_path)
 
-    # 首版不清理未知/废弃字段，避免误删用户或旧版本留下的数据。
+    # 未知字段继续保留，列入废弃清单的旧字段会在合并时清理。
     for key, user_value in user_values.items():
         if key not in defaults:
+            if not prefix and key in OBSOLETE_CONFIG_KEYS:
+                repaired.append(str(key))
+                continue
             merged[key] = _clone(user_value)
 
     return merged, repaired
@@ -266,9 +275,11 @@ PAUSED_VIEW_SIZE = settings.get("PAUSED_VIEW_SIZE")
 ROUTE_SECTION_EXPANDED = settings.get("ROUTE_SECTION_EXPANDED") or {}
 ANNOTATION_TYPE_IDS = settings.get("ANNOTATION_TYPE_IDS") or []
 ANNOTATION_RECENT_TYPE_IDS = settings.get("ANNOTATION_RECENT_TYPE_IDS") or []
-QUARK_DOWNLOAD_URL = settings.get("QUARK_DOWNLOAD_URL") or ""
-APP_UPDATE_MANIFEST_URL = settings.get("APP_UPDATE_MANIFEST_URL") or ""
-APP_UPDATE_MANIFEST_URLS = settings.get("APP_UPDATE_MANIFEST_URLS") or []
+QUARK_DOWNLOAD_URL = ""
+ROUTE_RESOURCE_URL = ""
+FEEDBACK_BILIBILI_URL = ""
+FEEDBACK_QQ_GROUP = ""
+APP_UPDATE_MANIFEST_URLS = []
 APP_UPDATE_LAST_PROMPTED_VERSION = settings.get("APP_UPDATE_LAST_PROMPTED_VERSION") or ""
 
 
@@ -319,3 +330,7 @@ ROUTE_GUIDE_POINTER_SPACING = settings.get("ROUTE_GUIDE_POINTER_SPACING")
 ROUTE_GUIDE_POINTER_SIZE = settings.get("ROUTE_GUIDE_POINTER_SIZE")
 ROUTE_MULTI_COLOR_ENABLED = settings.get("ROUTE_MULTI_COLOR_ENABLED")
 ROUTE_DEFAULT_COLOR = settings.get("ROUTE_DEFAULT_COLOR")
+ROUTE_VISITED_POINT_OPACITY = settings.get("ROUTE_VISITED_POINT_OPACITY")
+ROUTE_VISITED_ICON_OPACITY = settings.get("ROUTE_VISITED_ICON_OPACITY")
+WINDOW_LOCKED_OPACITY = settings.get("WINDOW_LOCKED_OPACITY")
+WINDOW_NORMAL_OPACITY = settings.get("WINDOW_NORMAL_OPACITY")

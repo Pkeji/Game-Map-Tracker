@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from route_manager import (
     _GuideTarget,
+    _config_opacity,
     _distance_to_segment,
     _guide_distance_label,
     _guide_target_for_player,
@@ -16,6 +17,10 @@ from route_manager import (
     _route_color_from_hex,
     RouteManager,
 )
+
+
+def _is_13_digit_route_id(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 13 and value.isdigit()
 
 
 class RouteGuideTests(unittest.TestCase):
@@ -37,6 +42,16 @@ class RouteGuideTests(unittest.TestCase):
 
     def test_invalid_route_default_color_falls_back_to_blue(self) -> None:
         self.assertEqual(_route_color_from_hex("not-a-color"), (255, 209, 26))
+
+    def test_config_opacity_clamps_invalid_values(self) -> None:
+        with patch("config.ROUTE_VISITED_ICON_OPACITY", 0.35):
+            self.assertEqual(_config_opacity("ROUTE_VISITED_ICON_OPACITY", 1.0), 0.35)
+        with patch("config.ROUTE_VISITED_ICON_OPACITY", 1.5):
+            self.assertEqual(_config_opacity("ROUTE_VISITED_ICON_OPACITY", 0.35), 1.0)
+        with patch("config.ROUTE_VISITED_ICON_OPACITY", -0.2):
+            self.assertEqual(_config_opacity("ROUTE_VISITED_ICON_OPACITY", 0.35), 0.0)
+        with patch("config.ROUTE_VISITED_ICON_OPACITY", "bad"):
+            self.assertEqual(_config_opacity("ROUTE_VISITED_ICON_OPACITY", 0.35), 0.35)
 
     def test_distance_to_segment_projects_inside_segment(self) -> None:
         distance, projection = _distance_to_segment((5.0, 5.0), (0.0, 0.0), (10.0, 0.0))
@@ -385,6 +400,33 @@ class RouteGuideTests(unittest.TestCase):
             self.assertEqual(payload["points"][0]["type"], "向阳花")
             self.assertNotIn("visited", payload["points"][0])
 
+    def test_save_route_points_writes_loop_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "采集"
+            category.mkdir()
+            route_file = category / "路线.json"
+            route_file.write_text(
+                json.dumps(
+                    {
+                        "id": "2026010101",
+                        "name": "路线",
+                        "loop": False,
+                        "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manager = RouteManager(str(base))
+            points = manager.route_for_id("2026010101")["points"]
+
+            self.assertTrue(manager.save_route_points("2026010101", points, loop=True))
+            self.assertTrue(json.loads(route_file.read_text(encoding="utf-8"))["loop"])
+
+            self.assertTrue(manager.save_route_points("2026010101", points, loop=False))
+            self.assertFalse(json.loads(route_file.read_text(encoding="utf-8"))["loop"])
+
     def test_set_point_annotation_rejects_invalid_inputs_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -404,6 +446,110 @@ class RouteGuideTests(unittest.TestCase):
             self.assertFalse(manager.set_point_annotation("missing", 0, "flower", "向阳花"))
             self.assertFalse(manager.set_point_annotation("2026010101", 9, "flower", "向阳花"))
             self.assertFalse(manager.set_point_annotation("2026010101", 0, "", "向阳花"))
+            self.assertEqual(route_file.read_text(encoding="utf-8"), before)
+
+    def test_set_point_node_type_writes_supported_types(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "routes"
+            category.mkdir()
+            route_file = category / "route.json"
+            route_file.write_text(
+                json.dumps(
+                    {
+                        "id": "2026010101",
+                        "name": "route",
+                        "points": [{"x": 1, "y": 2, "visited": True}],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manager = RouteManager(str(base))
+
+            for node_type in ("teleport", "virtual", "collect"):
+                self.assertTrue(manager.set_point_node_type("2026010101", 0, node_type))
+                payload = json.loads(route_file.read_text(encoding="utf-8"))
+                self.assertEqual(payload["points"][0]["node_type"], node_type)
+                self.assertNotIn("visited", payload["points"][0])
+
+    def test_set_point_node_type_defaults_missing_or_invalid_to_collect(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "routes"
+            category.mkdir()
+            route_file = category / "route.json"
+            route_file.write_text(
+                json.dumps(
+                    {
+                        "id": "2026010101",
+                        "name": "route",
+                        "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4, "node_type": "bad"}],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manager = RouteManager(str(base))
+
+            self.assertTrue(manager.set_point_node_type("2026010101", 0, ""))
+            self.assertTrue(manager.set_point_node_type("2026010101", 1, "bad"))
+            payload = json.loads(route_file.read_text(encoding="utf-8"))
+            self.assertEqual(payload["points"][0]["node_type"], "collect")
+            self.assertEqual(payload["points"][1]["node_type"], "collect")
+
+    def test_set_point_node_type_writes_external_nodes_without_overwriting_legacy_points(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            routes_dir = Path(tmp) / "routes"
+            category = routes_dir / "other"
+            category.mkdir(parents=True)
+            source = category / "edge-route.json"
+            legacy_points = [{"x": 999, "y": 999, "label": "legacy"}]
+            source.write_text(
+                json.dumps(
+                    {
+                        "name": "edge-route",
+                        "points": legacy_points,
+                        "nodes": [
+                            {"id": "a", "x": 10, "y": 20},
+                            {"id": "b", "x": 30, "y": 40, "node_type": "collect"},
+                        ],
+                        "edges": [
+                            {"id": "e1", "from": "a", "to": "b", "edge_type": "virtual"},
+                        ],
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manager = RouteManager(str(routes_dir))
+            route = next(route for _category, route in manager.iter_routes() if route.get("display_name") == "edge-route")
+            route_id = manager.route_id(route)
+
+            self.assertTrue(manager.set_point_node_type(route_id, 0, "teleport"))
+            saved = json.loads(source.read_text(encoding="utf-8"))
+            self.assertEqual(saved["nodes"][0]["node_type"], "teleport")
+            self.assertEqual(saved["points"], legacy_points)
+
+    def test_set_point_node_type_rejects_invalid_inputs_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "routes"
+            category.mkdir()
+            route_file = category / "route.json"
+            route_file.write_text(
+                json.dumps(
+                    {"id": "2026010101", "name": "route", "points": [{"x": 1, "y": 2}]},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            before = route_file.read_text(encoding="utf-8")
+            manager = RouteManager(str(base))
+
+            self.assertFalse(manager.set_point_node_type("missing", 0, "teleport"))
+            self.assertFalse(manager.set_point_node_type("2026010101", 9, "teleport"))
             self.assertEqual(route_file.read_text(encoding="utf-8"), before)
 
     def test_clear_point_annotation_removes_type_fields_only(self) -> None:
@@ -710,6 +856,69 @@ class RouteGuideTests(unittest.TestCase):
             self.assertEqual(point["label"], "Field Flower")
             self.assertNotIn("visited", point)
 
+    def test_create_route_uses_13_digit_string_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "采集"
+            category.mkdir()
+            manager = RouteManager(str(base))
+
+            self.assertTrue(manager.create_route("采集", "路线"))
+
+            payload = json.loads((category / "路线.json").read_text(encoding="utf-8"))
+            self.assertTrue(_is_13_digit_route_id(payload["id"]))
+
+    def test_create_route_avoids_generated_id_collisions_before_reload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "采集"
+            category.mkdir()
+            manager = RouteManager(str(base))
+
+            with patch("route_manager.secrets.randbelow", side_effect=[7, 7, 8]):
+                self.assertTrue(manager.create_route("采集", "路线一"))
+                self.assertTrue(manager.create_route("采集", "路线二"))
+
+            first = json.loads((category / "路线一.json").read_text(encoding="utf-8"))
+            second = json.loads((category / "路线二.json").read_text(encoding="utf-8"))
+            self.assertEqual(first["id"], "1000000000007")
+            self.assertEqual(second["id"], "1000000000008")
+
+    def test_route_id_repair_uses_13_digit_string_and_preserves_old_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            category = base / "采集"
+            category.mkdir()
+            (category / "a_old.json").write_text(
+                json.dumps({"id": "2026010101", "name": "old", "points": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (category / "b_duplicate.json").write_text(
+                json.dumps({"id": "2026010101", "name": "duplicate", "points": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (category / "c_invalid.json").write_text(
+                json.dumps({"id": 1234567890123, "name": "invalid", "points": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (category / "d_missing.json").write_text(
+                json.dumps({"name": "missing", "points": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            manager = RouteManager(str(base))
+
+            old = json.loads((category / "a_old.json").read_text(encoding="utf-8"))
+            duplicate = json.loads((category / "b_duplicate.json").read_text(encoding="utf-8"))
+            invalid = json.loads((category / "c_invalid.json").read_text(encoding="utf-8"))
+            missing = json.loads((category / "d_missing.json").read_text(encoding="utf-8"))
+            repaired_ids = {duplicate["id"], invalid["id"], missing["id"]}
+
+            self.assertEqual(old["id"], "2026010101")
+            self.assertIsNotNone(manager.route_for_id("2026010101"))
+            self.assertTrue(all(_is_13_digit_route_id(route_id) for route_id in repaired_ids))
+            self.assertEqual(len(repaired_ids), 3)
+
     def test_annotation_point_mutations_reject_invalid_inputs_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             points_file = Path(tmp) / "points.json"
@@ -756,6 +965,8 @@ class RouteGuideTests(unittest.TestCase):
             self.assertTrue(all(point["typeId"] == "flower" for point in payload["points"]))
             self.assertTrue(all(point["radius"] == 30 for point in payload["points"]))
             self.assertIn("来源标注：向阳花", payload["notes"])
+            self.assertTrue(_is_13_digit_route_id(result["id"]))
+            self.assertEqual(payload["id"], result["id"])
             self.assertIn(result["id"], manager._route_index_by_id)
 
     def test_create_optimized_annotation_route_auto_numbers_duplicates(self) -> None:
@@ -775,6 +986,8 @@ class RouteGuideTests(unittest.TestCase):
             self.assertEqual(Path(second["path"]).name, "矿石_路线(算法生成) 2.json")
             self.assertTrue(Path(first["path"]).exists())
             self.assertTrue(Path(second["path"]).exists())
+            self.assertTrue(_is_13_digit_route_id(first["id"]))
+            self.assertTrue(_is_13_digit_route_id(second["id"]))
             self.assertNotEqual(first["id"], second["id"])
 
     def test_create_optimized_annotation_route_rejects_empty_points(self) -> None:

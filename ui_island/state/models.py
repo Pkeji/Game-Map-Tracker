@@ -63,6 +63,8 @@ class RouteDrawingState:
     original_points: list[dict] = field(default_factory=list)
     draft_points: list[dict] = field(default_factory=list)
     original_count: int = 0
+    loop: bool = False
+    original_loop: bool = False
     node_type: str = "collect"
     add_node_annotation: bool = False
     same_annotation_type: bool = False
@@ -82,6 +84,8 @@ class RouteDrawingState:
         self.original_points = []
         self.draft_points = []
         self.original_count = 0
+        self.loop = False
+        self.original_loop = False
         self.node_type = "collect"
         self.add_node_annotation = False
         self.same_annotation_type = False
@@ -92,7 +96,7 @@ class RouteDrawingState:
         self.dirty = False
         self.added_count = 0
 
-    def begin(self, *, route_id: str, category: str, name: str, points: list[dict]) -> None:
+    def begin(self, *, route_id: str, category: str, name: str, points: list[dict], loop: bool = False) -> None:
         copied = deepcopy(points)
         self.reset()
         self.active = True
@@ -102,6 +106,8 @@ class RouteDrawingState:
         self.original_points = deepcopy(copied)
         self.draft_points = copied
         self.original_count = len(copied)
+        self.loop = bool(loop)
+        self.original_loop = bool(loop)
 
 
 @dataclass

@@ -1,17 +1,7 @@
 {
     "CONFIG_VERSION": 2,
-    "MINIMAP": {
-        "top": 56,
-        "left": 2295,
-        "width": 225,
-        "height": 225
-    },
-    "WINDOW_GEOMETRY": {
-        "x": 1040,
-        "y": 159,
-        "width": 783,
-        "height": 510
-    },
+    "MINIMAP": {},
+    "WINDOW_GEOMETRY": {},
     "LOCKED_VIEW_SIZE": {
         "width": 420,
         "height": 360
@@ -34,16 +24,21 @@
     "SIFT_LOCAL_SEARCH_RADIUS": 400,
     "ROUTE_RECENT_LIMIT": 3,
     "ROUTE_GUIDE_NODE_DISTANCE": 80,
-    "ROUTE_GUIDE_SEGMENT_DISTANCE": 40,
-    "ROUTE_GUIDE_POINTER_SPACING": 16,
+    "ROUTE_GUIDE_SEGMENT_DISTANCE": 35,
+    "ROUTE_GUIDE_POINTER_SPACING": 28,
     "ROUTE_GUIDE_POINTER_SIZE": 10,
+    "ROUTE_MULTI_COLOR_ENABLED": true,
+    "ROUTE_DEFAULT_COLOR": "#1ad1ff",
+    "ROUTE_VISITED_POINT_OPACITY": 1.0,
+    "ROUTE_VISITED_ICON_OPACITY": 0.35,
+    "WINDOW_LOCKED_OPACITY": 0.78,
+    "WINDOW_NORMAL_OPACITY": 1.0,
     "ROUTE_SECTION_EXPANDED": {
-        "其他": false,
+        "其他": true,
         "地区路线": false,
         "植物": false,
         "矿物": false,
-        "特定精灵球": false,
-        "奔波鼠挖矿速跑路线": true
+        "特定精灵球": false
     },
     "ANNOTATION_TYPE_IDS": [
         "17310030001",
@@ -138,12 +133,6 @@
         "17310030028",
         "17310030027",
         "17310030030"
-    ],
-    "QUARK_DOWNLOAD_URL": "https://pan.quark.cn/s/227ae5ec7d30?pwd=pTaL",
-    "APP_UPDATE_MANIFEST_URL": "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
-    "APP_UPDATE_MANIFEST_URLS": [
-        "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json",
-        "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json"
     ],
     "APP_UPDATE_LAST_PROMPTED_VERSION": "0.1.0"
 }

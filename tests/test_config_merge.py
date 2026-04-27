@@ -63,6 +63,10 @@ class ConfigMergeTests(unittest.TestCase):
 
         self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], True)
         self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#1ad1ff")
+        self.assertEqual(merged["ROUTE_VISITED_POINT_OPACITY"], 1.0)
+        self.assertEqual(merged["ROUTE_VISITED_ICON_OPACITY"], 0.35)
+        self.assertEqual(merged["WINDOW_LOCKED_OPACITY"], 0.78)
+        self.assertEqual(merged["WINDOW_NORMAL_OPACITY"], 1.0)
 
         user = {
             "CONFIG_VERSION": 2,
@@ -86,6 +90,49 @@ class ConfigMergeTests(unittest.TestCase):
         self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#1ad1ff")
         self.assertIn("ROUTE_MULTI_COLOR_ENABLED", repaired)
         self.assertIn("ROUTE_DEFAULT_COLOR", repaired)
+
+        user = {
+            "CONFIG_VERSION": 2,
+            "ROUTE_VISITED_POINT_OPACITY": "solid",
+            "ROUTE_VISITED_ICON_OPACITY": [],
+            "WINDOW_LOCKED_OPACITY": None,
+            "WINDOW_NORMAL_OPACITY": {},
+        }
+        merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
+
+        self.assertEqual(merged["ROUTE_VISITED_POINT_OPACITY"], 1.0)
+        self.assertEqual(merged["ROUTE_VISITED_ICON_OPACITY"], 0.35)
+        self.assertEqual(merged["WINDOW_LOCKED_OPACITY"], 0.78)
+        self.assertEqual(merged["WINDOW_NORMAL_OPACITY"], 1.0)
+        self.assertIn("ROUTE_VISITED_POINT_OPACITY", repaired)
+        self.assertIn("ROUTE_VISITED_ICON_OPACITY", repaired)
+        self.assertIn("WINDOW_LOCKED_OPACITY", repaired)
+        self.assertIn("WINDOW_NORMAL_OPACITY", repaired)
+
+    def test_runtime_remote_config_fields_are_removed_from_config_json(self) -> None:
+        user = {
+            "CONFIG_VERSION": 2,
+            "QUARK_DOWNLOAD_URL": "https://example.com/quark",
+            "ROUTE_RESOURCE_URL": "https://example.com/routes",
+            "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
+            "FEEDBACK_QQ_GROUP": "123456789",
+            "APP_UPDATE_MANIFEST_URL": "https://example.com/app-manifest.json",
+            "APP_UPDATE_MANIFEST_URLS": ["https://example.com/app-manifest.json"],
+        }
+        merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
+
+        self.assertNotIn("QUARK_DOWNLOAD_URL", merged)
+        self.assertNotIn("ROUTE_RESOURCE_URL", merged)
+        self.assertNotIn("FEEDBACK_BILIBILI_URL", merged)
+        self.assertNotIn("FEEDBACK_QQ_GROUP", merged)
+        self.assertNotIn("APP_UPDATE_MANIFEST_URL", merged)
+        self.assertNotIn("APP_UPDATE_MANIFEST_URLS", merged)
+        self.assertIn("QUARK_DOWNLOAD_URL", repaired)
+        self.assertIn("ROUTE_RESOURCE_URL", repaired)
+        self.assertIn("FEEDBACK_BILIBILI_URL", repaired)
+        self.assertIn("FEEDBACK_QQ_GROUP", repaired)
+        self.assertIn("APP_UPDATE_MANIFEST_URL", repaired)
+        self.assertIn("APP_UPDATE_MANIFEST_URLS", repaired)
 
     def test_merge_config_file_backs_up_and_rewrites_corrupt_json(self) -> None:
         defaults = {"CONFIG_VERSION": 2, "SIDEBAR_WIDTH": 270}

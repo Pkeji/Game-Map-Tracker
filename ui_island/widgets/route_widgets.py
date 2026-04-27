@@ -367,6 +367,12 @@ class TrackedRouteItem(QWidget):
         self.reset_btn.setVisible(has_progress)
         layout.addWidget(self.reset_btn, alignment=Qt.AlignVCenter)
 
+        self.jump_node_btn = QPushButton("🚩", self)
+        self.jump_node_btn.setProperty("trackedRouteAddButton", True)
+        self.jump_node_btn.setToolTip(strings.ROUTE_TRACKED_JUMP_NODE_TOOLTIP)
+        self.jump_node_btn.setFixedWidth(26)
+        layout.addWidget(self.jump_node_btn, alignment=Qt.AlignVCenter)
+
         self.add_point_btn = QPushButton("⨁", self)
         self.add_point_btn.setProperty("trackedRouteAddButton", True)
         self.add_point_btn.setToolTip("将当前位置加入此路线")

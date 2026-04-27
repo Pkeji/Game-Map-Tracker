@@ -8,14 +8,13 @@ import threading
 from html import escape
 from typing import Callable
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QDoubleValidator, QIntValidator, QMouseEvent
+from PySide6.QtCore import QPoint, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QDoubleValidator, QIntValidator, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QColorDialog,
     QDialog,
-    QDialogButtonBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -29,7 +28,7 @@ from PySide6.QtWidgets import (
 
 import config
 
-from . import StyledConfirm, StyledMessage, Toast, center_dialog, place_left_of, toast, toast_persistent
+from . import StyledConfirm, StyledDialogBase, StyledMessage, Toast, center_dialog, place_left_of, toast, toast_persistent
 from ..design import qss, strings, tokens
 from ..services.app_updater import (
     AppUpdateCheckResult,
@@ -124,7 +123,7 @@ class SettingsDialog(QDialog):
     _SECTION_H_MARGIN = 14
     _SECTION_TOP_MARGIN = 12
     _SECTION_BOTTOM_MARGIN = 12
-    _TOOLS_SECTION_WIDTH = 150
+    _TOOLS_SECTION_WIDTH = 112
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -145,6 +144,7 @@ class SettingsDialog(QDialog):
         self._route_default_color = self._normalize_route_color(
             getattr(config, "ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX)
         )
+        self._opacity_editors: dict[str, QLineEdit] = {}
         self._update_check_button: QPushButton | None = None
         self._update_check_running = False
         self._update_progress_toast: Toast | None = None
@@ -191,7 +191,8 @@ class SettingsDialog(QDialog):
 
         minimap_row = self._build_minimap_row()
         route_color_row = self._build_route_color_row()
-        common_extra = self._build_common_extra(minimap_row, route_color_row)
+        opacity_row = self._build_opacity_row()
+        common_extra = self._build_common_extra(minimap_row, opacity_row, route_color_row)
         tools_section = self._build_tools_section()
 
         buttons_bar = QWidget()
@@ -234,16 +235,26 @@ class SettingsDialog(QDialog):
             button_row_height=buttons_bar.sizeHint().height(),
             shell_spacing=shell_layout.spacing(),
         )
+        bottom_section_height = 313
+        bottom_section_body_height = (
+            bottom_section_height
+            - self._SECTION_TOP_MARGIN
+            - self._SECTION_BOTTOM_MARGIN
+            - 8
+            - self._section_title_height()
+        )
         common_section = self._build_section(
             "通用设置",
             COMMON_FIELDS,
-            max_height=top_section_max_height,
+            max_height=bottom_section_body_height,
             two_columns=True,
             narrow_editor=True,
             extra_widget=common_extra,
             extra_widget_position="top",
             horizontal_scroll=True,
         )
+        common_section.setFixedHeight(bottom_section_height)
+        tools_section.setFixedHeight(bottom_section_height)
 
         columns = QHBoxLayout()
         columns.setSpacing(10)
@@ -261,8 +272,8 @@ class SettingsDialog(QDialog):
 
         bottom_cols = QHBoxLayout()
         bottom_cols.setSpacing(10)
-        bottom_cols.addWidget(common_section, stretch=2)
-        bottom_cols.addWidget(tools_section, stretch=0)
+        bottom_cols.addWidget(common_section, stretch=2, alignment=Qt.AlignTop)
+        bottom_cols.addWidget(tools_section, stretch=0, alignment=Qt.AlignTop)
         shell_layout.addLayout(bottom_cols)
         shell_layout.addWidget(buttons_bar)
 
@@ -288,6 +299,8 @@ class SettingsDialog(QDialog):
         title_label = QLabel(title)
         title_label.setObjectName("TitleLabel")
         title_label.setStyleSheet("font-size: 13px;")
+        title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        title_label.setFixedHeight(title_label.sizeHint().height())
         card_layout.addWidget(title_label)
 
         body = QWidget()
@@ -321,21 +334,27 @@ class SettingsDialog(QDialog):
             body_layout.addWidget(extra_widget)
 
         if max_height is not None:
-            natural = self._measure_body_height(body, self._estimate_top_section_body_width())
-            if natural > max_height or horizontal_scroll:
+            if horizontal_scroll:
+                body.setMinimumWidth(body.sizeHint().width())
+                natural = body.sizeHint().height()
+            else:
+                natural = self._measure_body_height(body, self._estimate_top_section_body_width())
+            needs_vertical_scroll = natural > max_height
+            if needs_vertical_scroll or horizontal_scroll:
                 body.setMinimumHeight(natural)
-                if horizontal_scroll:
-                    body.setMinimumWidth(body.sizeHint().width())
+                fixed_height = max_height if needs_vertical_scroll or horizontal_scroll else natural + 14
                 scroll = make_scroll_area(
                     horizontal_policy=Qt.ScrollBarAsNeeded if horizontal_scroll else Qt.ScrollBarAlwaysOff,
-                    vertical_policy=Qt.ScrollBarAsNeeded,
-                    fixed_height=max_height,
+                    vertical_policy=Qt.ScrollBarAsNeeded if needs_vertical_scroll else Qt.ScrollBarAlwaysOff,
+                    fixed_height=fixed_height,
                 )
                 scroll.setWidget(body)
                 card_layout.addWidget(scroll)
+                card_layout.addStretch(1)
                 return card
 
         card_layout.addWidget(body)
+        card_layout.addStretch(1)
         return card
 
     def _build_message_section(self, title: str, message: str) -> QFrame:
@@ -452,6 +471,40 @@ class SettingsDialog(QDialog):
         layout.addStretch()
         return row
 
+    def _build_opacity_row(self) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 6, 0)
+        layout.setSpacing(6)
+
+        label = QLabel("透明度")
+        label.setObjectName("FieldLabel")
+        layout.addWidget(label)
+
+        for key, title in (
+            ("ROUTE_VISITED_POINT_OPACITY", "已达点"),
+            ("ROUTE_VISITED_ICON_OPACITY", "已达图标"),
+            ("WINDOW_LOCKED_OPACITY", "锁定状态"),
+            ("WINDOW_NORMAL_OPACITY", "普通状态"),
+        ):
+            sub_label = QLabel(title)
+            sub_label.setObjectName("StatLabel")
+            layout.addWidget(sub_label)
+
+            editor = QLineEdit(str(getattr(config, key, config.DEFAULT_CONFIG.get(key, 1.0))))
+            editor.setFixedHeight(26)
+            editor.setFixedWidth(48)
+            editor.setAlignment(Qt.AlignRight)
+            validator = QDoubleValidator(0.0, 1.0, 3, editor)
+            validator.setNotation(QDoubleValidator.StandardNotation)
+            editor.setValidator(validator)
+            editor.setToolTip("0.0~1.0")
+            self._opacity_editors[key] = editor
+            layout.addWidget(editor)
+
+        layout.addStretch()
+        return row
+
     def _sync_route_color_button(self) -> None:
         if self._route_color_button is None:
             return
@@ -462,7 +515,7 @@ class SettingsDialog(QDialog):
             f"background: {color}; color: {text_color}; border: 1px solid rgba(255, 255, 255, 0.35);"
         )
 
-    def _on_pick_route_default_color(self) -> None:
+    def _on_pick_route_default_color_legacy(self) -> None:
         current = QColor(self._normalize_route_color(self._route_default_color))
         dialog = QColorDialog(current, self)
         dialog.setWindowTitle("选择默认路线颜色")
@@ -498,6 +551,79 @@ class SettingsDialog(QDialog):
         self._route_default_color = color.name(QColor.NameFormat.HexRgb)
         self._sync_route_color_button()
 
+    def _on_pick_route_default_color(self) -> None:
+        current = QColor(self._normalize_route_color(self._route_default_color))
+        dialog = StyledDialogBase(self, "选择默认路线颜色", min_width=560, max_width=720)
+
+        picker = QColorDialog(current, dialog)
+        picker.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+        picker.setOption(QColorDialog.ColorDialogOption.NoButtons, True)
+        picker.setAttribute(Qt.WA_StyledBackground, True)
+        picker.setStyleSheet(qss.COLOR_DIALOG_QSS)
+        picker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._localize_color_dialog(picker)
+
+        for spin in picker.findChildren(QSpinBox):
+            spin.setFixedWidth(56)
+        for editor in picker.findChildren(QLineEdit):
+            editor.setMaximumWidth(96)
+
+        dialog.shell_layout.addWidget(picker)
+
+        button_row = QHBoxLayout()
+        reset_btn = QPushButton("恢复默认颜色", dialog)
+        reset_btn.clicked.connect(lambda: picker.setCurrentColor(QColor(_DEFAULT_ROUTE_COLOR_HEX)))
+        button_row.addWidget(reset_btn)
+        button_row.addStretch()
+
+        cancel_btn = QPushButton("取消", dialog)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_row.addWidget(cancel_btn)
+
+        confirm_btn = QPushButton("确认", dialog)
+        confirm_btn.setDefault(True)
+        confirm_btn.clicked.connect(dialog.accept)
+        button_row.addWidget(confirm_btn)
+        dialog.shell_layout.addLayout(button_row)
+
+        center_dialog(dialog, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        color = picker.currentColor()
+        if not color.isValid():
+            return
+        self._route_default_color = color.name(QColor.NameFormat.HexRgb)
+        self._sync_route_color_button()
+
+    @staticmethod
+    def _localize_color_dialog(dialog: QColorDialog) -> None:
+        label_map = {
+            "&Basic colors": "基础颜色",
+            "&Custom colors": "自定义颜色",
+            "Hu&e:": "色相:",
+            "&Sat:": "饱和度:",
+            "&Val:": "明度:",
+            "&Red:": "红:",
+            "&Green:": "绿:",
+            "Bl&ue:": "蓝:",
+            "A&lpha channel:": "透明度:",
+            "&HTML:": "HTML:",
+        }
+        button_map = {
+            "&Pick Screen Color": "吸取屏幕颜色",
+            "&Add to Custom Colors": "添加到自定义颜色",
+            "OK": "确认",
+            "Cancel": "取消",
+        }
+        for label in dialog.findChildren(QLabel):
+            text = label.text()
+            if text in label_map:
+                label.setText(label_map[text])
+        for button in dialog.findChildren(QPushButton):
+            text = button.text()
+            if text in button_map:
+                button.setText(button_map[text])
+
     def _build_minimap_row(self) -> QWidget:
         row = QWidget()
         layout = QHBoxLayout(row)
@@ -522,7 +648,7 @@ class SettingsDialog(QDialog):
             layout.addWidget(lbl)
             editor = QLineEdit()
             editor.setFixedHeight(minimap_control_height)
-            editor.setFixedWidth(52)
+            editor.setFixedWidth(48)
             editor.setStyleSheet("padding: 2px 6px;")
             editor.setAlignment(Qt.AlignRight)
             editor.setValidator(QIntValidator(-10_000, 10_000, editor))
@@ -579,6 +705,12 @@ class SettingsDialog(QDialog):
             elif name == "夸克网盘":
                 btn.setToolTip("提供夸克网盘最新链接下载")
                 btn.clicked.connect(self._on_quark_download_clicked)
+            elif name == "路线资源":
+                btn.setToolTip("使用默认浏览器打开 config.json 中配置的路线资源链接")
+                btn.clicked.connect(self._on_route_resource_clicked)
+            elif name == "问题反馈":
+                btn.setToolTip("查看问题反馈与交流方式")
+                btn.clicked.connect(self._on_feedback_clicked)
             elif name == strings.ANNOTATION_REFRESH_POINTS:
                 btn.setToolTip(strings.ANNOTATION_REFRESH_POINTS_TOOLTIP)
                 btn.clicked.connect(self.annotation_refresh_requested.emit)
@@ -596,9 +728,7 @@ class SettingsDialog(QDialog):
             styled_info(
                 self,
                 "夸克网盘",
-                "暂未配置夸克网盘链接。\n\n"
-                "你可以稍后在 config.json 中写入：\n"
-                '"QUARK_DOWNLOAD_URL": "https://..."',
+                "暂未从更新源获取到夸克网盘链接，请稍后再试或检查更新源配置。",
             )
             return
         styled_info(
@@ -606,6 +736,49 @@ class SettingsDialog(QDialog):
             "夸克网盘",
             "最新版本夸克网盘下载链接：<br><br>"
             f'<a href="{escape(url, quote=True)}">{escape(url)}</a>',
+            allow_links=True,
+        )
+
+    def _on_route_resource_clicked(self) -> None:
+        url = str(getattr(config, "ROUTE_RESOURCE_URL", "") or "").strip()
+        if not url:
+            styled_info(
+                self,
+                "路线资源",
+                "暂未从更新源获取到路线资源链接，请稍后再试或检查更新源配置。",
+            )
+            return
+
+        qurl = QUrl.fromUserInput(url)
+        if not qurl.isValid() or qurl.scheme() not in {"http", "https"}:
+            styled_info(
+                self,
+                "路线资源",
+                "更新源下发的路线资源链接无效，请检查 runtime_config.json 中的配置。",
+            )
+            return
+
+        if not QDesktopServices.openUrl(qurl):
+            styled_info(self, "路线资源", "无法打开路线资源链接，请检查系统默认浏览器设置。")
+
+    def _on_feedback_clicked(self) -> None:
+        bilibili_url = str(getattr(config, "FEEDBACK_BILIBILI_URL", "") or "").strip()
+        qq_group = str(getattr(config, "FEEDBACK_QQ_GROUP", "") or "").strip()
+
+        if bilibili_url:
+            qurl = QUrl.fromUserInput(bilibili_url)
+            if qurl.isValid() and qurl.scheme() in {"http", "https"}:
+                bilibili_text = f'<a href="{escape(qurl.toString(), quote=True)}">{escape(bilibili_url)}</a>'
+            else:
+                bilibili_text = escape(bilibili_url)
+        else:
+            bilibili_text = "未配置"
+
+        qq_text = escape(qq_group) if qq_group else "未配置"
+        styled_info(
+            self,
+            "问题反馈",
+            f"B站链接：{bilibili_text}<br>GMT-N交流QQ群：{qq_text}",
             allow_links=True,
         )
 
@@ -921,6 +1094,15 @@ class SettingsDialog(QDialog):
             result["ROUTE_MULTI_COLOR_ENABLED"] = self._route_multi_color_checkbox.isChecked()
         self._route_default_color = self._normalize_route_color(self._route_default_color)
         result["ROUTE_DEFAULT_COLOR"] = self._route_default_color
+        for key, editor in self._opacity_editors.items():
+            raw = editor.text().strip()
+            if raw == "":
+                continue
+            try:
+                result[key] = max(0.0, min(1.0, float(raw)))
+            except ValueError:
+                styled_info(self, "输入无效", f"透明度 {raw} 不是有效数字。")
+                return None
 
         minimap_payload: dict = {}
         for key, editor in self._minimap_editors.items():
@@ -1001,6 +1183,8 @@ class SettingsDialog(QDialog):
             config.DEFAULT_CONFIG.get("ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX)
         )
         self._sync_route_color_button()
+        for key, editor in self._opacity_editors.items():
+            editor.setText(str(config.DEFAULT_CONFIG.get(key, 1.0)))
 
     def _is_on_title_bar(self, global_pos: QPoint) -> bool:
         local = self._title_bar.mapFromGlobal(global_pos)

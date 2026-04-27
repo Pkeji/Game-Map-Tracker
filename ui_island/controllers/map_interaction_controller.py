@@ -11,6 +11,7 @@ from ..dialogs.annotation_type_picker import open_annotation_type_picker
 from ..dialogs.insert_point_dialog import open_insert_point_dialog
 from ..dialogs.settings_dialog import styled_confirm, styled_info
 from ..services.annotation_preferences import normalize_type_ids, touch_recent_type
+from ..widgets.node_type_popup import node_type_label, normalize_node_type, show_node_type_popup
 
 if TYPE_CHECKING:
     from ..app.window import IslandWindow
@@ -161,6 +162,9 @@ class MapInteractionController:
         if not self.window.route_mgr.set_point_visited(route_id, point_index, visited):
             print(f"Mark point visited failed route_id={route_id} point_index={point_index}")
             return
+        self._refresh_route_point_ui()
+
+    def _refresh_route_point_ui(self) -> None:
         try:
             self.window.map_view._refresh_from_last_frame()
         except Exception:
@@ -169,6 +173,47 @@ class MapInteractionController:
             self.window.route_panel_controller.refresh_tracked_routes()
         except Exception:
             pass
+
+    def change_point_node_type(self, route_id: str, point_index: int, global_pos) -> None:
+        drawing = getattr(self.window, "route_drawing_state", None)
+        if drawing is not None and drawing.active and route_id == drawing.route_id:
+            self.window.route_panel_controller.change_drawing_point_node_type(point_index, global_pos)
+            return
+
+        route_mgr = self.window.route_mgr
+        route = route_mgr.route_for_id(route_id)
+        points = route.get("points", []) if route is not None else []
+        if route is None or not isinstance(point_index, int) or not (0 <= point_index < len(points)):
+            styled_info(self.window, strings.POINT_NODE_TYPE_FAIL_TITLE, strings.POINT_NODE_TYPE_FAIL_BODY)
+            return
+        point = points[point_index]
+        if not isinstance(point, dict):
+            styled_info(self.window, strings.POINT_NODE_TYPE_FAIL_TITLE, strings.POINT_NODE_TYPE_FAIL_BODY)
+            return
+
+        current = normalize_node_type(point.get("node_type"))
+        if normalize_node_type(point.get("node_type")) != point.get("node_type"):
+            if not route_mgr.set_point_node_type(route_id, point_index, current):
+                styled_info(self.window, strings.POINT_NODE_TYPE_FAIL_TITLE, strings.POINT_NODE_TYPE_FAIL_BODY)
+                return
+            self._refresh_route_point_ui()
+
+        def apply_node_type(node_type: str) -> None:
+            normalized = normalize_node_type(node_type)
+            if normalized == current:
+                return
+            if not route_mgr.set_point_node_type(route_id, point_index, normalized):
+                styled_info(self.window, strings.POINT_NODE_TYPE_FAIL_TITLE, strings.POINT_NODE_TYPE_FAIL_BODY)
+                return
+            self._refresh_route_point_ui()
+            toast(self.window, strings.POINT_NODE_TYPE_SUCCESS_FMT.format(name=node_type_label(normalized)))
+
+        self.window._node_type_popup = show_node_type_popup(
+            self.window.map_view,
+            global_pos,
+            current,
+            apply_node_type,
+        )
 
     def change_point_annotation(self, route_id: str, point_index: int) -> None:
         drawing = getattr(self.window, "route_drawing_state", None)

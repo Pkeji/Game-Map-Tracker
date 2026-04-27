@@ -1,9 +1,11 @@
 ﻿param(
     [string]$Version = "",
     [string]$Notes = "",
+    [ValidateSet("", "update", "test")]
+    [string]$Channel = "",
     [switch]$PromptUpdate,
     [switch]$ForceUpdatePrompt,
-    [string]$BaseUrl = "https://greenjiao.github.io/Game-Map-Tracker/update/",
+    [string]$BaseUrl = "",
     [string]$CommitMessage = "",
     [switch]$SkipBuild,
     [switch]$SkipPush
@@ -78,6 +80,19 @@ function Read-YesNo {
     }
 }
 
+function Read-ReleaseChannel {
+    while ($true) {
+        $value = (Read-Host "发布到正式通道还是测试通道？[update/test，默认 update]").Trim().ToLowerInvariant()
+        if (-not $value) {
+            return "update"
+        }
+        if ($value -in @("update", "test")) {
+            return $value
+        }
+        Write-Host "请输入 update 或 test。"
+    }
+}
+
 function Show-GitPreview {
     param(
         [string]$Pathspec = "docs/update",
@@ -101,6 +116,26 @@ function Show-GitPreview {
         }
     }
     Write-Host "  如需统计信息，请手动运行：git diff --cached --stat -- $Pathspec"
+}
+
+if (-not $Channel.Trim()) {
+    $Channel = Read-ReleaseChannel
+} else {
+    $Channel = $Channel.Trim().ToLowerInvariant()
+}
+
+$GiteeRawDocsRoot = "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs"
+$GitHubPagesRoot = "https://greenjiao.github.io/Game-Map-Tracker"
+$ReleasePathspec = "docs/$Channel"
+$ExcludedReleaseItems = @("routes", "tools")
+$DefaultResourceBaseUrl = "$GiteeRawDocsRoot/$Channel/"
+if (-not $BaseUrl.Trim()) {
+    $BaseUrl = $DefaultResourceBaseUrl
+} else {
+    $BaseUrl = $BaseUrl.Trim()
+    if (-not $BaseUrl.EndsWith("/")) {
+        $BaseUrl = "$BaseUrl/"
+    }
 }
 
 if (-not $Version.Trim()) {
@@ -166,7 +201,10 @@ Write-Host "  启动弹窗：$UsePromptUpdate"
 Write-Host "  强制弹窗：$UseForceUpdatePrompt"
 Write-Host "  重新打包：$ShouldBuild"
 Write-Host "  提交推送：$ShouldCommitAndPush"
-Write-Host "  更新源：$BaseUrl"
+Write-Host "  发布通道：$Channel"
+Write-Host "  发布目录：$ReleasePathspec"
+Write-Host "  资源 URL 前缀：$BaseUrl"
+Write-Host "  跳过目录：$($ExcludedReleaseItems -join ', ')"
 Write-Host ""
 
 if ($ShouldBuild) {
@@ -178,7 +216,7 @@ if ($ShouldBuild) {
     throw "已选择跳过打包，但 dist\GMT-N 不存在。"
 }
 
-$UpdateDir = Join-Path $Root "docs\update"
+$UpdateDir = Join-Path $Root $ReleasePathspec
 $DistDir = Join-Path $Root "dist\GMT-N"
 $ManifestPath = Join-Path $UpdateDir "app-manifest.json"
 
@@ -186,10 +224,14 @@ if (-not (Test-Path $DistDir)) {
     throw "发布目录不存在：$DistDir"
 }
 
-Write-Host "重建 docs/update..."
+Write-Host "重建 $ReleasePathspec..."
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $UpdateDir
 New-Item -ItemType Directory -Force $UpdateDir | Out-Null
-Copy-Item (Join-Path $DistDir "*") $UpdateDir -Recurse -Force
+Get-ChildItem -LiteralPath $DistDir -Force | Where-Object {
+    $_.Name -notin $ExcludedReleaseItems
+} | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination $UpdateDir -Recurse -Force
+}
 
 Write-Host "生成更新清单..."
 $manifestArgs = @(
@@ -208,15 +250,15 @@ if ($UseForceUpdatePrompt) {
 }
 Invoke-Python @manifestArgs
 
-Write-Host "暂存 docs/update..."
-Invoke-CheckedCommand -Command { & git add docs/update } -ErrorMessage "git add 失败"
+Write-Host "暂存 $ReleasePathspec..."
+Invoke-CheckedCommand -Command { & git add $ReleasePathspec } -ErrorMessage "git add 失败"
 
-Show-GitPreview -Pathspec "docs/update" -Limit 40
+Show-GitPreview -Pathspec $ReleasePathspec -Limit 40
 
-& git diff --cached --quiet -- docs/update
+& git diff --cached --quiet -- $ReleasePathspec
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
-    Write-Host "docs/update 没有新的暂存变更，本次不提交。"
+    Write-Host "$ReleasePathspec 没有新的暂存变更，本次不提交。"
     exit 0
 }
 
@@ -233,11 +275,13 @@ if (-not $confirmed) {
 }
 
 Write-Host "提交更新包..."
-Invoke-CheckedCommand -Command { & git commit -m $CommitMessage -- docs/update } -ErrorMessage "git commit 失败"
+Invoke-CheckedCommand -Command { & git commit -m $CommitMessage -- $ReleasePathspec } -ErrorMessage "git commit 失败"
 
 Write-Host "推送到 GitHub..."
 Invoke-CheckedCommand -Command { & git push } -ErrorMessage "git push 失败"
 
 Write-Host ""
 Write-Host "更新发布完成。"
-Write-Host "Manifest 地址：$($BaseUrl.TrimEnd('/'))/app-manifest.json"
+Write-Host "GitHub Pages Manifest 地址：$GitHubPagesRoot/$Channel/app-manifest.json"
+Write-Host "Gitee Manifest 地址：$GiteeRawDocsRoot/$Channel/app-manifest.json"
+Write-Host "旧客户端资源 URL 前缀：$BaseUrl"

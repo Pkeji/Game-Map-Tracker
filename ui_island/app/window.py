@@ -220,6 +220,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.installEventFilter(self)
         self.window_mode_controller.restore_or_center()
         self.window_mode_controller.enter_mode(WindowMode.PAUSED)
+        self._apply_configured_window_opacity()
         QTimer.singleShot(0, self._paint_default_map)
 
         self._toggle_lock_requested.connect(self.toggle_lock, Qt.QueuedConnection)
@@ -234,6 +235,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.map_view.mark_point_visited_requested.connect(self.map_interaction_controller.mark_point_visited)
         self.map_view.change_point_annotation_requested.connect(self.map_interaction_controller.change_point_annotation)
         self.map_view.delete_point_annotation_requested.connect(self.map_interaction_controller.delete_point_annotation)
+        self.map_view.change_point_node_type_requested.connect(self.map_interaction_controller.change_point_node_type)
         self.map_view.change_annotation_requested.connect(self.map_interaction_controller.change_map_annotation)
         self.map_view.add_annotation_to_route_requested.connect(self.map_interaction_controller.add_annotation_to_route)
         self.map_view.delete_annotation_requested.connect(self.map_interaction_controller.delete_map_annotation)
@@ -681,11 +683,15 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._recent_limit = self.settings_gateway.get_route_recent_limit()
         self._recent_route_names = self.recent_routes_store.load()
         self.route_panel_controller.refresh_recent_routes()
+        self._apply_configured_window_opacity()
         self.map_view._refresh_from_last_frame()
 
     def _collapse_to_icon(self) -> None:
         if self._mini_icon is not None:
             return
+        toolbar = getattr(self, "route_drawing_toolbar", None)
+        if toolbar is not None:
+            toolbar.hide()
         geom = self.frameGeometry()
         anchor = geom.topLeft()
         self._mini_icon = RestoreIcon(self, self._restore_from_icon, self._close_app_from_icon)
@@ -704,6 +710,10 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.showNormal()
         self.raise_()
         self.activateWindow()
+        drawing = getattr(self, "route_drawing_state", None)
+        if drawing is not None and drawing.active:
+            QTimer.singleShot(0, self.route_panel_controller._sync_route_drawing_ui)
+            QTimer.singleShot(60, self.route_panel_controller.position_route_drawing_toolbar)
 
     def _close_app_from_icon(self) -> None:
         if self._mini_icon is not None:
@@ -801,10 +811,15 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.unlock_hint_label.setVisible(self._locked)
         if self._locked:
             set_click_through(self, True)
-            self.setWindowOpacity(0.78)
         else:
             set_click_through(self, False)
-            self.setWindowOpacity(1.0)
+        self._apply_configured_window_opacity()
+
+    def _apply_configured_window_opacity(self) -> None:
+        if self._locked:
+            self.setWindowOpacity(self.settings_gateway.get_window_locked_opacity())
+        else:
+            self.setWindowOpacity(self.settings_gateway.get_window_normal_opacity())
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Wheel:
@@ -996,7 +1011,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.coord_label.setText(f"{x} , {y}")
         self._last_player_xy = (x, y)
 
-        if self._mode == WindowMode.PAUSED:
+        if self._mode in (WindowMode.PAUSED, WindowMode.MAXIMIZED):
             return
 
         self.tracking_controller.resume_tracking_attempts()

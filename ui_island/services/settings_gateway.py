@@ -38,6 +38,20 @@ class SettingsGateway:
     def get_route_recent_limit(self) -> int:
         return max(0, int(getattr(config, "ROUTE_RECENT_LIMIT", 5) or 0))
 
+    @staticmethod
+    def _opacity(name: str, default: float) -> float:
+        try:
+            value = float(getattr(config, name, default))
+        except (TypeError, ValueError):
+            value = default
+        return max(0.0, min(1.0, value))
+
+    def get_window_locked_opacity(self) -> float:
+        return self._opacity("WINDOW_LOCKED_OPACITY", 0.78)
+
+    def get_window_normal_opacity(self) -> float:
+        return self._opacity("WINDOW_NORMAL_OPACITY", 1.0)
+
     def get_route_section_expanded(self) -> dict[str, bool]:
         raw = getattr(config, "ROUTE_SECTION_EXPANDED", None)
         if not isinstance(raw, dict):
