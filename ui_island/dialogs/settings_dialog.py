@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QKeySequenceEdit,
     QSizePolicy,
     QSpinBox,
     QVBoxLayout,
@@ -39,10 +40,30 @@ from ..services.app_updater import (
     install_non_restart_update,
     start_restart_update,
 )
+from ..services.hotkey_config import hotkey_sequence, payload_from_key_sequence
 from ..services.settings_schema import ALL_FIELDS, COMMON_FIELDS, FIELD_INDEX, SIFT_FIELDS, TOOL_BUTTONS, Field
+from ..widgets.context_menu import ContextMenuItem, show_context_menu
 from ..widgets.factory import make_scroll_area
 
 _DEFAULT_ROUTE_COLOR_HEX = "#1ad1ff"
+_DEFAULT_SPECIAL_LINE_COLOR_HEX = "#ffffff"
+_DEFAULT_POINTER_ARROW_COLOR_HEX = "#000000"
+_ROUTE_COLOR_BUTTON_HEIGHT = 26
+_ROUTE_COLOR_BUTTON_WIDTH = 72
+_ROUTE_POINTER_ARROW_BUTTON_WIDTH = 78
+_ROUTE_COLOR_FIELDS = (
+    ("ROUTE_DEFAULT_COLOR", "默认颜色", _DEFAULT_ROUTE_COLOR_HEX),
+    ("ROUTE_TELEPORT_LINE_COLOR", "传送线", _DEFAULT_SPECIAL_LINE_COLOR_HEX),
+    ("ROUTE_GUIDE_LINE_COLOR", "引导线", _DEFAULT_SPECIAL_LINE_COLOR_HEX),
+    ("ROUTE_POINTER_ARROW_COLOR", "指向箭头", _DEFAULT_POINTER_ARROW_COLOR_HEX),
+)
+_FOLLOW_ROUTE_COLOR_KEYS = {"ROUTE_TELEPORT_LINE_COLOR", "ROUTE_GUIDE_LINE_COLOR"}
+_ROUTE_COLOR_TOOLTIPS = {
+    "ROUTE_DEFAULT_COLOR": "路线及节点颜色",
+    "ROUTE_TELEPORT_LINE_COLOR": "代表前往传送点的传送路径",
+    "ROUTE_GUIDE_LINE_COLOR": "代表引路点的指引路径",
+    "ROUTE_POINTER_ARROW_COLOR": "玩家点位到追踪目标节点的指向箭头",
+}
 
 
 def styled_info(parent, title: str, message: str, *, allow_links: bool = False) -> None:
@@ -140,10 +161,17 @@ class SettingsDialog(QDialog):
         self._initial_values: dict[str, str] = {}
         self._minimap_editors: dict[str, QLineEdit] = {}
         self._route_multi_color_checkbox: QCheckBox | None = None
+        self._route_special_lines_follow_checkbox: QCheckBox | None = None
+        self._route_strict_guide_checkbox: QCheckBox | None = None
+        self._route_color_buttons: dict[str, QPushButton] = {}
+        self._route_colors = {
+            key: self._normalize_route_color(getattr(config, key, default), default)
+            for key, _label, default in _ROUTE_COLOR_FIELDS
+        }
+        self._route_pointer_arrow_visible = bool(getattr(config, "ROUTE_POINTER_ARROW_VISIBLE", True))
         self._route_color_button: QPushButton | None = None
-        self._route_default_color = self._normalize_route_color(
-            getattr(config, "ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX)
-        )
+        self._hotkey_editor: QKeySequenceEdit | None = None
+        self._route_default_color = self._route_colors["ROUTE_DEFAULT_COLOR"]
         self._opacity_editors: dict[str, QLineEdit] = {}
         self._update_check_button: QPushButton | None = None
         self._update_check_running = False
@@ -191,8 +219,9 @@ class SettingsDialog(QDialog):
 
         minimap_row = self._build_minimap_row()
         route_color_row = self._build_route_color_row()
+        hotkey_row = self._build_hotkey_row()
         opacity_row = self._build_opacity_row()
-        common_extra = self._build_common_extra(minimap_row, opacity_row, route_color_row)
+        common_extra = self._build_common_extra(minimap_row, opacity_row, route_color_row, hotkey_row)
         tools_section = self._build_tools_section()
 
         buttons_bar = QWidget()
@@ -439,37 +468,110 @@ class SettingsDialog(QDialog):
         return container
 
     @staticmethod
-    def _normalize_route_color(value: object) -> str:
+    def _normalize_route_color(value: object, default: str = _DEFAULT_ROUTE_COLOR_HEX) -> str:
         color = QColor(str(value or "").strip())
         if not color.isValid():
-            color = QColor(_DEFAULT_ROUTE_COLOR_HEX)
+            color = QColor(default)
         return color.name(QColor.HexRgb)
 
     def _build_route_color_row(self) -> QWidget:
+        row = QWidget()
+        layout = QVBoxLayout(row)
+        layout.setContentsMargins(0, 0, 6, 0)
+        layout.setSpacing(6)
+
+        toggle_row = QWidget()
+        toggle_layout = QHBoxLayout(toggle_row)
+        toggle_layout.setContentsMargins(0, 0, 0, 0)
+        toggle_layout.setSpacing(8)
+
+        checkbox = QCheckBox("多路线随机颜色")
+        checkbox.setChecked(bool(getattr(config, "ROUTE_MULTI_COLOR_ENABLED", True)))
+        checkbox.setToolTip("开启后不同路线使用原有稳定随机颜色；关闭后全部路线使用下方默认颜色。")
+        self._route_multi_color_checkbox = checkbox
+        toggle_layout.addWidget(checkbox)
+
+        follow_checkbox = QCheckBox("传送与引导线跟随路线颜色")
+        follow_checkbox.setChecked(bool(getattr(config, "ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR", False)))
+        follow_checkbox.setToolTip("开启后传送线和引导线使用路线颜色，不使用下方默认颜色。")
+        follow_checkbox.toggled.connect(lambda _checked: self._sync_route_color_buttons())
+        self._route_special_lines_follow_checkbox = follow_checkbox
+        toggle_layout.addWidget(follow_checkbox)
+
+        strict_checkbox = QCheckBox("严格指向模式")
+        strict_checkbox.setChecked(bool(getattr(config, "ROUTE_STRICT_GUIDE_MODE", False)))
+        strict_checkbox.setToolTip("开启后靠近路线时优先指向该路线中排名最靠前的未到达节点。")
+        self._route_strict_guide_checkbox = strict_checkbox
+        toggle_layout.addWidget(strict_checkbox)
+
+        toggle_layout.addStretch()
+        layout.addWidget(toggle_row)
+
+        color_row = QWidget()
+        color_layout = QHBoxLayout(color_row)
+        color_layout.setContentsMargins(0, 0, 0, 0)
+        color_layout.setSpacing(8)
+
+        for key, label, _default in _ROUTE_COLOR_FIELDS:
+            button = QPushButton(label)
+            button.setFixedHeight(_ROUTE_COLOR_BUTTON_HEIGHT)
+            button.setFixedWidth(
+                _ROUTE_POINTER_ARROW_BUTTON_WIDTH if key == "ROUTE_POINTER_ARROW_COLOR" else _ROUTE_COLOR_BUTTON_WIDTH
+            )
+            button.clicked.connect(lambda _checked=False, color_key=key: self._on_pick_route_color(color_key))
+            if key == "ROUTE_POINTER_ARROW_COLOR":
+                button.setContextMenuPolicy(Qt.CustomContextMenu)
+                button.customContextMenuRequested.connect(self._show_pointer_arrow_context_menu)
+            self._route_color_buttons[key] = button
+            if key == "ROUTE_DEFAULT_COLOR":
+                self._route_color_button = button
+            color_layout.addWidget(button)
+        self._sync_route_color_buttons()
+        color_layout.addStretch()
+        layout.addWidget(color_row)
+        return row
+
+    def _build_hotkey_row(self) -> QWidget:
         row = QWidget()
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 6, 0)
         layout.setSpacing(8)
 
-        checkbox = QCheckBox("多路线随机颜色")
-        checkbox.setChecked(bool(getattr(config, "ROUTE_MULTI_COLOR_ENABLED", True)))
-        checkbox.setToolTip("开启后不同路线使用原有稳定随机颜色；关闭后全部路线使用右侧默认颜色。")
-        self._route_multi_color_checkbox = checkbox
-        layout.addWidget(checkbox)
-
-        label = QLabel("默认颜色")
-        label.setObjectName("StatLabel")
+        label = QLabel("锁定/解锁快捷键")
+        label.setObjectName("FieldLabel")
         layout.addWidget(label)
 
-        button = QPushButton(self._route_default_color)
-        button.setFixedHeight(26)
-        button.setFixedWidth(86)
-        button.clicked.connect(self._on_pick_route_default_color)
-        self._route_color_button = button
-        self._sync_route_color_button()
-        layout.addWidget(button)
+        editor = QKeySequenceEdit()
+        editor.setMaximumSequenceLength(1)
+        editor.setFixedHeight(28)
+        editor.setKeySequence(hotkey_sequence(getattr(config, "TOGGLE_LOCK_HOTKEY", None)))
+        editor.setToolTip("点击后按下新的组合键，需包含 Ctrl、Alt、Shift 或 Win。")
+        editor.keySequenceChanged.connect(lambda _sequence: self._sync_hotkey_editor_width())
+        self._hotkey_editor = editor
+        self._sync_hotkey_editor_width()
+        layout.addWidget(editor)
+
+        reset_btn = QPushButton("恢复默认")
+        reset_btn.setFixedHeight(28)
+        reset_btn.clicked.connect(self._reset_hotkey_to_default)
+        layout.addWidget(reset_btn)
         layout.addStretch()
         return row
+
+    def _reset_hotkey_to_default(self) -> None:
+        if self._hotkey_editor is None:
+            return
+        self._hotkey_editor.setKeySequence(hotkey_sequence(config.DEFAULT_CONFIG.get("TOGGLE_LOCK_HOTKEY")))
+        self._sync_hotkey_editor_width()
+
+    def _sync_hotkey_editor_width(self) -> None:
+        if self._hotkey_editor is None:
+            return
+        text = self._hotkey_editor.keySequence().toString()
+        if not text:
+            text = "按下快捷键"
+        width = self._hotkey_editor.fontMetrics().horizontalAdvance(text) + 36
+        self._hotkey_editor.setFixedWidth(max(92, min(240, width)))
 
     def _build_opacity_row(self) -> QWidget:
         row = QWidget()
@@ -506,6 +608,118 @@ class SettingsDialog(QDialog):
         return row
 
     def _sync_route_color_button(self) -> None:
+        self._sync_route_color_buttons()
+
+    def _sync_route_color_buttons(self) -> None:
+        follow = bool(
+            self._route_special_lines_follow_checkbox is not None
+            and self._route_special_lines_follow_checkbox.isChecked()
+        )
+        for key, label, default in _ROUTE_COLOR_FIELDS:
+            button = self._route_color_buttons.get(key)
+            if button is None:
+                continue
+            color = self._normalize_route_color(self._route_colors.get(key), default)
+            self._route_colors[key] = color
+            color_value = QColor(color)
+            is_light_color = color_value.lightness() > 150
+            text_color = "#000000" if is_light_color else "#ffffff"
+            border_color = "rgba(20, 20, 20, 0.28)" if is_light_color else "rgba(255, 255, 255, 0.35)"
+            disabled = follow and key in _FOLLOW_ROUTE_COLOR_KEYS
+            hidden_pointer = key == "ROUTE_POINTER_ARROW_COLOR" and not self._route_pointer_arrow_visible
+            font = button.font()
+            font.setStrikeOut(hidden_pointer)
+            button.setFont(font)
+            button.setEnabled(not disabled)
+            button.setText(label)
+            tooltip = _ROUTE_COLOR_TOOLTIPS.get(key, label)
+            if disabled:
+                tooltip += "；当前跟随路线颜色"
+            if hidden_pointer:
+                tooltip += "；当前已隐藏"
+            button.setToolTip(tooltip)
+            decoration = " text-decoration: line-through;" if hidden_pointer else ""
+            size_style = (
+                f"min-height: {_ROUTE_COLOR_BUTTON_HEIGHT}px; "
+                f"max-height: {_ROUTE_COLOR_BUTTON_HEIGHT}px; padding: 0;"
+            )
+            if disabled:
+                button.setStyleSheet(
+                    f"background: {color}; color: rgba(20, 20, 20, 0.42); "
+                    f"border: 1px solid rgba(20, 20, 20, 0.18); {size_style}{decoration}"
+                )
+            else:
+                button.setStyleSheet(
+                    f"background: {color}; color: {text_color}; border: 1px solid {border_color}; "
+                    f"{size_style}{decoration}"
+                )
+        self._route_default_color = self._route_colors["ROUTE_DEFAULT_COLOR"]
+
+    def _show_pointer_arrow_context_menu(self, pos: QPoint) -> None:
+        button = self._route_color_buttons.get("ROUTE_POINTER_ARROW_COLOR")
+        if button is None:
+            return
+        action_text = "隐藏指向箭头" if self._route_pointer_arrow_visible else "显示指向箭头"
+        show_context_menu(
+            self,
+            button.mapToGlobal(pos),
+            [ContextMenuItem(action_text, self._toggle_pointer_arrow_visible)],
+            object_name="RouteListContextMenu",
+        )
+
+    def _toggle_pointer_arrow_visible(self) -> None:
+        self._route_pointer_arrow_visible = not self._route_pointer_arrow_visible
+        self._sync_route_color_buttons()
+
+    def _on_pick_route_color(self, key: str) -> None:
+        field = next((item for item in _ROUTE_COLOR_FIELDS if item[0] == key), None)
+        if field is None:
+            return
+        _field_key, label, default = field
+        current = QColor(self._normalize_route_color(self._route_colors.get(key), default))
+        dialog = StyledDialogBase(self, f"选择{label}颜色", min_width=560, max_width=720)
+
+        picker = QColorDialog(current, dialog)
+        picker.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+        picker.setOption(QColorDialog.ColorDialogOption.NoButtons, True)
+        picker.setAttribute(Qt.WA_StyledBackground, True)
+        picker.setStyleSheet(qss.COLOR_DIALOG_QSS)
+        picker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._localize_color_dialog(picker)
+
+        for spin in picker.findChildren(QSpinBox):
+            spin.setFixedWidth(56)
+        for editor in picker.findChildren(QLineEdit):
+            editor.setMaximumWidth(96)
+
+        dialog.shell_layout.addWidget(picker)
+
+        button_row = QHBoxLayout()
+        reset_btn = QPushButton("恢复默认颜色", dialog)
+        reset_btn.clicked.connect(lambda: picker.setCurrentColor(QColor(default)))
+        button_row.addWidget(reset_btn)
+        button_row.addStretch()
+
+        cancel_btn = QPushButton("取消", dialog)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_row.addWidget(cancel_btn)
+
+        confirm_btn = QPushButton("确认", dialog)
+        confirm_btn.setDefault(True)
+        confirm_btn.clicked.connect(dialog.accept)
+        button_row.addWidget(confirm_btn)
+        dialog.shell_layout.addLayout(button_row)
+
+        center_dialog(dialog, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        color = picker.currentColor()
+        if not color.isValid():
+            return
+        self._route_colors[key] = color.name(QColor.NameFormat.HexRgb)
+        self._sync_route_color_buttons()
+
+    def _sync_route_color_button_legacy(self) -> None:
         if self._route_color_button is None:
             return
         color = self._normalize_route_color(self._route_default_color)
@@ -552,48 +766,7 @@ class SettingsDialog(QDialog):
         self._sync_route_color_button()
 
     def _on_pick_route_default_color(self) -> None:
-        current = QColor(self._normalize_route_color(self._route_default_color))
-        dialog = StyledDialogBase(self, "选择默认路线颜色", min_width=560, max_width=720)
-
-        picker = QColorDialog(current, dialog)
-        picker.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
-        picker.setOption(QColorDialog.ColorDialogOption.NoButtons, True)
-        picker.setAttribute(Qt.WA_StyledBackground, True)
-        picker.setStyleSheet(qss.COLOR_DIALOG_QSS)
-        picker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self._localize_color_dialog(picker)
-
-        for spin in picker.findChildren(QSpinBox):
-            spin.setFixedWidth(56)
-        for editor in picker.findChildren(QLineEdit):
-            editor.setMaximumWidth(96)
-
-        dialog.shell_layout.addWidget(picker)
-
-        button_row = QHBoxLayout()
-        reset_btn = QPushButton("恢复默认颜色", dialog)
-        reset_btn.clicked.connect(lambda: picker.setCurrentColor(QColor(_DEFAULT_ROUTE_COLOR_HEX)))
-        button_row.addWidget(reset_btn)
-        button_row.addStretch()
-
-        cancel_btn = QPushButton("取消", dialog)
-        cancel_btn.clicked.connect(dialog.reject)
-        button_row.addWidget(cancel_btn)
-
-        confirm_btn = QPushButton("确认", dialog)
-        confirm_btn.setDefault(True)
-        confirm_btn.clicked.connect(dialog.accept)
-        button_row.addWidget(confirm_btn)
-        dialog.shell_layout.addLayout(button_row)
-
-        center_dialog(dialog, self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        color = picker.currentColor()
-        if not color.isValid():
-            return
-        self._route_default_color = color.name(QColor.NameFormat.HexRgb)
-        self._sync_route_color_button()
+        self._on_pick_route_color("ROUTE_DEFAULT_COLOR")
 
     @staticmethod
     def _localize_color_dialog(dialog: QColorDialog) -> None:
@@ -708,6 +881,9 @@ class SettingsDialog(QDialog):
             elif name == "路线资源":
                 btn.setToolTip("使用默认浏览器打开 config.json 中配置的路线资源链接")
                 btn.clicked.connect(self._on_route_resource_clicked)
+            elif name == "更新文档":
+                btn.setToolTip("使用默认浏览器打开更新文档链接")
+                btn.clicked.connect(self._on_documentation_clicked)
             elif name == "问题反馈":
                 btn.setToolTip("查看问题反馈与交流方式")
                 btn.clicked.connect(self._on_feedback_clicked)
@@ -760,6 +936,28 @@ class SettingsDialog(QDialog):
 
         if not QDesktopServices.openUrl(qurl):
             styled_info(self, "路线资源", "无法打开路线资源链接，请检查系统默认浏览器设置。")
+
+    def _on_documentation_clicked(self) -> None:
+        url = str(getattr(config, "DOCUMENTATION_URL", "") or "").strip()
+        if not url:
+            styled_info(
+                self,
+                "更新文档",
+                "暂未从更新源获取到更新文档链接，请稍后再试或检查更新源配置。",
+            )
+            return
+
+        qurl = QUrl.fromUserInput(url)
+        if not qurl.isValid() or qurl.scheme() not in {"http", "https"}:
+            styled_info(
+                self,
+                "更新文档",
+                "更新源下发的更新文档链接无效，请检查 runtime_config.json 中的配置。",
+            )
+            return
+
+        if not QDesktopServices.openUrl(qurl):
+            styled_info(self, "更新文档", "无法打开更新文档链接，请检查系统默认浏览器设置。")
 
     def _on_feedback_clicked(self) -> None:
         bilibili_url = str(getattr(config, "FEEDBACK_BILIBILI_URL", "") or "").strip()
@@ -1092,8 +1290,21 @@ class SettingsDialog(QDialog):
 
         if self._route_multi_color_checkbox is not None:
             result["ROUTE_MULTI_COLOR_ENABLED"] = self._route_multi_color_checkbox.isChecked()
-        self._route_default_color = self._normalize_route_color(self._route_default_color)
-        result["ROUTE_DEFAULT_COLOR"] = self._route_default_color
+        if self._route_special_lines_follow_checkbox is not None:
+            result["ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR"] = self._route_special_lines_follow_checkbox.isChecked()
+        if self._route_strict_guide_checkbox is not None:
+            result["ROUTE_STRICT_GUIDE_MODE"] = self._route_strict_guide_checkbox.isChecked()
+        result["ROUTE_POINTER_ARROW_VISIBLE"] = bool(self._route_pointer_arrow_visible)
+        for key, _label, default in _ROUTE_COLOR_FIELDS:
+            self._route_colors[key] = self._normalize_route_color(self._route_colors.get(key), default)
+            result[key] = self._route_colors[key]
+        self._route_default_color = self._route_colors["ROUTE_DEFAULT_COLOR"]
+        if self._hotkey_editor is not None:
+            hotkey_payload, hotkey_error = payload_from_key_sequence(self._hotkey_editor.keySequence())
+            if hotkey_payload is None:
+                styled_info(self, "快捷键无效", hotkey_error or "请重新录入一个有效快捷键。")
+                return None
+            result["TOGGLE_LOCK_HOTKEY"] = hotkey_payload
         for key, editor in self._opacity_editors.items():
             raw = editor.text().strip()
             if raw == "":
@@ -1179,10 +1390,20 @@ class SettingsDialog(QDialog):
             editor.setText(str(default_val))
         if self._route_multi_color_checkbox is not None:
             self._route_multi_color_checkbox.setChecked(bool(config.DEFAULT_CONFIG.get("ROUTE_MULTI_COLOR_ENABLED", True)))
-        self._route_default_color = self._normalize_route_color(
-            config.DEFAULT_CONFIG.get("ROUTE_DEFAULT_COLOR", _DEFAULT_ROUTE_COLOR_HEX)
-        )
-        self._sync_route_color_button()
+        if self._route_special_lines_follow_checkbox is not None:
+            self._route_special_lines_follow_checkbox.setChecked(
+                bool(config.DEFAULT_CONFIG.get("ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR", False))
+            )
+        if self._route_strict_guide_checkbox is not None:
+            self._route_strict_guide_checkbox.setChecked(
+                bool(config.DEFAULT_CONFIG.get("ROUTE_STRICT_GUIDE_MODE", False))
+            )
+        self._route_pointer_arrow_visible = bool(config.DEFAULT_CONFIG.get("ROUTE_POINTER_ARROW_VISIBLE", True))
+        for key, _label, default in _ROUTE_COLOR_FIELDS:
+            self._route_colors[key] = self._normalize_route_color(config.DEFAULT_CONFIG.get(key, default), default)
+        self._route_default_color = self._route_colors["ROUTE_DEFAULT_COLOR"]
+        self._sync_route_color_buttons()
+        self._reset_hotkey_to_default()
         for key, editor in self._opacity_editors.items():
             editor.setText(str(config.DEFAULT_CONFIG.get(key, 1.0)))
 

@@ -4,23 +4,47 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+
 from route_manager import (
     _GuideTarget,
     _config_opacity,
     _distance_to_segment,
     _guide_distance_label,
     _guide_target_for_player,
+    _line_color_for_style,
     _load_teleport_points,
     _nearest_segment,
     _nearest_teleport_label,
     _nearest_unvisited_node,
     _route_color_from_hex,
     RouteManager,
+    NODE_TYPE_COLLECT,
+    NODE_TYPE_TELEPORT,
+    NODE_TYPE_VIRTUAL,
 )
 
 
 def _is_13_digit_route_id(value: object) -> bool:
     return isinstance(value, str) and len(value) == 13 and value.isdigit()
+
+
+def _manager_with_visible_route(base: Path, route_id: str = "2026010101") -> RouteManager:
+    category = base / "category"
+    category.mkdir()
+    (category / "route.json").write_text(
+        json.dumps(
+            {
+                "id": route_id,
+                "name": "route",
+                "points": [{"x": 10, "y": 10}, {"x": 80, "y": 80}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manager = RouteManager(str(base))
+    manager.visibility[route_id] = True
+    return manager
 
 
 class RouteGuideTests(unittest.TestCase):
@@ -42,6 +66,65 @@ class RouteGuideTests(unittest.TestCase):
 
     def test_invalid_route_default_color_falls_back_to_blue(self) -> None:
         self.assertEqual(_route_color_from_hex("not-a-color"), (255, 209, 26))
+
+    def test_special_line_colors_use_independent_defaults(self) -> None:
+        route_color = (1, 2, 3)
+        with (
+            patch("config.ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR", False),
+            patch("config.ROUTE_TELEPORT_LINE_COLOR", "#112233"),
+            patch("config.ROUTE_GUIDE_LINE_COLOR", "#445566"),
+        ):
+            self.assertEqual(_line_color_for_style(NODE_TYPE_COLLECT, route_color), route_color)
+            self.assertEqual(_line_color_for_style(NODE_TYPE_TELEPORT, route_color), (0x33, 0x22, 0x11))
+            self.assertEqual(_line_color_for_style(NODE_TYPE_VIRTUAL, route_color), (0x66, 0x55, 0x44))
+
+    def test_special_line_colors_can_follow_route_color(self) -> None:
+        route_color = (7, 8, 9)
+        with patch("config.ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR", True):
+            self.assertEqual(_line_color_for_style(NODE_TYPE_TELEPORT, route_color), route_color)
+            self.assertEqual(_line_color_for_style(NODE_TYPE_VIRTUAL, route_color), route_color)
+
+    def test_pointer_arrow_color_is_independent(self) -> None:
+        manager = RouteManager.__new__(RouteManager)
+        with patch("config.ROUTE_POINTER_ARROW_COLOR", "#010203"):
+            self.assertEqual(manager.pointer_arrow_color(), (3, 2, 1))
+        with patch("config.ROUTE_POINTER_ARROW_COLOR", "bad"):
+            self.assertEqual(manager.pointer_arrow_color(), (0, 0, 0))
+
+    def test_pointer_arrow_visibility_reads_config(self) -> None:
+        manager = RouteManager.__new__(RouteManager)
+        with patch("config.ROUTE_POINTER_ARROW_VISIBLE", True):
+            self.assertTrue(manager.pointer_arrow_visible())
+        with patch("config.ROUTE_POINTER_ARROW_VISIBLE", False):
+            self.assertFalse(manager.pointer_arrow_visible())
+
+    def test_draw_on_skips_pointer_arrow_when_hidden(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = _manager_with_visible_route(Path(tmp))
+            manager.route_for_id("2026010101")["points"][0]["visited"] = True
+            canvas = np.zeros((180, 180, 3), dtype=np.uint8)
+
+            with (
+                patch("config.ROUTE_POINTER_ARROW_VISIBLE", False),
+                patch("route_manager._draw_spaced_direction_arrows") as draw_arrows,
+            ):
+                manager.draw_on(canvas, 0, 0, 180, player_x=0, player_y=0, auto_visit=False)
+
+            draw_arrows.assert_not_called()
+
+    def test_draw_on_draws_pointer_arrow_when_visible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = _manager_with_visible_route(Path(tmp))
+            manager.route_for_id("2026010101")["points"][0]["visited"] = True
+            canvas = np.zeros((180, 180, 3), dtype=np.uint8)
+
+            with (
+                patch("config.ROUTE_POINTER_ARROW_VISIBLE", True),
+                patch("route_manager._draw_spaced_direction_arrows") as draw_arrows,
+            ):
+                manager.draw_on(canvas, 0, 0, 180, player_x=0, player_y=0, auto_visit=False)
+
+            draw_arrows.assert_called_once()
 
     def test_config_opacity_clamps_invalid_values(self) -> None:
         with patch("config.ROUTE_VISITED_ICON_OPACITY", 0.35):
@@ -90,6 +173,8 @@ class RouteGuideTests(unittest.TestCase):
         self.assertIsNotNone(target)
         assert target is not None
         self.assertEqual(target.xy, (100.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (50.0, 0.0))
+        self.assertEqual(target.arrow_target_xy, (100.0, 0.0))
 
     def test_unvisited_segment_targets_nearest_unvisited_node(self) -> None:
         route = {
@@ -104,6 +189,148 @@ class RouteGuideTests(unittest.TestCase):
         self.assertIsNotNone(target)
         assert target is not None
         self.assertEqual(target.xy, (0.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (5.0, 0.0))
+        self.assertEqual(target.arrow_target_xy, (0.0, 0.0))
+
+    def test_unvisited_segment_can_target_nearer_end_point(self) -> None:
+        route = {
+            "points": [
+                {"x": 0, "y": 0, "visited": False},
+                {"x": 100, "y": 0, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (92.0, 4.0), 80.0, 10.0)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (100.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (92.0, 0.0))
+        self.assertEqual(target.arrow_target_xy, (100.0, 0.0))
+
+    def test_segment_outside_snap_distance_falls_back_to_player_arrow(self) -> None:
+        route = {
+            "points": [
+                {"x": 0, "y": 0, "visited": True},
+                {"x": 100, "y": 0, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (100.0, 50.0), 30.0, 10.0)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (100.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (100.0, 50.0))
+        self.assertEqual(target.arrow_target_xy, (100.0, 0.0))
+
+    def test_strict_mode_targets_first_unvisited_node_on_current_segment(self) -> None:
+        route = {
+            "points": [
+                {"x": 0, "y": 0, "visited": True},
+                {"x": 100, "y": 0, "visited": False},
+                {"x": 200, "y": 0, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (50.0, 5.0), 80.0, 10.0, strict_mode=True)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (100.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (50.0, 0.0))
+        self.assertEqual(target.arrow_target_xy, (100.0, 0.0))
+
+    def test_strict_mode_uses_current_segment_endpoint_toward_first_unvisited(self) -> None:
+        route = {
+            "points": [
+                {"x": 0, "y": 0, "visited": False},
+                {"x": 100, "y": 0, "visited": False},
+                {"x": 200, "y": 0, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (150.0, 5.0), 80.0, 10.0, strict_mode=True)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (0.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (150.0, 0.0))
+        self.assertEqual(target.arrow_target_xy, (100.0, 0.0))
+
+    def test_strict_mode_points_to_reachable_endpoint_on_later_segment(self) -> None:
+        route = {
+            "points": [
+                {"x": 0, "y": 0, "visited": False},
+                {"x": 0, "y": 1, "visited": False},
+                {"x": 0, "y": 3, "visited": False},
+                {"x": 3, "y": 4, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (1.5, 3.5), 80.0, 10.0, strict_mode=True)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (0.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (1.5, 3.5))
+        self.assertEqual(target.arrow_target_xy, (0.0, 3.0))
+
+    def test_strict_mode_points_forward_when_first_unvisited_is_after_current_segment(self) -> None:
+        route = {
+            "points": [
+                {"x": 0, "y": 0, "visited": True},
+                {"x": 100, "y": 0, "visited": True},
+                {"x": 200, "y": 0, "visited": False},
+                {"x": 300, "y": 0, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (150.0, 5.0), 80.0, 10.0, strict_mode=True)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (200.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (150.0, 0.0))
+        self.assertEqual(target.arrow_target_xy, (200.0, 0.0))
+
+    def test_strict_mode_loop_chooses_shorter_route_distance(self) -> None:
+        route = {
+            "loop": True,
+            "points": [
+                {"x": 0, "y": 0, "visited": False},
+                {"x": 100, "y": 0, "visited": False},
+                {"x": 51, "y": 10, "visited": False},
+                {"x": 0, "y": 1, "visited": False},
+            ],
+        }
+
+        target = _guide_target_for_player([route], (75.5, 5.0), 80.0, 10.0, strict_mode=True)
+
+        self.assertIsNotNone(target)
+        assert target is not None
+        self.assertEqual(target.xy, (0.0, 0.0))
+        self.assertEqual(target.arrow_start_xy, (75.5, 5.0))
+        self.assertEqual(target.arrow_target_xy, (51.0, 10.0))
+
+    def test_strict_mode_loop_tie_is_stable(self) -> None:
+        route = {
+            "loop": True,
+            "points": [
+                {"x": 0, "y": 0, "visited": False},
+                {"x": 1, "y": 0, "visited": False},
+                {"x": 0, "y": 1, "visited": False},
+            ],
+        }
+
+        first = _guide_target_for_player([route], (0.5, 0.5), 80.0, 10.0, strict_mode=True)
+        second = _guide_target_for_player([route], (0.5, 0.5), 80.0, 10.0, strict_mode=True)
+
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+        assert first is not None and second is not None
+        self.assertEqual(first.arrow_target_xy, (1.0, 0.0))
+        self.assertEqual(second.arrow_target_xy, first.arrow_target_xy)
 
     def test_visited_segment_end_falls_back_to_nearest_unvisited_node(self) -> None:
         routes = [
@@ -138,6 +365,7 @@ class RouteGuideTests(unittest.TestCase):
         assert result is not None
         self.assertEqual(result[2], 2)
         self.assertEqual(result[3], 0)
+        self.assertEqual(result[6], (0.0, 50.0))
 
     def test_distance_label_hidden_when_target_is_visible(self) -> None:
         target = _GuideTarget((75.0, 50.0), 75.0)
@@ -345,6 +573,24 @@ class RouteGuideTests(unittest.TestCase):
             self.assertIsNone(manager.point_visited("2026010101", 9))
             self.assertFalse(manager.set_point_visited("missing", 0, True))
             self.assertFalse(manager.set_point_visited("2026010101", 9, True))
+
+    def test_draw_on_can_skip_auto_visit_for_manual_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = _manager_with_visible_route(Path(tmp))
+            canvas = np.zeros((120, 120, 3), dtype=np.uint8)
+
+            manager.draw_on(canvas, 0, 0, 120, player_x=10, player_y=10, auto_visit=False)
+
+            self.assertFalse(manager.point_visited("2026010101", 0))
+
+    def test_draw_on_auto_visit_marks_nearby_route_node(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = _manager_with_visible_route(Path(tmp))
+            canvas = np.zeros((120, 120, 3), dtype=np.uint8)
+
+            manager.draw_on(canvas, 0, 0, 120, player_x=10, player_y=10, auto_visit=True)
+
+            self.assertTrue(manager.point_visited("2026010101", 0))
 
     def test_route_point_annotation_detection_accepts_type_or_type_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

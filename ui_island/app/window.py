@@ -36,6 +36,7 @@ from ..services.app_updater import (
     start_restart_update,
 )
 from ..services.annotation_preferences import normalize_type_ids
+from ..services.hotkey_config import hotkey_label, qt_event_matches_hotkey
 from ..state import HotkeyState, RouteDrawingState, RoutePanelState, TrackingState, WindowLayoutPrefs, WindowModeState
 from ..widgets import RestoreIcon
 from ..platform.win_overlay import apply_overlay_flags, set_click_through
@@ -213,6 +214,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self.setMinimumSize(self._normal_minimum_width, self._normal_minimum_height)
 
         build_window_ui(self)
+        self._refresh_hotkey_hint()
         self.window_mode_controller.sync_normal_minimum_height()
         self.window_mode_controller.sync_compact_minimum_height()
         self.setMinimumSize(self._normal_minimum_width, self._normal_minimum_height)
@@ -683,6 +685,9 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._recent_limit = self.settings_gateway.get_route_recent_limit()
         self._recent_route_names = self.recent_routes_store.load()
         self.route_panel_controller.refresh_recent_routes()
+        self._refresh_hotkey_hint()
+        self.hotkey_controller.stop_listener()
+        self.hotkey_controller.start_listener()
         self._apply_configured_window_opacity()
         self.map_view._refresh_from_last_frame()
 
@@ -808,6 +813,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         self._locked = locked
         self.lock_btn.setChecked(self._locked)
         self._update_header_button_labels()
+        self._refresh_hotkey_hint()
         self.unlock_hint_label.setVisible(self._locked)
         if self._locked:
             set_click_through(self, True)
@@ -820,6 +826,12 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
             self.setWindowOpacity(self.settings_gateway.get_window_locked_opacity())
         else:
             self.setWindowOpacity(self.settings_gateway.get_window_normal_opacity())
+
+    def _refresh_hotkey_hint(self) -> None:
+        if not hasattr(self, "unlock_hint_label"):
+            return
+        label = hotkey_label(self.settings_gateway.get_toggle_lock_hotkey())
+        self.unlock_hint_label.setText(f"快捷键 {label} 解锁")
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Wheel:
@@ -909,7 +921,7 @@ class IslandWindow(WindowStateBridgeMixin, QWidget):
         return super().eventFilter(watched, event)
 
     def keyPressEvent(self, event):
-        if event.modifiers() & Qt.AltModifier and event.key() in (Qt.Key_QuoteLeft, Qt.Key_AsciiTilde):
+        if qt_event_matches_hotkey(event, self.settings_gateway.get_toggle_lock_hotkey()):
             if self._can_toggle_lock():
                 self.toggle_lock()
             return

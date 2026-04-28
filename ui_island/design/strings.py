@@ -131,7 +131,7 @@ HEADER_START_NAV = "开始导航"
 HEADER_TERMINATE = "终止导航"
 HEADER_LOCK = "锁定"
 HEADER_UNLOCK = "解锁"
-HEADER_UNLOCK_HINT = "快捷键 Alt+~ 解锁"
+HEADER_UNLOCK_HINT = "快捷键 Alt+` 解锁"
 
 MAP_HINT = "滚轮缩放，左键拖动，双击选点"
 

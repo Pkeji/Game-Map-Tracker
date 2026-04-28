@@ -83,7 +83,7 @@ def _build_header(window, root_layout: QVBoxLayout) -> None:
     window.route_drawing_help_btn.clicked.connect(window.route_panel_controller.show_route_drawing_help)
     title_layout.addWidget(window.route_drawing_help_btn)
 
-    window.unlock_hint_label = QLabel("快捷键Alt+~解锁")
+    window.unlock_hint_label = QLabel("快捷键 Alt+` 解锁")
     window.unlock_hint_label.setObjectName("MapHint")
     window.unlock_hint_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
     window.unlock_hint_label.hide()

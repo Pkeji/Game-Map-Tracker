@@ -38,6 +38,9 @@ class SettingsGateway:
     def get_route_recent_limit(self) -> int:
         return max(0, int(getattr(config, "ROUTE_RECENT_LIMIT", 5) or 0))
 
+    def get_toggle_lock_hotkey(self):
+        return getattr(config, "TOGGLE_LOCK_HOTKEY", None)
+
     @staticmethod
     def _opacity(name: str, default: float) -> float:
         try:

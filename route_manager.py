@@ -49,12 +49,16 @@ NODE_TYPE_VIRTUAL = "virtual"
 NODE_TYPES = {NODE_TYPE_COLLECT, NODE_TYPE_TELEPORT, NODE_TYPE_VIRTUAL}
 _SPECIAL_SEGMENT_COLOR = (255, 255, 255)
 _DEFAULT_ROUTE_COLOR_HEX = "#1ad1ff"
+_DEFAULT_SPECIAL_LINE_COLOR_HEX = "#ffffff"
+_DEFAULT_POINTER_ARROW_COLOR_HEX = "#000000"
 
 
 @dataclass(frozen=True)
 class _GuideTarget:
     xy: tuple[float, float]
     distance: float
+    arrow_start_xy: tuple[float, float] | None = None
+    arrow_target_xy: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -72,20 +76,52 @@ def _color_for_key(key: str) -> tuple[int, int, int]:
 
 
 def _route_color_from_hex(value: object) -> tuple[int, int, int]:
+    return _color_from_hex(value, _DEFAULT_ROUTE_COLOR_HEX)
+
+
+def _color_from_hex(value: object, default: str) -> tuple[int, int, int]:
     raw = str(value or "").strip()
     if raw.startswith("#"):
         raw = raw[1:]
     if len(raw) != 6:
-        raw = _DEFAULT_ROUTE_COLOR_HEX[1:]
+        raw = default[1:]
     try:
         r = int(raw[0:2], 16)
         g = int(raw[2:4], 16)
         b = int(raw[4:6], 16)
     except ValueError:
-        r = int(_DEFAULT_ROUTE_COLOR_HEX[1:3], 16)
-        g = int(_DEFAULT_ROUTE_COLOR_HEX[3:5], 16)
-        b = int(_DEFAULT_ROUTE_COLOR_HEX[5:7], 16)
+        r = int(default[1:3], 16)
+        g = int(default[3:5], 16)
+        b = int(default[5:7], 16)
     return b, g, r
+
+
+def _config_color(name: str, default: str) -> tuple[int, int, int]:
+    return _color_from_hex(getattr(config, name, default), default)
+
+
+def _special_lines_follow_route_color() -> bool:
+    return bool(getattr(config, "ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR", False))
+
+
+def _pointer_arrow_visible() -> bool:
+    return bool(getattr(config, "ROUTE_POINTER_ARROW_VISIBLE", True))
+
+
+def _strict_guide_mode() -> bool:
+    return bool(getattr(config, "ROUTE_STRICT_GUIDE_MODE", False))
+
+
+def _line_color_for_style(style: str, route_color: tuple[int, int, int]) -> tuple[int, int, int]:
+    if style == NODE_TYPE_TELEPORT:
+        if _special_lines_follow_route_color():
+            return route_color
+        return _config_color("ROUTE_TELEPORT_LINE_COLOR", _DEFAULT_SPECIAL_LINE_COLOR_HEX)
+    if style == NODE_TYPE_VIRTUAL:
+        if _special_lines_follow_route_color():
+            return route_color
+        return _config_color("ROUTE_GUIDE_LINE_COLOR", _DEFAULT_SPECIAL_LINE_COLOR_HEX)
+    return route_color
 
 
 _best_insertion_index = best_insertion_index
@@ -196,7 +232,7 @@ def _draw_styled_line(
         segment_end = min(distance, cursor + dash_len)
         p1 = (int(round(sx + ux * cursor)), int(round(sy + uy * cursor)))
         p2 = (int(round(sx + ux * segment_end)), int(round(sy + uy * segment_end)))
-        cv2.line(canvas, p1, p2, _SPECIAL_SEGMENT_COLOR, thickness, cv2.LINE_AA)
+        cv2.line(canvas, p1, p2, color, thickness, cv2.LINE_AA)
         cursor += dash_len + gap_len
 
 
@@ -418,8 +454,8 @@ def _nearest_segment(
     routes: Iterable[dict],
     player_xy: tuple[float, float],
     threshold: float,
-) -> tuple[float, dict, int, int, dict, dict] | None:
-    best: tuple[float, dict, int, int, dict, dict] | None = None
+) -> tuple[float, dict, int, int, dict, dict, tuple[float, float], tuple[float, float], tuple[float, float]] | None:
+    best: tuple[float, dict, int, int, dict, dict, tuple[float, float], tuple[float, float], tuple[float, float]] | None = None
     for route in routes:
         points = route.get("points") or []
         for start_index, end_index, start, end in _iter_route_segments(points, bool(route.get("loop"))):
@@ -427,12 +463,97 @@ def _nearest_segment(
             end_xy = _point_xy(end)
             if start_xy is None or end_xy is None:
                 continue
-            dist, _projection = _distance_to_segment(player_xy, start_xy, end_xy)
+            dist, projection = _distance_to_segment(player_xy, start_xy, end_xy)
             if dist > threshold:
                 continue
             if best is None or dist < best[0]:
-                best = (dist, route, start_index, end_index, start, end)
+                best = (dist, route, start_index, end_index, start, end, projection, start_xy, end_xy)
     return best
+
+
+def _first_unvisited_node(route: dict, player_xy: tuple[float, float]) -> tuple[int, tuple[float, float], float] | None:
+    for index, point in enumerate(route.get("points") or []):
+        if point.get("visited", False):
+            continue
+        xy = _point_xy(point)
+        if xy is None:
+            continue
+        return index, xy, math.hypot(xy[0] - player_xy[0], xy[1] - player_xy[1])
+    return None
+
+
+def _segment_length_between(points: list[dict], start_index: int, end_index: int) -> float:
+    start_xy = _point_xy(points[start_index])
+    end_xy = _point_xy(points[end_index])
+    if start_xy is None or end_xy is None:
+        return math.inf
+    return math.hypot(end_xy[0] - start_xy[0], end_xy[1] - start_xy[1])
+
+
+def _route_distance_between_indices(route: dict, start_index: int, target_index: int) -> float:
+    points = route.get("points") or []
+    count = len(points)
+    if start_index == target_index:
+        return 0.0
+    if not (0 <= start_index < count and 0 <= target_index < count):
+        return math.inf
+
+    if not bool(route.get("loop")):
+        low = min(start_index, target_index)
+        high = max(start_index, target_index)
+        return sum(_segment_length_between(points, index, index + 1) for index in range(low, high))
+
+    if count < 2:
+        return math.inf
+    edge_lengths = [
+        _segment_length_between(points, index, (index + 1) % count)
+        for index in range(count)
+    ]
+    forward = 0.0
+    index = start_index
+    while index != target_index:
+        forward += edge_lengths[index]
+        index = (index + 1) % count
+    backward = 0.0
+    index = target_index
+    while index != start_index:
+        backward += edge_lengths[index]
+        index = (index + 1) % count
+    return min(forward, backward)
+
+
+def _route_index_hops(route: dict, start_index: int, target_index: int) -> int:
+    points = route.get("points") or []
+    count = len(points)
+    if not (0 <= start_index < count and 0 <= target_index < count):
+        return 10**9
+    if bool(route.get("loop")) and count > 0:
+        forward = (target_index - start_index) % count
+        backward = (start_index - target_index) % count
+        return min(forward, backward)
+    return abs(start_index - target_index)
+
+
+def _strict_arrow_target_for_segment(
+    route: dict,
+    start_index: int,
+    end_index: int,
+    target_index: int,
+    start_xy: tuple[float, float],
+    end_xy: tuple[float, float],
+) -> tuple[float, float]:
+    start_distance = _route_distance_between_indices(route, start_index, target_index)
+    end_distance = _route_distance_between_indices(route, end_index, target_index)
+    if start_distance < end_distance:
+        return start_xy
+    if end_distance < start_distance:
+        return end_xy
+
+    start_hops = _route_index_hops(route, start_index, target_index)
+    end_hops = _route_index_hops(route, end_index, target_index)
+    if start_hops <= end_hops:
+        return start_xy
+    return end_xy
 
 
 def _guide_target_for_player(
@@ -440,23 +561,42 @@ def _guide_target_for_player(
     player_xy: tuple[float, float],
     node_distance: float,
     segment_distance: float,
+    strict_mode: bool = False,
 ) -> _GuideTarget | None:
     route_list = list(routes)
     nearest_node = _nearest_unvisited_node(route_list, player_xy)
     nearest_segment = _nearest_segment(route_list, player_xy, segment_distance)
 
     if nearest_segment is not None:
-        _dist, _route, _start_index, _end_index, start, end = nearest_segment
+        _dist, route, start_index, end_index, start, end, projection, start_xy, end_xy = nearest_segment
+        if strict_mode:
+            first_unvisited = _first_unvisited_node(route, player_xy)
+            if first_unvisited is not None:
+                target_index, target_xy, target_distance = first_unvisited
+                arrow_target = _strict_arrow_target_for_segment(
+                    route,
+                    start_index,
+                    end_index,
+                    target_index,
+                    start_xy,
+                    end_xy,
+                )
+                return _GuideTarget(target_xy, target_distance, projection, arrow_target)
+
         start_visited = bool(start.get("visited", False))
         end_visited = bool(end.get("visited", False))
-        end_xy = _point_xy(end)
-        if start_visited and not end_visited and end_xy is not None:
-            return _GuideTarget(end_xy, math.hypot(end_xy[0] - player_xy[0], end_xy[1] - player_xy[1]))
-        if not start_visited and not end_visited and nearest_node is not None:
-            return _GuideTarget(nearest_node[1], nearest_node[0])
+        if start_visited and not end_visited:
+            return _GuideTarget(end_xy, math.hypot(end_xy[0] - player_xy[0], end_xy[1] - player_xy[1]), projection, end_xy)
+        if not start_visited and end_visited:
+            return _GuideTarget(start_xy, math.hypot(start_xy[0] - player_xy[0], start_xy[1] - player_xy[1]), projection, start_xy)
+        if not start_visited and not end_visited:
+            start_dist = math.hypot(start_xy[0] - projection[0], start_xy[1] - projection[1])
+            end_dist = math.hypot(end_xy[0] - projection[0], end_xy[1] - projection[1])
+            target_xy = start_xy if start_dist <= end_dist else end_xy
+            return _GuideTarget(target_xy, math.hypot(target_xy[0] - player_xy[0], target_xy[1] - player_xy[1]), projection, target_xy)
 
     if nearest_node is not None and nearest_node[0] > node_distance:
-        return _GuideTarget(nearest_node[1], nearest_node[0])
+        return _GuideTarget(nearest_node[1], nearest_node[0], player_xy, nearest_node[1])
     return None
 
 
@@ -547,6 +687,7 @@ def _draw_spaced_direction_arrows(
     vy1: int,
     spacing: int,
     size: int,
+    color: tuple[int, int, int] = _GUIDE_COLOR,
 ) -> None:
     sx = start_xy[0] - vx1
     sy = start_xy[1] - vy1
@@ -575,7 +716,7 @@ def _draw_spaced_direction_arrows(
             canvas,
             tail,
             tip,
-            _GUIDE_COLOR,
+            color,
             2,
             cv2.LINE_AA,
             tipLength=0.65,
@@ -693,6 +834,15 @@ class RouteManager:
         if key not in self._color_cache:
             self._color_cache[key] = _color_for_key(key)
         return self._color_cache[key]
+
+    def pointer_arrow_color(self) -> tuple[int, int, int]:
+        return _config_color("ROUTE_POINTER_ARROW_COLOR", _DEFAULT_POINTER_ARROW_COLOR_HEX)
+
+    def pointer_arrow_visible(self) -> bool:
+        return _pointer_arrow_visible()
+
+    def route_line_color(self, style: str, route_color: tuple[int, int, int]) -> tuple[int, int, int]:
+        return _line_color_for_style(style, route_color)
 
     def teleport_points(self) -> list[_TeleportPoint]:
         if self._teleport_points_cache is None:
@@ -1040,6 +1190,7 @@ class RouteManager:
             (float(player_x), float(player_y)),
             _config_int("ROUTE_GUIDE_NODE_DISTANCE", 80),
             _config_int("ROUTE_GUIDE_SEGMENT_DISTANCE", 35),
+            _strict_guide_mode(),
         )
         label = _guide_distance_label(
             target,
@@ -1713,6 +1864,7 @@ class RouteManager:
         player_x=None,
         player_y=None,
         drawing_route: dict | None = None,
+        auto_visit: bool = True,
     ) -> None:
         local_player = None
         if player_x is not None and player_y is not None:
@@ -1758,12 +1910,13 @@ class RouteManager:
                 if start is None or end is None:
                     continue
                 next_type = _node_type(points[index + 1] if index + 1 < len(points) else None)
-                _draw_styled_line(canvas, start, end, color, style=next_type)
+                _draw_styled_line(canvas, start, end, self.route_line_color(next_type, color), style=next_type)
             if route.get("loop") and len(local_points) > 2:
                 start = local_points[-1]
                 end = local_points[0]
                 if start is not None and end is not None:
-                    _draw_styled_line(canvas, start, end, color, style=_node_type(points[0] if points else None))
+                    style = _node_type(points[0] if points else None)
+                    _draw_styled_line(canvas, start, end, self.route_line_color(style, color), style=style)
 
         for _route, _color, local_points, points, is_drawing_route in draw_records:
             if is_drawing_route:
@@ -1775,7 +1928,7 @@ class RouteManager:
                     continue
 
                 visited = point_data.get("visited", False)
-                if not visited and local_player is not None:
+                if auto_visit and not visited and local_player is not None:
                     dist = math.hypot(local_point[0] - local_player[0], local_point[1] - local_player[1])
                     if dist < _CLOSE_THRESHOLD:
                         point_data["visited"] = True
@@ -1786,16 +1939,18 @@ class RouteManager:
                 (float(player_x), float(player_y)),
                 _config_int("ROUTE_GUIDE_NODE_DISTANCE", 80),
                 _config_int("ROUTE_GUIDE_SEGMENT_DISTANCE", 35),
+                _strict_guide_mode(),
             )
-            if target is not None:
+            if target is not None and self.pointer_arrow_visible():
                 _draw_spaced_direction_arrows(
                     canvas,
-                    (float(player_x), float(player_y)),
-                    target.xy,
+                    target.arrow_start_xy or (float(player_x), float(player_y)),
+                    target.arrow_target_xy or target.xy,
                     vx1=vx1,
                     vy1=vy1,
                     spacing=_config_int("ROUTE_GUIDE_POINTER_SPACING", 28, 8),
                     size=_config_int("ROUTE_GUIDE_POINTER_SIZE", 10, 5),
+                    color=self.pointer_arrow_color(),
                 )
         for _route, color, local_points, points, _is_drawing_route in draw_records:
             for index, (local_point, point_data) in enumerate(zip(local_points, points)):

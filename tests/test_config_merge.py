@@ -63,6 +63,12 @@ class ConfigMergeTests(unittest.TestCase):
 
         self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], True)
         self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#1ad1ff")
+        self.assertEqual(merged["ROUTE_TELEPORT_LINE_COLOR"], "#ffffff")
+        self.assertEqual(merged["ROUTE_GUIDE_LINE_COLOR"], "#ffffff")
+        self.assertEqual(merged["ROUTE_POINTER_ARROW_COLOR"], "#000000")
+        self.assertEqual(merged["ROUTE_POINTER_ARROW_VISIBLE"], True)
+        self.assertEqual(merged["ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR"], False)
+        self.assertEqual(merged["ROUTE_STRICT_GUIDE_MODE"], False)
         self.assertEqual(merged["ROUTE_VISITED_POINT_OPACITY"], 1.0)
         self.assertEqual(merged["ROUTE_VISITED_ICON_OPACITY"], 0.35)
         self.assertEqual(merged["WINDOW_LOCKED_OPACITY"], 0.78)
@@ -72,24 +78,54 @@ class ConfigMergeTests(unittest.TestCase):
             "CONFIG_VERSION": 2,
             "ROUTE_MULTI_COLOR_ENABLED": False,
             "ROUTE_DEFAULT_COLOR": "#abc123",
+            "ROUTE_TELEPORT_LINE_COLOR": "#ffffff",
+            "ROUTE_GUIDE_LINE_COLOR": "#eeeeee",
+            "ROUTE_POINTER_ARROW_COLOR": "#000000",
+            "ROUTE_POINTER_ARROW_VISIBLE": False,
+            "ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR": True,
+            "ROUTE_STRICT_GUIDE_MODE": True,
         }
         merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
 
         self.assertEqual(repaired, [])
         self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], False)
         self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#abc123")
+        self.assertEqual(merged["ROUTE_TELEPORT_LINE_COLOR"], "#ffffff")
+        self.assertEqual(merged["ROUTE_GUIDE_LINE_COLOR"], "#eeeeee")
+        self.assertEqual(merged["ROUTE_POINTER_ARROW_COLOR"], "#000000")
+        self.assertEqual(merged["ROUTE_POINTER_ARROW_VISIBLE"], False)
+        self.assertEqual(merged["ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR"], True)
+        self.assertEqual(merged["ROUTE_STRICT_GUIDE_MODE"], True)
 
         user = {
             "CONFIG_VERSION": 2,
             "ROUTE_MULTI_COLOR_ENABLED": "false",
             "ROUTE_DEFAULT_COLOR": 123,
+            "ROUTE_TELEPORT_LINE_COLOR": 123,
+            "ROUTE_GUIDE_LINE_COLOR": [],
+            "ROUTE_POINTER_ARROW_COLOR": {},
+            "ROUTE_POINTER_ARROW_VISIBLE": "no",
+            "ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR": "yes",
+            "ROUTE_STRICT_GUIDE_MODE": "yes",
         }
         merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
 
         self.assertEqual(merged["ROUTE_MULTI_COLOR_ENABLED"], True)
         self.assertEqual(merged["ROUTE_DEFAULT_COLOR"], "#1ad1ff")
+        self.assertEqual(merged["ROUTE_TELEPORT_LINE_COLOR"], "#ffffff")
+        self.assertEqual(merged["ROUTE_GUIDE_LINE_COLOR"], "#ffffff")
+        self.assertEqual(merged["ROUTE_POINTER_ARROW_COLOR"], "#000000")
+        self.assertEqual(merged["ROUTE_POINTER_ARROW_VISIBLE"], True)
+        self.assertEqual(merged["ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR"], False)
+        self.assertEqual(merged["ROUTE_STRICT_GUIDE_MODE"], False)
         self.assertIn("ROUTE_MULTI_COLOR_ENABLED", repaired)
         self.assertIn("ROUTE_DEFAULT_COLOR", repaired)
+        self.assertIn("ROUTE_TELEPORT_LINE_COLOR", repaired)
+        self.assertIn("ROUTE_GUIDE_LINE_COLOR", repaired)
+        self.assertIn("ROUTE_POINTER_ARROW_COLOR", repaired)
+        self.assertIn("ROUTE_POINTER_ARROW_VISIBLE", repaired)
+        self.assertIn("ROUTE_SPECIAL_LINES_FOLLOW_ROUTE_COLOR", repaired)
+        self.assertIn("ROUTE_STRICT_GUIDE_MODE", repaired)
 
         user = {
             "CONFIG_VERSION": 2,
@@ -109,11 +145,50 @@ class ConfigMergeTests(unittest.TestCase):
         self.assertIn("WINDOW_LOCKED_OPACITY", repaired)
         self.assertIn("WINDOW_NORMAL_OPACITY", repaired)
 
+    def test_toggle_lock_hotkey_settings_are_merged_and_repaired(self) -> None:
+        merged, _repaired = config.merge_config_payload(config.DEFAULT_CONFIG, {"CONFIG_VERSION": 2})
+
+        self.assertEqual(
+            merged["TOGGLE_LOCK_HOTKEY"],
+            {
+                "sequence": "Alt+`",
+                "label": "Alt+`",
+                "modifiers": ["Alt"],
+                "key": "QuoteLeft",
+                "vk": 0xC0,
+            },
+        )
+
+        user = {
+            "CONFIG_VERSION": 2,
+            "TOGGLE_LOCK_HOTKEY": {
+                "sequence": "Ctrl+Alt+L",
+                "label": "Ctrl+Alt+L",
+                "modifiers": ["Ctrl", "Alt"],
+                "key": "L",
+                "vk": 0x4C,
+            },
+        }
+        merged, repaired = config.merge_config_payload(config.DEFAULT_CONFIG, user)
+
+        self.assertEqual(repaired, [])
+        self.assertEqual(merged["TOGGLE_LOCK_HOTKEY"]["label"], "Ctrl+Alt+L")
+        self.assertEqual(merged["TOGGLE_LOCK_HOTKEY"]["vk"], 0x4C)
+
+        merged, repaired = config.merge_config_payload(
+            config.DEFAULT_CONFIG,
+            {"CONFIG_VERSION": 2, "TOGGLE_LOCK_HOTKEY": "Alt+`"},
+        )
+
+        self.assertEqual(merged["TOGGLE_LOCK_HOTKEY"], config.DEFAULT_CONFIG["TOGGLE_LOCK_HOTKEY"])
+        self.assertIn("TOGGLE_LOCK_HOTKEY", repaired)
+
     def test_runtime_remote_config_fields_are_removed_from_config_json(self) -> None:
         user = {
             "CONFIG_VERSION": 2,
             "QUARK_DOWNLOAD_URL": "https://example.com/quark",
             "ROUTE_RESOURCE_URL": "https://example.com/routes",
+            "DOCUMENTATION_URL": "https://example.com/docs",
             "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
             "FEEDBACK_QQ_GROUP": "123456789",
             "APP_UPDATE_MANIFEST_URL": "https://example.com/app-manifest.json",
@@ -123,12 +198,14 @@ class ConfigMergeTests(unittest.TestCase):
 
         self.assertNotIn("QUARK_DOWNLOAD_URL", merged)
         self.assertNotIn("ROUTE_RESOURCE_URL", merged)
+        self.assertNotIn("DOCUMENTATION_URL", merged)
         self.assertNotIn("FEEDBACK_BILIBILI_URL", merged)
         self.assertNotIn("FEEDBACK_QQ_GROUP", merged)
         self.assertNotIn("APP_UPDATE_MANIFEST_URL", merged)
         self.assertNotIn("APP_UPDATE_MANIFEST_URLS", merged)
         self.assertIn("QUARK_DOWNLOAD_URL", repaired)
         self.assertIn("ROUTE_RESOURCE_URL", repaired)
+        self.assertIn("DOCUMENTATION_URL", repaired)
         self.assertIn("FEEDBACK_BILIBILI_URL", repaired)
         self.assertIn("FEEDBACK_QQ_GROUP", repaired)
         self.assertIn("APP_UPDATE_MANIFEST_URL", repaired)

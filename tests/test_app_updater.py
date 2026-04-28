@@ -155,7 +155,7 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertEqual(result.manifest.source_base_url, "https://github.test/update/")
 
     def test_check_app_update_uses_hardcoded_sources_when_config_has_no_sources(self) -> None:
-        gitee_url = "https://raw.giteeusercontent.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json"
+        gitee_url = "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs/update/app-manifest.json"
         github_url = "https://greenjiao.github.io/Game-Map-Tracker/update/app-manifest.json"
         session = _SequenceSession(
             {
@@ -182,6 +182,7 @@ class AppUpdaterTests(unittest.TestCase):
                         "runtime_config": {
                             "QUARK_DOWNLOAD_URL": "https://pan.example/download",
                             "ROUTE_RESOURCE_URL": "https://example.test/routes",
+                            "DOCUMENTATION_URL": "https://example.test/docs",
                             "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
                             "FEEDBACK_QQ_GROUP": "123456789",
                             "APP_UPDATE_MANIFEST_URL": "https://legacy.test/app-manifest.json",
@@ -199,6 +200,8 @@ class AppUpdaterTests(unittest.TestCase):
             config, "ROUTE_RESOURCE_URL", ""
         ), patch.object(config, "FEEDBACK_BILIBILI_URL", ""), patch.object(
             config, "FEEDBACK_QQ_GROUP", ""
+        ), patch.object(
+            config, "DOCUMENTATION_URL", ""
         ), patch.object(config, "APP_UPDATE_MANIFEST_URLS", []), patch.object(
             config, "save_config"
         ) as save_config:
@@ -210,6 +213,7 @@ class AppUpdaterTests(unittest.TestCase):
             self.assertTrue(result.ok)
             self.assertEqual(config.QUARK_DOWNLOAD_URL, "https://pan.example/download")
             self.assertEqual(config.ROUTE_RESOURCE_URL, "https://example.test/routes")
+            self.assertEqual(config.DOCUMENTATION_URL, "https://example.test/docs")
             self.assertEqual(config.FEEDBACK_BILIBILI_URL, "https://space.bilibili.com/example")
             self.assertEqual(config.FEEDBACK_QQ_GROUP, "123456789")
             self.assertEqual(
@@ -303,6 +307,7 @@ class AppUpdaterTests(unittest.TestCase):
                     {
                         "QUARK_DOWNLOAD_URL": " https://pan.example/download ",
                         "ROUTE_RESOURCE_URL": "https://example.test/routes",
+                        "DOCUMENTATION_URL": "https://example.test/docs",
                         "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
                         "FEEDBACK_QQ_GROUP": "123456789",
                         "APP_UPDATE_MANIFEST_URL": "https://gitee.test/app-manifest.json",
@@ -335,6 +340,7 @@ class AppUpdaterTests(unittest.TestCase):
             {
                 "QUARK_DOWNLOAD_URL": "https://pan.example/download",
                 "ROUTE_RESOURCE_URL": "https://example.test/routes",
+                "DOCUMENTATION_URL": "https://example.test/docs",
                 "FEEDBACK_BILIBILI_URL": "https://space.bilibili.com/example",
                 "FEEDBACK_QQ_GROUP": "123456789",
                 "APP_UPDATE_MANIFEST_URLS": [
@@ -368,6 +374,7 @@ class AppUpdaterTests(unittest.TestCase):
                     {
                         "QUARK_DOWNLOAD_URL": ["https://wrong.example"],
                         "ROUTE_RESOURCE_URL": 123,
+                        "DOCUMENTATION_URL": ["https://wrong.example/docs"],
                         "FEEDBACK_BILIBILI_URL": None,
                         "FEEDBACK_QQ_GROUP": {},
                         "APP_UPDATE_MANIFEST_URL": False,

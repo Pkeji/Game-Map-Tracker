@@ -63,6 +63,7 @@ class MapView(QWidget):
         self._drawing_context: dict | None = None
         self._last_player: tuple[int, int] | None = None
         self._last_state: TrackState | None = None
+        self._last_auto_visit = True
         self._last_minimap: np.ndarray | None = None
         self._ARROW_HALF = 16   # 从小地图中心裁取 ±16px 的箭头区域
         self._arrow_alpha = self._build_arrow_alpha(self._ARROW_HALF)
@@ -86,13 +87,14 @@ class MapView(QWidget):
         self.set_center_locked(True)
         self._refresh_from_last_frame()
 
-    def preview_relocate(self, x: int, y: int, state: TrackState) -> None:
+    def preview_relocate(self, x: int, y: int, state: TrackState, auto_visit: bool = False) -> None:
         self._last_player = (x, y)
         self._last_state = state
+        self._last_auto_visit = bool(auto_visit)
         self._zoom = max(self._zoom, self._min_zoom_for_full_map())
         self._center_locked = True
         self._view_center = QPointF(float(x), float(y))
-        self._render_frame(state, x, y)
+        self._render_frame(state, x, y, auto_visit=auto_visit)
 
     def focus_map_position(self, x: int, y: int) -> None:
         self._center_locked = False
@@ -111,14 +113,15 @@ class MapView(QWidget):
 
         self._last_state = state
         self._last_player = (cx, cy)
+        self._last_auto_visit = True
         if minimap_bgr is not None:
             self._last_minimap = minimap_bgr
         if self._center_locked or self._view_center is None:
             self._view_center = QPointF(float(cx), float(cy))
 
-        self._render_frame(state, cx, cy)
+        self._render_frame(state, cx, cy, auto_visit=True)
 
-    def _render_frame(self, state: TrackState, cx: int, cy: int) -> None:
+    def _render_frame(self, state: TrackState, cx: int, cy: int, auto_visit: bool = True) -> None:
         if self._base_map is None or self._view_center is None:
             return
 
@@ -141,6 +144,7 @@ class MapView(QWidget):
             draw_player_x,
             draw_player_y,
             drawing_route=drawing_route,
+            auto_visit=auto_visit,
         )
         if drawing_active:
             self.guide_hint_changed.emit(None)
@@ -239,7 +243,12 @@ class MapView(QWidget):
     def _refresh_from_last_frame(self) -> None:
         if self._last_state is None or self._last_player is None:
             return
-        self._render_frame(self._last_state, self._last_player[0], self._last_player[1])
+        self._render_frame(
+            self._last_state,
+            self._last_player[0],
+            self._last_player[1],
+            auto_visit=self._last_auto_visit,
+        )
 
     def _draw_rect(self) -> QRectF:
         if self._pixmap is None:

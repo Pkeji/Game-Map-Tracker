@@ -422,6 +422,19 @@ QLineEdit:focus {{
     border: 1px solid rgba(10, 132, 255, 0.65);
     background: {ACCENT_SOFT};
 }}
+QKeySequenceEdit {{
+    background: rgba(255, 255, 255, 0.08);
+    color: {FG};
+    border: 1px solid {BORDER};
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11px;
+    selection-background-color: {ACCENT};
+}}
+QKeySequenceEdit:focus {{
+    border: 1px solid rgba(10, 132, 255, 0.65);
+    background: {ACCENT_SOFT};
+}}
 QPlainTextEdit {{
     background: rgba(255, 255, 255, 0.08);
     color: {FG};

@@ -127,7 +127,6 @@ if (-not $Channel.Trim()) {
 $GiteeRawDocsRoot = "https://gitee.com/qingjiao123/Game-Map-Tracker/raw/main/docs"
 $GitHubPagesRoot = "https://greenjiao.github.io/Game-Map-Tracker"
 $ReleasePathspec = "docs/$Channel"
-$ExcludedReleaseItems = @("routes", "tools")
 $DefaultResourceBaseUrl = "$GiteeRawDocsRoot/$Channel/"
 if (-not $BaseUrl.Trim()) {
     $BaseUrl = $DefaultResourceBaseUrl
@@ -204,7 +203,6 @@ Write-Host "  提交推送：$ShouldCommitAndPush"
 Write-Host "  发布通道：$Channel"
 Write-Host "  发布目录：$ReleasePathspec"
 Write-Host "  资源 URL 前缀：$BaseUrl"
-Write-Host "  跳过目录：$($ExcludedReleaseItems -join ', ')"
 Write-Host ""
 
 if ($ShouldBuild) {
@@ -227,11 +225,7 @@ if (-not (Test-Path $DistDir)) {
 Write-Host "重建 $ReleasePathspec..."
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $UpdateDir
 New-Item -ItemType Directory -Force $UpdateDir | Out-Null
-Get-ChildItem -LiteralPath $DistDir -Force | Where-Object {
-    $_.Name -notin $ExcludedReleaseItems
-} | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $UpdateDir -Recurse -Force
-}
+Copy-Item (Join-Path $DistDir "*") $UpdateDir -Recurse -Force
 
 Write-Host "生成更新清单..."
 $manifestArgs = @(
